@@ -43,6 +43,49 @@ export async function fetchAllNotes() {
   return data
 }
 
+export async function fetchOwnDailyReports(userId) {
+  const { data, error } = await supabase
+    .from('daily_reports')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function fetchTeamRanking() {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, name, username, performance(commission, contestations_done, rescheduling_done)')
+    .eq('role', 'bko')
+  if (error) throw error
+  return data
+    .map((p) => ({ ...p, performance: p.performance ?? null }))
+    .sort((a, b) => Number(b.performance?.commission || 0) - Number(a.performance?.commission || 0))
+}
+
+export async function fetchAllTeams() {
+  const { data, error } = await supabase.from('teams').select('id, name').order('name')
+  if (error) throw error
+  return data
+}
+
+export async function fetchTeamMessages(teamId) {
+  const { data, error } = await supabase
+    .from('team_messages')
+    .select('*')
+    .eq('team_id', teamId)
+    .order('created_at', { ascending: false })
+    .limit(100)
+  if (error) throw error
+  return data
+}
+
+export async function postTeamMessage(teamId, message) {
+  const { error } = await supabase.rpc('post_team_message', { p_team_id: teamId, p_message: message })
+  if (error) throw new Error(error.message || 'Falha ao enviar mensagem.')
+}
+
 // ---------- escrita (supervisor apenas — RLS também garante isso no banco) ----------
 
 export async function updatePerformance(userId, patch) {
@@ -76,6 +119,51 @@ export async function addNote(userId, note) {
 export async function deleteNote(noteId) {
   const { error } = await supabase.from('notes').delete().eq('id', noteId)
   if (error) throw error
+}
+
+// ---------- registro diário (só reagendamento — contestação agora exige aprovação) ----------
+
+export async function submitDailyReport(reagendamentos) {
+  const { error } = await supabase.rpc('submit_daily_report', { p_reagendamentos: reagendamentos })
+  if (error) throw new Error(error.message || 'Falha ao enviar registro diário.')
+}
+
+// ---------- contestações (fluxo de aprovação) ----------
+
+export async function submitContestacao(custCode, observacao) {
+  const { error } = await supabase.rpc('submit_contestacao', {
+    p_cust_code: custCode,
+    p_observacao: observacao || '',
+  })
+  if (error) throw new Error(error.message || 'Falha ao enviar contestação.')
+}
+
+export async function decideContestacao(id, status, motivo) {
+  const { error } = await supabase.rpc('decide_contestacao', {
+    p_id: id,
+    p_status: status,
+    p_motivo: motivo || null,
+  })
+  if (error) throw new Error(error.message || 'Falha ao registrar decisão.')
+}
+
+export async function fetchOwnContestacoes(userId) {
+  const { data, error } = await supabase
+    .from('contestacoes')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function fetchTeamContestacoes() {
+  const { data, error } = await supabase
+    .from('contestacoes')
+    .select('*, profiles!contestacoes_user_id_fkey(name)')
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data
 }
 
 export { usernameToEmail }

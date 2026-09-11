@@ -4,50 +4,44 @@
 @tailwind components;
 @tailwind utilities;
 
-html {
-  scroll-behavior: smooth;
-}
-
 body {
   @apply bg-paper text-ink antialiased;
   font-family: 'Inter', system-ui, sans-serif;
 }
 
 a {
-  color: #d81f2a;
+  color: theme('colors.brand.600');
 }
 a:hover {
-  color: #a5121c;
+  color: theme('colors.brand.700');
 }
 
 input:focus-visible,
 button:focus-visible {
-  outline: 2px solid #d81f2a;
+  outline: 2px solid theme('colors.brand.500');
   outline-offset: 2px;
 }
 input::placeholder {
-  color: #a9aebb;
+  color: theme('colors.subtle');
 }
 
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* usadas só na tela de login — o olho que vigia */
 @keyframes bkoRise {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: none; }
 }
-@keyframes bkoSweep {
-  from { transform: scaleX(0); }
-  to { transform: scaleX(1); }
-}
-@keyframes bkoGlowRing {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(216, 31, 42, .28); }
-  50% { box-shadow: 0 0 0 10px rgba(216, 31, 42, 0); }
-}
 @keyframes bkoGlowBtn {
-  0%, 100% { box-shadow: 0 8px 20px rgba(216, 31, 42, .28); }
-  50% { box-shadow: 0 12px 34px rgba(216, 31, 42, .5); }
-}
-@keyframes bkoFloat {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+  0%, 100% { box-shadow: 0 8px 20px rgba(180, 35, 24, .28); }
+  50% { box-shadow: 0 12px 34px rgba(180, 35, 24, .5); }
 }
 @keyframes bkoFloatEye {
   0%, 100% { transform: translateY(0); }
@@ -68,114 +62,141 @@ input::placeholder {
 }
 
 @layer components {
-  .bg-glow {
-    background-image: radial-gradient(1200px 500px at 15% -10%, #ffe9ea 0%, rgba(255, 233, 234, 0) 60%);
-  }
-
+  /* ---------- surfaces ---------- */
   .card {
-    @apply rounded-xl2 border border-line bg-white shadow-card transition-all duration-200;
-  }
-  .card:hover {
-    @apply shadow-cardHover;
-    border-color: #f0b8bc;
-    transform: translateY(-5px);
+    @apply rounded-lg2 border border-line bg-surface shadow-card;
   }
 
-  .hero-card {
-    @apply rounded-xl2 text-white shadow-hero transition-all duration-200;
-    background: linear-gradient(150deg, #e2242f, #a5121c);
+  .stat-card {
+    @apply flex flex-col gap-2 rounded-lg2 border border-line bg-surface p-5 shadow-card;
   }
-  .hero-card:hover {
-    @apply shadow-heroHover;
-    transform: translateY(-4px);
+  .stat-card .stat-label {
+    @apply text-xs font-medium uppercase tracking-wide text-muted;
+  }
+  .stat-card .stat-value {
+    @apply text-[26px] font-semibold leading-none text-ink;
   }
 
+  /* ---------- buttons ---------- */
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium transition-colors duration-150 disabled:opacity-50 disabled:cursor-not-allowed;
   }
   .btn-primary {
-    @apply btn text-white;
-    background: linear-gradient(150deg, #e2242f, #b0141e);
-  }
-  .btn-primary:hover:not(:disabled) {
-    transform: translateY(-2px);
-    filter: brightness(1.07);
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
   }
   .btn-ghost {
-    @apply btn border border-line bg-white text-ink;
+    @apply btn border border-line bg-surface text-ink hover:bg-paper;
   }
-  .btn-ghost:hover {
-    @apply bg-brand-50;
+  .btn-danger {
+    @apply btn bg-bad-text text-white hover:opacity-90;
+  }
+  .btn-success {
+    @apply btn bg-good-text text-white hover:opacity-90;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
   }
 
+  /* ---------- forms ---------- */
   .field-label {
-    @apply mb-2 block text-xs font-semibold uppercase tracking-widest text-muted;
+    @apply mb-1.5 block text-xs font-medium text-muted;
   }
   .field-input {
-    @apply w-full rounded-[11px] border border-line bg-[#fbfbfc] px-4 py-3.5 text-sm text-ink transition-all duration-200;
-  }
-  .field-input:hover {
-    border-color: #f0b8bc;
+    @apply w-full rounded-md border border-line bg-surface px-3 py-2 text-sm text-ink transition-colors duration-150;
   }
   .field-input:focus {
-    @apply outline-none bg-white border-brand-500;
-    box-shadow: 0 0 0 4px rgba(216, 31, 42, .1);
+    @apply outline-none border-brand-500 shadow-focus;
   }
 
+  /* ---------- nav / tabs (BKO uses lightweight pill tabs) ---------- */
   .pill-tabs {
-    @apply inline-flex items-center gap-2.5 rounded-2xl border border-line bg-white p-1.5 shadow-card;
+    @apply inline-flex flex-wrap items-center gap-1 rounded-md border border-line bg-surface p-1;
   }
   .pill-tab {
-    @apply rounded-[10px] px-6 py-3 text-sm font-medium text-label transition-all duration-200;
+    @apply rounded px-3.5 py-1.5 text-sm font-medium text-muted transition-colors duration-150;
   }
   .pill-tab:hover:not(.active) {
-    @apply bg-brand-50 text-brand-500;
-    transform: translateY(-2px);
+    @apply bg-paper text-ink;
   }
   .pill-tab.active {
-    @apply font-semibold text-white;
-    background: linear-gradient(150deg, #e2242f, #c0161f);
-    animation: bkoGlowRing 3.2s ease-in-out infinite;
+    @apply bg-brand-600 font-semibold text-white;
   }
 
+  /* ---------- progress ---------- */
   .progress-track {
-    @apply block overflow-hidden rounded-full;
+    @apply block overflow-hidden rounded-full bg-divider;
     height: 6px;
-    background: #f3f4f7;
   }
   .progress-fill {
-    @apply block h-full rounded-full;
+    @apply block h-full rounded-full bg-brand-600;
     transform-origin: left;
-    background: linear-gradient(90deg, #e2242f, #f07a81);
-    animation: bkoSweep 1s cubic-bezier(.2, .8, .2, 1) both;
+    animation: sweep .6s ease both;
   }
 
-  .stat-label {
-    @apply text-xs font-semibold uppercase text-brand-500;
-    letter-spacing: .14em;
+  /* ---------- status badges ---------- */
+  .badge {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium;
+  }
+  .badge-pendente {
+    @apply badge;
+    color: theme('colors.warn.text');
+    background: theme('colors.warn.bg');
+    border-color: theme('colors.warn.border');
+  }
+  .badge-autorizada {
+    @apply badge;
+    color: theme('colors.good.text');
+    background: theme('colors.good.bg');
+    border-color: theme('colors.good.border');
+  }
+  .badge-recusada {
+    @apply badge;
+    color: theme('colors.bad.text');
+    background: theme('colors.bad.bg');
+    border-color: theme('colors.bad.border');
   }
 
+  /* ---------- table (grid-based, reused across pages) ---------- */
   .team-table {
-    @apply overflow-hidden rounded-xl2 border border-line bg-white shadow-card;
+    @apply overflow-hidden rounded-lg2 border border-line bg-surface;
   }
   .team-table-head {
-    @apply grid text-[11px] font-semibold uppercase text-brand-700;
-    letter-spacing: .14em;
-    padding: 16px 26px;
-    background: linear-gradient(90deg, #fdeced, #fff);
+    @apply grid border-b border-line bg-paper text-[11px] font-semibold uppercase tracking-wide text-muted;
+    padding: 11px 20px;
   }
   .team-table-row {
-    @apply grid border-t text-[15px] transition-colors duration-150;
-    border-color: #f0f1f5;
-    padding: 18px 26px;
+    @apply grid border-b border-divider text-sm text-ink transition-colors duration-100 last:border-b-0;
+    padding: 13px 20px;
   }
   .team-table-row:hover {
-    background: #fdf6f6;
+    @apply bg-paper;
   }
   .team-table-total {
-    @apply grid text-[15px] font-semibold text-brand-700;
-    border-top: 1px solid #e7e9ee;
-    background: #fdf3f3;
-    padding: 18px 26px;
+    @apply grid bg-paper text-sm font-semibold text-ink;
+    border-top: 1px solid theme('colors.line');
+    padding: 13px 20px;
+  }
+
+  /* ---------- sidebar shell ---------- */
+  .app-shell {
+    @apply flex min-h-screen;
+  }
+  .sidebar {
+    @apply flex w-60 shrink-0 flex-col bg-sidebar text-sidebar-text;
+  }
+  .sidebar-link {
+    @apply flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-medium text-sidebar-text transition-colors duration-100;
+  }
+  .sidebar-link:hover {
+    @apply bg-sidebar-hover text-white;
+  }
+  .sidebar-link.active {
+    @apply bg-sidebar-active text-white;
+  }
+  .app-main {
+    @apply min-w-0 flex-1 bg-paper;
+  }
+  .topbar {
+    @apply flex h-14 items-center justify-between border-b border-line bg-surface px-6;
   }
 }

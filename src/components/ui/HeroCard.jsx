@@ -1,27 +1,26 @@
 import ProgressBar from './ProgressBar'
 
-export function HeroCardRed({ label, value, sub, pct, minWidth = 214 }) {
+export function HeroCardRed({ label, value, sub, pct, minWidth = 200 }) {
   return (
-    <div className="hero-card flex flex-col gap-2.5 px-5 py-4.5" style={{ minWidth, padding: '18px 22px' }}>
-      <span className="text-[11px] font-semibold uppercase tracking-widest opacity-85">{label}</span>
-      <span className="text-[42px] font-bold leading-none" style={{ minHeight: 44 }}>{value}</span>
+    <div className="flex flex-col gap-2 rounded-lg2 bg-brand-600 px-5 py-4 text-white" style={{ minWidth }}>
+      <span className="text-xs font-medium uppercase tracking-wide opacity-80">{label}</span>
+      <span className="text-[28px] font-semibold leading-none">{value}</span>
       {sub && <span className="text-xs opacity-80">{sub}</span>}
-      <span className="mt-0.5 block h-1 origin-left rounded-full bg-white/55" style={{ animation: 'bkoSweep .9s .3s cubic-bezier(.2,.8,.2,1) both' }} />
-      {pct != null && <ProgressBar pct={pct} />}
+      {pct != null && (
+        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/25">
+          <div className="h-full rounded-full bg-white" style={{ width: `${Math.max(0, Math.min(pct, 100))}%` }} />
+        </div>
+      )}
     </div>
   )
 }
 
-export function HeroCardWhite({ label, value, sub, minWidth = 214 }) {
+export function HeroCardWhite({ label, value, sub, minWidth = 200 }) {
   return (
-    <div className="card flex flex-col gap-2.5" style={{ minWidth, padding: '18px 22px' }}>
-      <span className="text-[11px] font-semibold uppercase tracking-widest text-brand-500">{label}</span>
-      <span className="text-[42px] font-bold leading-none text-ink" style={{ minHeight: 44 }}>{value}</span>
+    <div className="stat-card" style={{ minWidth }}>
+      <span className="stat-label">{label}</span>
+      <span className="stat-value">{value}</span>
       {sub && <span className="text-xs text-muted">{sub}</span>}
-      <span
-        className="mt-0.5 block h-1 origin-left rounded-full"
-        style={{ background: 'linear-gradient(90deg,#e2242f,#f6b0b5)', animation: 'bkoSweep .9s .45s cubic-bezier(.2,.8,.2,1) both' }}
-      />
     </div>
   )
 }

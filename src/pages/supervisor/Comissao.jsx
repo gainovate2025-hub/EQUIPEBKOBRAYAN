@@ -6,6 +6,7 @@ import DataTable from '../../components/ui/DataTable'
 import InlineEditableNumber from '../../components/ui/InlineEditableNumber'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
+import { useAuth } from '../../lib/AuthContext'
 import { updatePerformance } from '../../lib/api'
 import { fmtMoney } from '../../lib/helpers'
 
@@ -16,7 +17,9 @@ const COLUMNS = [
 
 export default function Comissao() {
   const { team, loading, reload } = useSupervisorData()
+  const { profile } = useAuth()
   const { toast, showToast } = useToast()
+  const isLider = profile?.role === 'lider'
 
   const rows = useMemo(
     () => team
@@ -38,10 +41,15 @@ export default function Comissao() {
 
   return (
     <>
-      <HeroCardWhite label="Comissão total da equipe" value={fmtMoney(total)} sub="Soma da comissão dos 10 BKOs" minWidth={280} />
+      <div className="flex flex-wrap gap-4">
+        <HeroCardWhite label="Comissão total da equipe" value={fmtMoney(total)} sub="R$ 2 por contestação + R$ 1 por reagendamento, ajustável" minWidth={280} />
+        {isLider && (
+          <HeroCardWhite label="Minha comissão (50% da equipe)" value={fmtMoney(total * 0.5)} sub="Calculada automaticamente" minWidth={280} />
+        )}
+      </div>
 
       <div className="mt-9 flex flex-col gap-4">
-        <SectionHeading title="Comissão por BKO" hint="Clique no valor para editar" />
+        <SectionHeading title="Comissão por BKO" hint="Soma sozinha pelo registro diário — clique no valor para ajustar" />
         {loading ? (
           <p className="text-sm text-muted">Carregando…</p>
         ) : (

@@ -1,27 +1,44 @@
-import { Outlet } from 'react-router-dom'
-import PageHeader from '../../components/ui/PageHeader'
-import NavMenu from '../../components/ui/NavMenu'
+import { Outlet, useLocation } from 'react-router-dom'
+import {
+  LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
+  Target, StickyNote, Users, Trophy, MessageSquare, Settings, Car, Swords,
+} from 'lucide-react'
+import Sidebar from '../../components/ui/Sidebar'
+import Topbar from '../../components/ui/Topbar'
 import { SupervisorDataProvider } from '../../lib/SupervisorDataContext'
-
-const NAV_ITEMS = [
-  { to: '/supervisor', label: 'Dashboard', end: true },
-  { to: '/supervisor/comissao', label: 'Comissão' },
-  { to: '/supervisor/contestacoes', label: 'Contestações' },
-  { to: '/supervisor/reagendamentos', label: 'Reagendamentos' },
-  { to: '/supervisor/objetivos', label: 'Objetivos' },
-  { to: '/supervisor/notas', label: 'Notas' },
-  { to: '/supervisor/equipe', label: 'Equipe' },
-  { to: '/supervisor/configuracoes', label: 'Configurações' },
-]
+import { useAuth } from '../../lib/AuthContext'
 
 export default function SupervisorLayout() {
+  const { contestacaoLabel, profile } = useAuth()
+  const location = useLocation()
+
+  const navItems = [
+    { to: '/supervisor', label: 'Dashboard', end: true, icon: LayoutDashboard },
+    { to: '/supervisor/aprovacao', label: 'Aprovação', icon: ShieldCheck },
+    { to: '/supervisor/comissao', label: 'Comissão', icon: Percent },
+    { to: '/supervisor/contestacoes', label: contestacaoLabel, icon: FileText },
+    { to: '/supervisor/reagendamentos', label: 'Reagendamentos', icon: CalendarClock },
+    { to: '/supervisor/objetivos', label: 'Objetivos', icon: Target },
+    { to: '/supervisor/notas', label: 'Notas', icon: StickyNote },
+    { to: '/supervisor/equipe', label: 'Equipe', icon: Users },
+    { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
+    { to: '/supervisor/garagem', label: 'Garagem', icon: Car },
+    { to: '/supervisor/desafios', label: 'Desafios', icon: Swords },
+    ...(profile?.role === 'supervisor' ? [] : [{ to: '/supervisor/chat', label: 'Chat', icon: MessageSquare }]),
+    { to: '/supervisor/configuracoes', label: 'Configurações', icon: Settings },
+  ]
+
+  const current = navItems.find((i) => (i.end ? location.pathname === i.to : location.pathname.startsWith(i.to)))
+
   return (
     <SupervisorDataProvider>
-      <div className="bg-glow min-h-screen" style={{ padding: '36px 44px 56px' }}>
-        <PageHeader title="BKO · Supervisão" subtitle="Acompanhamento diário da operação" />
-        <NavMenu items={NAV_ITEMS} />
-        <div className="mt-8">
-          <Outlet />
+      <div className="app-shell">
+        <Sidebar title="BKO · Supervisão" items={navItems} />
+        <div className="app-main">
+          <Topbar title={current?.label || 'Dashboard'} />
+          <main className="mx-auto max-w-6xl p-6">
+            <Outlet />
+          </main>
         </div>
       </div>
     </SupervisorDataProvider>

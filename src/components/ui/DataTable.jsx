@@ -3,7 +3,7 @@ export default function DataTable({ columns, rows, totalRow, renderCell }) {
 
   return (
     <div className="team-table">
-      <div className="team-table-head" style={{ gridTemplateColumns, gap: 20 }}>
+      <div className="team-table-head" style={{ gridTemplateColumns, gap: 16 }}>
         {columns.map((c) => (
           <span key={c.key} style={{ textAlign: c.align || 'left' }}>{c.label}</span>
         ))}
@@ -14,7 +14,7 @@ export default function DataTable({ columns, rows, totalRow, renderCell }) {
       )}
 
       {rows.map((row) => (
-        <div key={row.key} className="team-table-row" style={{ gridTemplateColumns, gap: 20 }}>
+        <div key={row.key} className="team-table-row" style={{ gridTemplateColumns, gap: 16 }}>
           {columns.map((c) => (
             <span key={c.key} style={{ textAlign: c.align || 'left' }}>
               {renderCell ? renderCell(row, c.key) : row[c.key]}
@@ -24,7 +24,7 @@ export default function DataTable({ columns, rows, totalRow, renderCell }) {
       ))}
 
       {totalRow && (
-        <div className="team-table-total" style={{ gridTemplateColumns, gap: 20 }}>
+        <div className="team-table-total" style={{ gridTemplateColumns, gap: 16 }}>
           {columns.map((c) => (
             <span key={c.key} style={{ textAlign: c.align || 'left' }}>{totalRow[c.key]}</span>
           ))}

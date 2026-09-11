@@ -15,7 +15,7 @@ export function AuthProvider({ children }) {
     }
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, name, username, role, active')
+      .select('id, name, username, role, active, team_id, teams(name, contestacao_label)')
       .eq('id', userId)
       .single()
     if (error) {
@@ -70,6 +70,7 @@ export function AuthProvider({ children }) {
     user: session?.user ?? null,
     profile,
     role: profile?.role ?? null,
+    contestacaoLabel: profile?.teams?.contestacao_label || 'Contestações',
     loading,
     signIn,
     signOut,

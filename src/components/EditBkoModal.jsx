@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import Modal from './ui/Modal'
 import Field from './ui/Field'
+import { useAuth } from '../lib/AuthContext'
 import { addNote, updatePassword, updatePerformance, updateProfile } from '../lib/api'
 
 export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
+  const { contestacaoLabel } = useAuth()
   const perf = bko.performance || {}
   const [form, setForm] = useState({
     name: bko.name,
@@ -68,10 +70,10 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
           <Field label="Comissão (R$)">
             <input type="number" step="0.01" min="0" className="field-input" value={form.commission} onChange={(e) => update('commission', e.target.value)} />
           </Field>
-          <Field label="Meta de contestações">
+          <Field label={`Meta de ${contestacaoLabel.toLowerCase()}`}>
             <input type="number" min="0" className="field-input" value={form.contestation_goal} onChange={(e) => update('contestation_goal', e.target.value)} />
           </Field>
-          <Field label="Contestações realizadas">
+          <Field label={`${contestacaoLabel} realizadas`}>
             <input type="number" min="0" className="field-input" value={form.contestations_done} onChange={(e) => update('contestations_done', e.target.value)} />
           </Field>
           <Field label="Meta de reagendamentos">

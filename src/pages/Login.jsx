@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/AuthContext'
-import Logo from '../components/ui/Logo'
+import { homeFor } from '../lib/ProtectedRoute'
 import { supabaseConfigured } from '../lib/supabaseClient'
 
 export default function Login() {
@@ -70,26 +70,21 @@ export default function Login() {
     setSubmitting(true)
     const { error: signInError } = await signIn(username, password)
     setSubmitting(false)
-    if (signInError) {
-      setError(signInError)
-      return
-    }
+    if (signInError) setError(signInError)
   }
 
   useEffect(() => {
-    if (!loading && profile) {
-      navigate(profile.role === 'supervisor' ? '/supervisor' : '/bko', { replace: true })
-    }
+    if (!loading && profile) navigate(homeFor(profile.role), { replace: true })
   }, [loading, profile, navigate])
 
-  if (!loading && profile) return <Navigate to={profile.role === 'supervisor' ? '/supervisor' : '/bko'} replace />
+  if (!loading && profile) return <Navigate to={homeFor(profile.role)} replace />
 
   return (
     <div className="grid min-h-screen font-sans text-ink" style={{ gridTemplateColumns: '1.05fr .95fr' }}>
       {/* coluna vermelha — o olho */}
       <div
         className="relative flex flex-col items-center justify-center gap-8 overflow-hidden text-white"
-        style={{ padding: '52px 64px', background: 'linear-gradient(155deg,#e2242f 0%,#b0141e 55%,#7d0d15 100%)' }}
+        style={{ padding: '52px 64px', background: 'linear-gradient(155deg,#b42318 0%,#8a1b12 55%,#5c120c 100%)' }}
       >
         <span
           className="absolute rounded-full"
@@ -115,7 +110,7 @@ export default function Login() {
             <div
               ref={eyeRef}
               className="relative flex items-center justify-center overflow-hidden bg-white"
-              style={{ width: 210, height: 132, borderRadius: '50%/50%', boxShadow: 'inset 0 -10px 26px rgba(125,13,21,.22), 0 18px 40px rgba(60,6,10,.35)' }}
+              style={{ width: 210, height: 132, borderRadius: '50%/50%', boxShadow: 'inset 0 -10px 26px rgba(90,10,8,.22), 0 18px 40px rgba(50,5,5,.35)' }}
             >
               <div
                 ref={pupilRef}
@@ -127,13 +122,13 @@ export default function Login() {
               <span
                 ref={lidRef}
                 className="absolute inset-0"
-                style={{ background: 'linear-gradient(180deg,#e2242f,#a5121c)', transform: 'translateY(-110%)', animation: 'bkoBlink 5.5s ease-in-out infinite' }}
+                style={{ background: 'linear-gradient(180deg,#b42318,#5c120c)', transform: 'translateY(-110%)', animation: 'bkoBlink 5.5s ease-in-out infinite' }}
               />
             </div>
           </div>
           <div className="flex max-w-[420px] flex-col items-center gap-2.5 text-center">
-            <span className="text-[31px] font-semibold leading-tight tracking-tight">Alguém está de olho nos números</span>
-            <span className="text-[15px] leading-relaxed opacity-80">
+            <span className="text-[27px] font-semibold leading-tight tracking-tight">Alguém está de olho nos números</span>
+            <span className="text-sm leading-relaxed opacity-80">
               Comissão, contestação e reagendamento em um só lugar. Entre para ver o resultado da equipe de hoje.
             </span>
           </div>
@@ -141,27 +136,24 @@ export default function Login() {
       </div>
 
       {/* coluna do formulário */}
-      <div
-        className="flex items-center justify-center"
-        style={{ padding: '64px 56px', background: 'radial-gradient(900px 420px at 80% -10%, #ffe9ea 0%, rgba(255,233,234,0) 60%), #f6f7f9' }}
-      >
+      <div className="flex items-center justify-center bg-paper" style={{ padding: '64px 56px' }}>
         <form
           onSubmit={handleSubmit}
-          className="flex w-full flex-col gap-6 rounded-xl2 border border-line bg-white p-10"
-          style={{ maxWidth: 392, boxShadow: '0 18px 44px rgba(20,24,33,.08)', animation: 'bkoRise .6s .16s ease both' }}
+          className="card flex w-full flex-col gap-5 p-8"
+          style={{ maxWidth: 380 }}
         >
-          <div className="flex flex-col gap-1.5">
-            <span className="text-[25px] font-semibold tracking-tight">Entrar</span>
+          <div className="flex flex-col gap-1">
+            <span className="text-xl font-semibold tracking-tight text-ink">Entrar</span>
             <span className="text-sm text-muted">Use seu acesso corporativo</span>
           </div>
 
           {!supabaseConfigured && (
-            <div className="rounded-lg border border-brand-200 bg-brand-50 px-3 py-2 text-xs text-brand-700">
+            <div className="rounded-md border border-warn-border bg-warn-bg px-3 py-2 text-xs text-warn-text">
               Supabase não configurado. Preencha o arquivo <code>.env</code> (veja <code>.env.example</code>).
             </div>
           )}
 
-          <div className="flex flex-col gap-2">
+          <div>
             <label className="field-label" htmlFor="username">Usuário</label>
             <input
               id="username"
@@ -174,7 +166,7 @@ export default function Login() {
             />
           </div>
 
-          <div className="flex flex-col gap-2">
+          <div>
             <label className="field-label" htmlFor="password">Senha</label>
             <input
               id="password"
@@ -188,19 +180,14 @@ export default function Login() {
               onFocus={closeEye}
               onBlur={openEye}
             />
-            <span className="text-xs text-[#a9aebb]">O olho fecha enquanto você digita a senha.</span>
+            <span className="mt-1.5 block text-xs text-subtle">O olho fecha enquanto você digita a senha.</span>
           </div>
 
-          {error && <div className="text-sm font-medium text-brand-700">{error}</div>}
+          {error && <div className="text-sm font-medium text-bad-text">{error}</div>}
 
           <button type="submit" className="btn-primary" style={{ animation: 'bkoGlowBtn 3.4s ease-in-out infinite' }} disabled={submitting}>
             {submitting ? 'Entrando…' : 'Entrar no painel'}
           </button>
-
-          <div className="flex items-center justify-between gap-3 text-[13px]">
-            <a href="#" onClick={(e) => e.preventDefault()} className="font-medium">Esqueci minha senha</a>
-            <span className="text-[#a9aebb]">Suporte BKO</span>
-          </div>
         </form>
       </div>
     </div>

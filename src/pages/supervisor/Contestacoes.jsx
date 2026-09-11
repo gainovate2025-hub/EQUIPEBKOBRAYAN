@@ -8,6 +8,7 @@ import ProgressBar from '../../components/ui/ProgressBar'
 import StatusBadge from '../../components/ui/StatusBadge'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
+import { useAuth } from '../../lib/AuthContext'
 import { updatePerformance } from '../../lib/api'
 import { pct } from '../../lib/helpers'
 
@@ -20,6 +21,7 @@ const COLUMNS = [
 
 export default function Contestacoes() {
   const { team, loading, reload } = useSupervisorData()
+  const { contestacaoLabel } = useAuth()
   const { toast, showToast } = useToast()
 
   const rows = useMemo(
@@ -39,7 +41,7 @@ export default function Contestacoes() {
   async function commit(userId, field, value) {
     try {
       await updatePerformance(userId, { [field]: value })
-      showToast('Contestações atualizadas.')
+      showToast(`${contestacaoLabel} atualizadas.`)
       reload()
     } catch (err) {
       showToast(err.message || 'Falha ao atualizar.', 'error')
@@ -48,10 +50,10 @@ export default function Contestacoes() {
 
   return (
     <>
-      <HeroCardWhite label="Contestações da equipe" value={`${totalDone} / ${totalGoal}`} sub={`${totalPct}% da meta atingida`} minWidth={300} />
+      <HeroCardWhite label={`${contestacaoLabel} da equipe`} value={`${totalDone} / ${totalGoal}`} sub={`${totalPct}% da meta atingida`} minWidth={300} />
 
       <div className="mt-9 flex flex-col gap-4">
-        <SectionHeading title="Contestações por BKO" hint="Clique em Meta ou Realizado para editar" />
+        <SectionHeading title={`${contestacaoLabel} por BKO`} hint="Meta e correções manuais — aprovação caso a caso fica em Aprovação" />
         {loading ? (
           <p className="text-sm text-muted">Carregando…</p>
         ) : (

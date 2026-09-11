@@ -1,9 +1,10 @@
-// Cria as 11 contas iniciais (1 supervisor + 10 BKO) no Supabase.
-// Uso: preencha .env (veja .env.example) com VITE_SUPABASE_URL e
-// SUPABASE_SERVICE_ROLE_KEY, depois rode: npm run seed
+// Cria as contas novas pedidas: 3 supervisores (Will + 2 sem nome) e 50
+// contas de operação (OP001..OP050). NÃO mexe em nenhuma conta existente.
+// Uso: npm run seed:novas
 
 import { readFileSync, existsSync } from 'node:fs'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'node:crypto'
 
 function loadEnv() {
   if (!existsSync('.env')) return
@@ -25,36 +26,28 @@ const url = process.env.VITE_SUPABASE_URL
 const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!url || !serviceKey) {
-  console.error('Faltam VITE_SUPABASE_URL e/ou SUPABASE_SERVICE_ROLE_KEY no .env. Veja .env.example.')
+  console.error('Faltam VITE_SUPABASE_URL e/ou SUPABASE_SERVICE_ROLE_KEY no .env.')
   process.exit(1)
 }
 
 const admin = createClient(url, serviceKey, { auth: { autoRefreshToken: false, persistSession: false } })
 const EMAIL_DOMAIN = 'painelbko.internal'
 
-const ACCOUNTS = [
-  { username: 'brayan', name: 'Brayan', password: 'DIAS0508', role: 'supervisor' },
-  { username: 'supervisao', name: 'Supervisao', password: '052502', role: 'supervisor' },
+function senhaAleatoria() {
+  return crypto.randomBytes(6).toString('base64').replace(/[^a-zA-Z0-9]/g, '').slice(0, 8)
+}
 
-  { username: 'nathann', name: 'Nathann', password: 'BKO012', role: 'bko' },
-  { username: 'kelvyn', name: 'Kelvyn', password: 'BKO032', role: 'bko' },
-  { username: 'kauan', name: 'Kauan', password: 'BKO045', role: 'bko' },
-  { username: 'victor', name: 'Victor', password: 'BKO065', role: 'bko' },
-  { username: 'thiago', name: 'Thiago', password: 'BKO068', role: 'bko' },
-  { username: 'icaro', name: 'Icaro', password: 'BKO028', role: 'bko' },
-  { username: 'jaoa', name: 'Jaoa', password: 'BKO084', role: 'bko' },
-  { username: 'stevam', name: 'Stevam', password: 'BKO084', role: 'bko' },
-  { username: 'bko09', name: 'BKO09', password: 'BKO059', role: 'bko' },
-  { username: 'bko010', name: 'BKO010', password: 'BKO065', role: 'bko' },
+const ACCOUNTS = [
+  { username: 'will', name: 'Will', password: senhaAleatoria(), role: 'supervisor' },
+  { username: 'admin1', name: 'Admin 1', password: senhaAleatoria(), role: 'supervisor' },
+  { username: 'admin2', name: 'Admin 2', password: senhaAleatoria(), role: 'supervisor' },
+  ...Array.from({ length: 50 }, (_, i) => {
+    const n = String(i + 1).padStart(3, '0')
+    return { username: `op${n}`, name: `OP${n}`, password: senhaAleatoria(), role: 'bko' }
+  }),
 ]
 
-const MIN_PASSWORD_LENGTH = 6
-
 async function upsertUser(account) {
-  if (account.password.length < MIN_PASSWORD_LENGTH) {
-    throw new Error(`senha "${account.password}" tem menos de ${MIN_PASSWORD_LENGTH} caracteres (mínimo exigido pelo Supabase Auth).`)
-  }
-
   const email = `${account.username}@${EMAIL_DOMAIN}`
 
   const { data: created, error: createError } = await admin.auth.admin.createUser({
@@ -73,10 +66,10 @@ async function upsertUser(account) {
     const existing = list.users.find((u) => u.email === email)
     if (!existing) throw new Error(`Usuário ${email} não encontrado após conflito de criação.`)
     userId = existing.id
-    console.log(`↺ ${account.username} já existia — reaproveitando conta.`)
+    console.log(`↺ ${account.username} já existia — pulando (senha não foi alterada).`)
+    return
   } else {
     userId = created.user.id
-    console.log(`✓ ${account.username} criado.`)
   }
 
   const { error: profileError } = await admin.from('profiles').upsert({
@@ -85,6 +78,7 @@ async function upsertUser(account) {
     username: account.username,
     role: account.role,
     active: true,
+    team_id: null,
   })
   if (profileError) throw profileError
 
@@ -96,13 +90,14 @@ async function upsertUser(account) {
         contestations_done: 0,
         rescheduling_goal: 50,
         rescheduling_done: 0,
-        commission: 0,
         objective: '',
       },
-      { onConflict: 'user_id' }
+      { onConflict: 'user_id', ignoreDuplicates: true }
     )
     if (perfError) throw perfError
   }
+
+  console.log(`✓ ${account.username} criado.`)
 }
 
 const failed = []
@@ -116,12 +111,10 @@ for (const account of ACCOUNTS) {
 }
 
 const ok = ACCOUNTS.filter((a) => !failed.some((f) => f.account === a))
-if (ok.length) {
-  console.log('\nContas prontas. Logins (usuário / senha):')
-  for (const a of ok) console.log(`  ${a.username} / ${a.password}`)
-}
+console.log('\n=== Logins criados (usuário / senha) ===')
+for (const a of ok) console.log(`${a.username} / ${a.password}`)
+
 if (failed.length) {
-  console.log('\nContas que falharam (corrija e rode "npm run seed" de novo — as demais já criadas não serão duplicadas):')
+  console.log('\nFalharam:')
   for (const f of failed) console.log(`  ${f.account.username}: ${f.err.message}`)
 }
-console.log('\nRecomendado: troque essas senhas depois do primeiro acesso.')

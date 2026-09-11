@@ -48,13 +48,13 @@ export default function Equipe() {
                 type="button"
                 onClick={() => toggleActive(row.bko)}
                 className="text-xs font-semibold"
-                style={{ color: row.active ? '#0ca30c' : '#a5121c' }}
+                style={{ color: row.active ? '#067647' : '#b42318' }}
               >
                 {row.active ? '● Ativo' : '● Inativo'}
               </button>
             )
             if (key === 'actions') return (
-              <button type="button" className="btn-ghost" style={{ padding: '6px 14px', fontSize: 12.5 }} onClick={() => setEditing(row.bko)}>Editar</button>
+              <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(row.bko)}>Editar</button>
             )
             return row[key]
           }}
