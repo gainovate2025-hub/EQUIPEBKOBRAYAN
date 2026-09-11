@@ -102,13 +102,28 @@ export async function updateProfile(userId, patch) {
 }
 
 export async function updatePassword(userId, newPassword) {
-  // Requer privilégio de admin (service_role). Alteração de senha de outro
-  // usuário só pode ser feita por uma função de servidor (Edge Function) —
-  // aqui expomos o ponto de extensão; sem a function, lança erro amigável.
-  const { error } = await supabase.functions.invoke('admin-set-password', {
-    body: { userId, newPassword },
-  })
-  if (error) throw new Error('Troca de senha requer a Edge Function "admin-set-password" publicada no Supabase.')
+  // Chama a Edge Function "admin-set-password" diretamente por fetch (em vez
+  // de supabase.functions.invoke) porque o gateway novo de Functions do
+  // Supabase exige a chave "publishable" nova no header apikey — a chave
+  // "anon" antiga usada pelo resto do app é rejeitada só nesse gateway.
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData?.session?.access_token
+  if (!accessToken) throw new Error('Sessão expirada, faça login novamente.')
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-set-password`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ userId, newPassword }),
+    }
+  )
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || 'Falha ao trocar senha.')
 }
 
 export async function addNote(userId, note) {

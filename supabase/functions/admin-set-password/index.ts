@@ -1,14 +1,15 @@
 // Edge Function: admin-set-password
-// Permite que o Supervisor troque a senha de um BKO sem expor a
-// service_role key no frontend. Rode no ambiente do Supabase (Deno).
+// Permite que o Supervisor (qualquer BKO) ou um Líder (só o próprio time)
+// troque a senha de um BKO sem expor a service_role key no frontend.
+// Rode no ambiente do Supabase (Deno).
 //
 // Deploy:
 //   supabase functions deploy admin-set-password
 //
 // A função usa o service_role key interno do projeto (variável de
 // ambiente já disponível automaticamente em toda Edge Function do
-// Supabase) e valida, antes de tudo, que quem está chamando é o
-// supervisor autenticado — nunca confia em nada vindo do cliente.
+// Supabase) e valida, antes de tudo, quem está chamando — nunca confia
+// em nada vindo do cliente.
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
@@ -32,17 +33,29 @@ Deno.serve(async (req) => {
 
     const { data: callerProfile } = await admin
       .from('profiles')
-      .select('role')
+      .select('role, team_id')
       .eq('id', user.id)
       .single()
 
-    if (callerProfile?.role !== 'supervisor') {
-      return new Response(JSON.stringify({ error: 'Apenas o supervisor pode trocar senhas.' }), { status: 403 })
+    if (callerProfile?.role !== 'supervisor' && callerProfile?.role !== 'lider') {
+      return new Response(JSON.stringify({ error: 'Apenas supervisor ou líder podem trocar senhas.' }), { status: 403 })
     }
 
     const { userId, newPassword } = await req.json()
     if (!userId || !newPassword || newPassword.length < 6) {
       return new Response(JSON.stringify({ error: 'Dados inválidos.' }), { status: 400 })
+    }
+
+    // líder só pode trocar a senha de alguém do próprio time
+    if (callerProfile.role === 'lider') {
+      const { data: targetProfile } = await admin
+        .from('profiles')
+        .select('team_id')
+        .eq('id', userId)
+        .single()
+      if (!targetProfile || targetProfile.team_id !== callerProfile.team_id) {
+        return new Response(JSON.stringify({ error: 'Você só pode trocar a senha de alguém do seu time.' }), { status: 403 })
+      }
     }
 
     const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password: newPassword })
