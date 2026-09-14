@@ -79,6 +79,7 @@ export default function Corrida() {
   const [searchParams] = useSearchParams()
   const desafioId = searchParams.get('desafio')
   const canvasRef = useRef(null)
+  const pararRef = useRef(null)
   const [equipado, setEquipado] = useState(null)
   const [bonus, setBonus] = useState({ velocidade: 0, curva: 0 })
   const [race, setRace] = useState(null)
@@ -345,28 +346,43 @@ export default function Corrida() {
       }
       requestAnimationFrame(loop)
     }
+
+    // Botão "Desligar": encerra a corrida na hora, guardando a distância já
+    // percorrida — útil porque agora a pista não tem fim, então em algum
+    // momento a pessoa pode só querer parar em vez de esperar bater.
+    pararRef.current = () => {
+      if (!rodando) return
+      rodando = false
+      window.removeEventListener('keydown', onKey)
+      setDistanciaFinal(Math.floor(progresso))
+      setEstado('parou')
+    }
+
     requestAnimationFrame(loop)
 
     return () => {
       rodando = false
       window.removeEventListener('keydown', onKey)
+      pararRef.current = null
     }
   }, [equipado, bonus, race])
+
+  const acabou = estado === 'bateu' || estado === 'parou'
 
   // Guarda o recorde pessoal (só pista livre, sem racha — o racha compara
   // contra o adversário, não faz sentido comparar com seu próprio recorde).
   useEffect(() => {
-    if (race || estado !== 'bateu' || distanciaFinal == null || !profile?.id) return
+    if (race || !acabou || distanciaFinal == null || !profile?.id) return
     if (distanciaFinal > recorde) {
       localStorage.setItem(recordeKey(profile.id), String(distanciaFinal))
       setRecorde(distanciaFinal)
     }
-  }, [estado, race, distanciaFinal, recorde, profile?.id])
+  }, [acabou, race, distanciaFinal, recorde, profile?.id])
 
-  // Grava o resultado do desafio (distância percorrida até bater) e, se o
-  // outro lado já correu, decide quem foi mais longe.
+  // Grava o resultado do desafio (distância percorrida até bater ou parar) e,
+  // se o outro lado já correu, decide quem foi mais longe.
   useEffect(() => {
-    if (!race || estado !== 'bateu' || distanciaFinal == null) return
+    if (!race || !acabou || distanciaFinal == null) return
     const souChallenger = race.challenger_id === profile.id
     const campoDistancia = souChallenger ? 'challenger_time' : 'opponent_time'
     const campoBateu = souChallenger ? 'challenger_bateu' : 'opponent_bateu'
@@ -398,7 +414,7 @@ export default function Corrida() {
       }
       setResultadoDesafio(!winnerId ? 'empate' : winnerId === profile.id ? 'ganhou' : 'perdeu')
     })
-  }, [estado, race, profile?.id, distanciaFinal])
+  }, [acabou, race, profile?.id, distanciaFinal])
 
   function iniciar() {
     setEstado('contagem')
@@ -467,9 +483,18 @@ export default function Corrida() {
             <div className="text-5xl font-bold text-white">{contagem > 0 ? contagem : 'VAI!'}</div>
           </div>
         )}
-        {estado === 'bateu' && (
+        {estado === 'correndo' && profile?.role === 'supervisor' && (
+          <button
+            type="button"
+            className="absolute right-2 top-2 rounded-md bg-black/60 px-2 py-1 text-xs font-semibold text-white hover:bg-black/80"
+            onClick={() => pararRef.current?.()}
+          >
+            ⏻ Desligar
+          </button>
+        )}
+        {acabou && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70 text-white">
-            <div className="text-lg font-bold">Bateu! 💥</div>
+            <div className="text-lg font-bold">{estado === 'bateu' ? 'Bateu! 💥' : 'Corrida encerrada ✋'}</div>
             <div className="text-sm">Distância: {distanciaFinal}m{!race && distanciaFinal === recorde && distanciaFinal > 0 && ' — novo recorde! 🏆'}</div>
             {race ? (
               <ResultadoDesafio resultado={resultadoDesafio} wager={race.wager_points} />
