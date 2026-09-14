@@ -36,7 +36,7 @@ export default function Configuracoes() {
 
   return (
     <div className="flex flex-col gap-5">
-      <SectionHeading title="Configurações da conta" hint="Seus dados de acesso como supervisor" />
+      <SectionHeading title="Configurações da conta" hint="Seus dados de acesso" />
       <form onSubmit={handleSubmit} className="card flex max-w-md flex-col gap-4 p-6">
         <Field label="Nome">
           <input className="field-input" value={name} onChange={(e) => setName(e.target.value)} required />

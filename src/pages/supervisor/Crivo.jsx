@@ -1,0 +1,146 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useAuth } from '../../lib/AuthContext'
+import { supabase } from '../../lib/supabaseClient'
+import SectionHeading from '../../components/ui/SectionHeading'
+
+const RESULT_LABEL = { aprovado: 'Aprovado', reprovado: 'Reprovado' }
+const RESULT_COLOR = {
+  aprovado: 'text-green-600',
+  reprovado: 'text-red-600',
+}
+
+function soCnpjDigitos(v) {
+  return v.replace(/\D/g, '')
+}
+
+function formatarCnpj(v) {
+  const d = soCnpjDigitos(v).slice(0, 14)
+  return d
+    .replace(/^(\d{2})(\d)/, '$1.$2')
+    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
+    .replace(/\.(\d{3})(\d)/, '.$1/$2')
+    .replace(/(\d{4})(\d)/, '$1-$2')
+}
+
+function RespostaCrivo({ consulta: c }) {
+  if (c.status === 'erro') {
+    return <div className="text-red-600">⚠️ Erro ao consultar — manda o CNPJ de novo.</div>
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      {['sistema1', 'sistema2'].map((sis, i) => {
+        const resultado = c[`${sis}_resultado`]
+        return (
+          <div key={sis}>
+            <span className="text-muted">{i + 1}º sistema: </span>
+            {resultado ? (
+              <span className={`font-semibold ${RESULT_COLOR[resultado]}`}>{RESULT_LABEL[resultado]}</span>
+            ) : (
+              <span className="text-muted">⏳ aguardando…</span>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export default function Crivo() {
+  const { profile } = useAuth()
+  const [cnpj, setCnpj] = useState('')
+  const [consultas, setConsultas] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [enviando, setEnviando] = useState(false)
+  const [msg, setMsg] = useState('')
+  const fimRef = useRef(null)
+
+  const load = useCallback(async () => {
+    const { data } = await supabase
+      .from('crivo_consultas')
+      .select('*, profiles(name)')
+      .order('created_at', { ascending: false })
+      .limit(50)
+    setConsultas((data || []).slice().reverse())
+    setLoading(false)
+  }, [])
+
+  useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    const canal = supabase
+      .channel('crivo_consultas_live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'crivo_consultas' }, () => load())
+      .subscribe()
+    // além do tempo real, atualiza sozinho a cada 4s (funciona mesmo sem
+    // o "replication" do Supabase ligado pra essa tabela).
+    const intervalo = setInterval(load, 4000)
+    return () => { supabase.removeChannel(canal); clearInterval(intervalo) }
+  }, [load])
+
+  useEffect(() => {
+    fimRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
+  }, [consultas])
+
+  async function consultar(e) {
+    e?.preventDefault()
+    setMsg('')
+    const limpo = soCnpjDigitos(cnpj)
+    if (limpo.length !== 14) return setMsg('Digita um CNPJ válido (14 números).')
+
+    setEnviando(true)
+    const { error } = await supabase.from('crivo_consultas').insert({
+      cnpj: limpo,
+      solicitado_por: profile.id,
+    })
+    setEnviando(false)
+    if (error) return setMsg('Erro: ' + error.message)
+    setCnpj('')
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SectionHeading title="Chat do Crivo" hint="Manda o CNPJ aqui embaixo — o Crivo consulta nos dois sistemas do TIM e responde nessa mesma tela" />
+
+      <div className="card flex max-h-[520px] min-h-[300px] flex-col gap-4 overflow-y-auto p-5">
+        {loading && <p className="text-sm text-muted">Carregando…</p>}
+        {!loading && consultas.length === 0 && <p className="text-sm text-muted">Nenhuma consulta ainda — manda um CNPJ ali embaixo.</p>}
+
+        {consultas.map((c) => (
+          <div key={c.id} className="flex flex-col gap-2">
+            <div className="flex flex-col items-end gap-0.5 self-end">
+              <div className="flex items-baseline gap-2 text-[11px] text-muted">
+                <span>{c.profiles?.name || 'Alguém'}</span>
+                <span>{new Date(c.created_at).toLocaleString('pt-BR')}</span>
+              </div>
+              <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-brand-600 px-3 py-2 text-sm font-medium text-white">
+                {formatarCnpj(c.cnpj)}
+              </div>
+            </div>
+
+            <div className="flex flex-col items-start gap-0.5 self-start">
+              <div className="text-[11px] text-muted">Crivo</div>
+              <div className="max-w-[85%] rounded-lg rounded-tl-sm border border-line bg-paper px-3 py-2 text-xs">
+                <RespostaCrivo consulta={c} />
+              </div>
+            </div>
+          </div>
+        ))}
+        <div ref={fimRef} />
+      </div>
+
+      <form onSubmit={consultar} className="flex items-center gap-3">
+        <input
+          className="field-input flex-1"
+          placeholder="Digita ou cola o CNPJ (00.000.000/0000-00)"
+          value={formatarCnpj(cnpj)}
+          onChange={(e) => setCnpj(soCnpjDigitos(e.target.value).slice(0, 14))}
+        />
+        <button type="submit" className="btn-primary" disabled={enviando}>
+          {enviando ? 'Enviando…' : 'Enviar'}
+        </button>
+      </form>
+
+      {msg && <p className="text-sm font-medium text-red-600">{msg}</p>}
+    </div>
+  )
+}

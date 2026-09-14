@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Crivo TIM — Painel BKO",
+  "version": "1.0.0",
+  "description": "Consulta CNPJ no Easy Vendas e responde aprovado/reprovado no Painel BKO.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://portaleasyvendas.timbrasil.com.br/*",
+    "https://cdbvevtsaorburbmogpk.supabase.co/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://portaleasyvendas.timbrasil.com.br/*"],
+      "js": ["easyvendas.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html"
+  }
+}

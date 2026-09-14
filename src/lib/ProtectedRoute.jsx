@@ -2,9 +2,12 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 
 // 'supervisor' e 'lider' usam o mesmo painel de gestão (o RLS do banco já
-// restringe o que um "lider" enxerga à própria equipe); só 'bko' tem painel à parte.
+// restringe o que um "lider" enxerga à própria equipe); 'bko' e 'operacao'
+// têm painéis à parte (o de operação só com Consulta Crivo + Chat).
 export function homeFor(role) {
-  return role === 'bko' ? '/bko' : '/supervisor'
+  if (role === 'bko') return '/bko'
+  if (role === 'operacao') return '/operacao'
+  return '/supervisor'
 }
 
 export default function ProtectedRoute({ roles, children }) {

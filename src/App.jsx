@@ -12,6 +12,8 @@ import SupervisorNotas from './pages/supervisor/Notas'
 import SupervisorEquipe from './pages/supervisor/Equipe'
 import SupervisorConfiguracoes from './pages/supervisor/Configuracoes'
 import SupervisorAprovacao from './pages/supervisor/Aprovacao'
+import SupervisorCrivo from './pages/supervisor/Crivo'
+import SupervisorAutomacoes from './pages/supervisor/Automacoes'
 
 import BkoLayout from './pages/bko/Layout'
 import BkoDashboard from './pages/bko/Dashboard'
@@ -26,6 +28,9 @@ import Corrida from './pages/Corrida'
 import Desafios from './pages/Desafios'
 import Ranking from './pages/Ranking'
 import TeamChat from './pages/TeamChat'
+
+import OperacaoLayout from './pages/operacao/Layout'
+import OperacaoConfiguracoes from './pages/supervisor/Configuracoes'
 
 export default function App() {
   return (
@@ -53,6 +58,8 @@ export default function App() {
         <Route path="garagem" element={<Garagem />} />
         <Route path="corrida" element={<Corrida />} />
         <Route path="desafios" element={<Desafios />} />
+        <Route path="crivo" element={<SupervisorCrivo />} />
+        <Route path="automacoes" element={<SupervisorAutomacoes />} />
         <Route path="configuracoes" element={<SupervisorConfiguracoes />} />
       </Route>
 
@@ -76,6 +83,19 @@ export default function App() {
         <Route path="garagem" element={<Garagem />} />
         <Route path="corrida" element={<Corrida />} />
         <Route path="desafios" element={<Desafios />} />
+      </Route>
+
+      <Route
+        path="/operacao"
+        element={
+          <ProtectedRoute roles={['operacao']}>
+            <OperacaoLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<SupervisorCrivo />} />
+        <Route path="chat" element={<TeamChat />} />
+        <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />

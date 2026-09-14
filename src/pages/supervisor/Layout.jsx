@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Target, StickyNote, Users, Trophy, MessageSquare, Settings, Car, Swords,
+  Target, StickyNote, Users, Trophy, MessageSquare, Settings, Car, Swords, Zap,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -9,7 +9,7 @@ import { SupervisorDataProvider } from '../../lib/SupervisorDataContext'
 import { useAuth } from '../../lib/AuthContext'
 
 export default function SupervisorLayout() {
-  const { contestacaoLabel, profile } = useAuth()
+  const { contestacaoLabel } = useAuth()
   const location = useLocation()
 
   const navItems = [
@@ -24,7 +24,8 @@ export default function SupervisorLayout() {
     { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
     { to: '/supervisor/garagem', label: 'Garagem', icon: Car },
     { to: '/supervisor/desafios', label: 'Desafios', icon: Swords },
-    ...(profile?.role === 'supervisor' ? [] : [{ to: '/supervisor/chat', label: 'Chat', icon: MessageSquare }]),
+    { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },
+    { to: '/supervisor/chat', label: 'Chat', icon: MessageSquare },
     { to: '/supervisor/configuracoes', label: 'Configurações', icon: Settings },
   ]
 
