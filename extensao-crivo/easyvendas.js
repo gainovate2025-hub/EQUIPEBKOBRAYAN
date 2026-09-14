@@ -70,10 +70,18 @@ async function buscarPendente(numeroSistema) {
   return linhas?.[0] || null
 }
 
-async function salvarResultado(id, patch) {
-  await supaFetch(`crivo_consultas?id=eq.${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(patch),
+// Grava pela função do banco (RPC), não direto na tabela — veja
+// migration_017_crivo_rpc.sql pro motivo.
+async function salvarResultado(id, numeroSistema, { resultado = null, motivo = null, erro = null }) {
+  await supaFetch('rpc/crivo_salvar_resultado', {
+    method: 'POST',
+    body: JSON.stringify({
+      p_id: id,
+      p_numero_sistema: numeroSistema,
+      p_resultado: resultado,
+      p_motivo: motivo,
+      p_erro: erro,
+    }),
     prefer: 'return=minimal',
   })
 }
@@ -151,10 +159,6 @@ function classificar(textoPreAnalise) {
 
 async function processarConsulta(numeroSistema, consulta) {
   log(numeroSistema, 'Processando CNPJ', consulta.cnpj)
-  const campoResultado = `sistema${numeroSistema}_resultado`
-  const campoMotivo = `sistema${numeroSistema}_motivo`
-  const outroNumero = numeroSistema === 1 ? 2 : 1
-  const campoOutroResultado = `sistema${outroNumero}_resultado`
 
   try {
     const campoCnpj = acharCampoCnpj()
@@ -192,17 +196,10 @@ async function processarConsulta(numeroSistema, consulta) {
     const resultado = ehNaoEncontrado(textoFinal) ? 'nao_encontrado' : classificar(textoFinal)
     log(numeroSistema, 'Resultado:', resultado, '—', textoFinal)
 
-    const fresh = await supaFetch(`crivo_consultas?id=eq.${consulta.id}&select=status,${campoOutroResultado}`)
-    const jaTemOutroSistema = fresh?.[0]?.[campoOutroResultado] != null
-
-    await salvarResultado(consulta.id, {
-      [campoResultado]: resultado,
-      [campoMotivo]: textoFinal,
-      ...(jaTemOutroSistema ? { status: 'concluido', concluido_at: new Date().toISOString() } : {}),
-    })
+    await salvarResultado(consulta.id, numeroSistema, { resultado, motivo: textoFinal })
   } catch (err) {
     log(numeroSistema, 'Erro:', err.message)
-    await salvarResultado(consulta.id, { status: 'erro', erro_mensagem: `[${numeroSistema}º sistema] ${err.message}` })
+    await salvarResultado(consulta.id, numeroSistema, { erro: `[${numeroSistema}º sistema] ${err.message}` })
   }
 }
 
