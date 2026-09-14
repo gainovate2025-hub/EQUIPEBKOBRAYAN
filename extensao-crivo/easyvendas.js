@@ -139,14 +139,12 @@ function lerPreAnalise() {
   return melhor
 }
 
+function ehNaoEncontrado(texto) {
+  return /nao solicitada|nao encontrad/.test(semAcento(texto))
+}
+
 function classificar(textoPreAnalise) {
   const normalizado = semAcento(textoPreAnalise)
-  // "Não solicitada" (ou CNPJ não encontrado) não é um resultado — é o
-  // sistema não ter feito a análise ainda. Sem isso aqui, caía no "else" e
-  // virava "aprovado" por engano.
-  if (/nao solicitada|nao encontrad/.test(normalizado)) {
-    throw new Error('pré-análise não solicitada nesse sistema (CNPJ pode não ter sido encontrado) — confere o CNPJ')
-  }
   const reprovado = PALAVRAS_REPROVADO.some((re) => re.test(normalizado))
   return reprovado ? 'reprovado' : 'aprovado'
 }
@@ -176,7 +174,11 @@ async function processarConsulta(numeroSistema, consulta) {
     while (Date.now() - inicio < TIMEOUT_RESULTADO_MS) {
       await dormir(500)
       const atual = lerPreAnalise()
-      if (atual && atual !== textoAnterior) {
+      // "Não solicitada/não encontrada" é um caso especial: quando o CNPJ
+      // não existe no sistema, a tela às vezes NUNCA muda (não tem nada pra
+      // carregar) — então não faz sentido esperar uma mudança que não vem.
+      // Aceita esse texto na hora, mesmo repetido.
+      if (atual && (atual !== textoAnterior || ehNaoEncontrado(atual))) {
         textoFinal = atual
         break
       }
@@ -187,7 +189,7 @@ async function processarConsulta(numeroSistema, consulta) {
     // seguinte). Melhor errar alto do que salvar resultado errado.
     if (!textoFinal) throw new Error('a tela não mostrou um resultado novo a tempo (pode ter ficado com o resultado da consulta anterior) — tenta de novo')
 
-    const resultado = classificar(textoFinal)
+    const resultado = ehNaoEncontrado(textoFinal) ? 'nao_encontrado' : classificar(textoFinal)
     log(numeroSistema, 'Resultado:', resultado, '—', textoFinal)
 
     const fresh = await supaFetch(`crivo_consultas?id=eq.${consulta.id}&select=status,${campoOutroResultado}`)

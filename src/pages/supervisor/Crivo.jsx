@@ -3,10 +3,11 @@ import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import SectionHeading from '../../components/ui/SectionHeading'
 
-const RESULT_LABEL = { aprovado: 'Aprovado', reprovado: 'Reprovado' }
+const RESULT_LABEL = { aprovado: 'Aprovado', reprovado: 'Reprovado', nao_encontrado: 'CNPJ errado' }
 const RESULT_COLOR = {
   aprovado: 'text-green-600',
   reprovado: 'text-red-600',
+  nao_encontrado: 'text-amber-600',
 }
 
 function soCnpjDigitos(v) {
