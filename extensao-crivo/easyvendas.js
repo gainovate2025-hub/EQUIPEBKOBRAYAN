@@ -111,15 +111,23 @@ function acharCampoCnpj() {
   return null
 }
 
-// Acha um botão pelo texto exato (sem acento/maiúscula) — ex: "CRÉDITO", "OK".
+// Acha um botão cujo texto CONTENHA um dos alvos (sem acento/maiúscula) —
+// ex: "AVANÇAR", "OK". Não exige igualdade exata porque o botão às vezes
+// tem um ícone junto (setinha etc.) que entra no texto — fica com o
+// elemento de texto MAIS CURTO entre os que batem, pra não pegar sem
+// querer um contêiner grande por cima do botão.
 function acharBotaoPorTexto(...alvos) {
   const normalizados = alvos.map((a) => semAcento(a).trim())
   const elementos = [...document.querySelectorAll('button, [role="button"], a')]
+  let melhor = null
   for (const el of elementos) {
     const texto = semAcento(el.textContent || '').trim()
-    if (normalizados.includes(texto)) return el
+    if (!texto) continue
+    const bate = normalizados.some((alvo) => texto.includes(alvo))
+    if (!bate) continue
+    if (!melhor || texto.length < melhor.texto.length) melhor = { el, texto }
   }
-  return null
+  return melhor?.el || null
 }
 
 function definirValorInput(input, valor) {
@@ -211,7 +219,13 @@ async function processarConsulta(numeroSistema, consulta) {
     // (o "CRÉDITO" não faz nada sozinho — confirmado ao vivo). Depois de
     // fechar a janela, a tela continua a mesma "Dados do cliente", então dá
     // pra reaproveitar pro próximo CNPJ sem navegar pra lugar nenhum.
-    const botaoAvancar = acharBotaoPorTexto('avancar')
+    // Tenta achar por alguns segundos — pode ser um instante de transição
+    // da tela logo depois de fechar a janela da consulta anterior.
+    let botaoAvancar = null
+    for (let i = 0; i < 6 && !botaoAvancar; i++) {
+      botaoAvancar = acharBotaoPorTexto('avancar')
+      if (!botaoAvancar) await dormir(500)
+    }
     if (!botaoAvancar) throw new Error('não achei o botão AVANÇAR na tela')
 
     const antesTexto = textoDaTela()
