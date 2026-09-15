@@ -164,6 +164,12 @@ async function processarConsulta(numeroSistema, consulta) {
     const campoCnpj = acharCampoCnpj()
     if (!campoCnpj) throw new Error('não achei o campo de CNPJ na tela')
 
+    // Limpa antes de digitar: se o campo já tiver ESSE MESMO cnpj de uma
+    // tentativa anterior (ex: reprocessando um erro), digitar o mesmo valor
+    // de novo pode não disparar a busca — a tela não percebe "mudança"
+    // nenhuma. Passar por vazio primeiro garante que sempre conta como novo.
+    definirValorInput(campoCnpj, '')
+    await dormir(150)
     definirValorInput(campoCnpj, formatarCnpj(consulta.cnpj))
     await dormir(400)
 
