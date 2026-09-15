@@ -11,7 +11,6 @@ export default function Configuracoes() {
   const { profile, refreshProfile } = useAuth()
   const { toast, showToast } = useToast()
   const [name, setName] = useState(profile?.name || '')
-  const [username, setUsername] = useState(profile?.username || '')
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -19,7 +18,7 @@ export default function Configuracoes() {
     e.preventDefault()
     setSaving(true)
     try {
-      await updateProfile(profile.id, { name, username })
+      await updateProfile(profile.id, { name })
       if (password.trim()) {
         const { error } = await supabase.auth.updateUser({ password: password.trim() })
         if (error) throw error
@@ -41,8 +40,8 @@ export default function Configuracoes() {
         <Field label="Nome">
           <input className="field-input" value={name} onChange={(e) => setName(e.target.value)} required />
         </Field>
-        <Field label="Usuário">
-          <input className="field-input" value={username} onChange={(e) => setUsername(e.target.value)} required />
+        <Field label="Usuário (login)">
+          <input className="field-input" value={profile?.username || ''} disabled />
         </Field>
         <Field label="Nova senha (opcional)">
           <input type="password" className="field-input" placeholder="deixe em branco para manter" value={password} onChange={(e) => setPassword(e.target.value)} />
