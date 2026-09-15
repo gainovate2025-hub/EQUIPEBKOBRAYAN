@@ -171,27 +171,34 @@ async function processarConsulta(numeroSistema, consulta) {
     if (!botaoBusca) throw new Error('não achei o botão de buscar ao lado do CNPJ')
     botaoBusca.click()
 
-    // espera o resultado da pré-análise aparecer/mudar
+    // espera o resultado da pré-análise aparecer/mudar. Importante: NÃO
+    // aceita "não solicitada" assim que vê — esse texto também aparece
+    // rapidinho enquanto a tela ainda está carregando o resultado de
+    // verdade (já vimos isso classificar CNPJ válido como "CNPJ errado" por
+    // engano). Só aceita se o texto ainda estiver assim depois do prazo
+    // inteiro — aí sim é porque realmente não carregou nada.
     const inicio = Date.now()
     let textoAnterior = lerPreAnalise()
     let textoFinal = null
     while (Date.now() - inicio < TIMEOUT_RESULTADO_MS) {
       await dormir(500)
       const atual = lerPreAnalise()
-      // "Não solicitada/não encontrada" é um caso especial: quando o CNPJ
-      // não existe no sistema, a tela às vezes NUNCA muda (não tem nada pra
-      // carregar) — então não faz sentido esperar uma mudança que não vem.
-      // Aceita esse texto na hora, mesmo repetido.
-      if (atual && (atual !== textoAnterior || ehNaoEncontrado(atual))) {
+      if (atual && atual !== textoAnterior) {
         textoFinal = atual
         break
       }
     }
-    // Importante: se não detectou o texto MUDAR dentro do prazo, não dá pra
-    // confiar no que está na tela agora — pode ser sobra da consulta
-    // anterior (foi exatamente esse bug: reprovado "grudando" no aprovado
-    // seguinte). Melhor errar alto do que salvar resultado errado.
-    if (!textoFinal) throw new Error('a tela não mostrou um resultado novo a tempo (pode ter ficado com o resultado da consulta anterior) — tenta de novo')
+    // Se não mudou dentro do prazo, só confia nisso se for claramente "não
+    // encontrado" (faz sentido nunca mudar). Qualquer outro caso continua
+    // sendo erro — não dá pra confiar que não é sobra da consulta anterior.
+    if (!textoFinal) {
+      const atualFinal = lerPreAnalise()
+      if (atualFinal && ehNaoEncontrado(atualFinal)) {
+        textoFinal = atualFinal
+      } else {
+        throw new Error('a tela não mostrou um resultado novo a tempo (pode ter ficado com o resultado da consulta anterior) — tenta de novo')
+      }
+    }
 
     const resultado = ehNaoEncontrado(textoFinal) ? 'nao_encontrado' : classificar(textoFinal)
     log(numeroSistema, 'Resultado:', resultado, '—', textoFinal)
