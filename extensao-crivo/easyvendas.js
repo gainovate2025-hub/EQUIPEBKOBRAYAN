@@ -1,8 +1,17 @@
 // Extensão Crivo — Easy Vendas (portaleasyvendas.timbrasil.com.br)
 //
 // Fica de olho na tabela crivo_consultas (Supabase). Quando aparece uma
-// consulta pendente, digita o CNPJ no Easy Vendas, clica em buscar, lê a
-// mensagem de "Pré-Análise de Crédito" e devolve aprovado/reprovado.
+// consulta pendente, digita o CNPJ no campo da tela de "Dados do cliente"
+// (dentro de uma Negociação — a que tem os botões CANCELAR/SALVAR/
+// CRÉDITO/AVANÇAR), clica em CRÉDITO, lê a mensagem da janela "Análise de
+// crédito" que abre e devolve aprovado/reprovado.
+//
+// IMPORTANTE — como preparar a tela: essa extensão NÃO cria uma negociação
+// nova sozinha. Antes de ligar, deixa a aba aberta numa tela de
+// "Negociações" > "Dados do cliente" (não precisa ser de um cliente real —
+// só usa o campo CNPJ pra consultar, nunca clica em SALVAR). A extensão
+// fica reaproveitando essa mesma tela pra cada CNPJ novo, trocando só o
+// valor do campo CNPJ.
 //
 // O 1º e o 2º sistema são o MESMO site (só logins/contas diferentes), então
 // essa mesma extensão serve pros dois — em cada ABA aberta no Easy Vendas,
@@ -18,12 +27,13 @@ const ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
 
 const INTERVALO_BUSCA_MS = 5000
-const TIMEOUT_RESULTADO_MS = 12000
+const TIMEOUT_RESULTADO_MS = 15000
 
-const PALAVRAS_REPROVADO = [
-  /\btim\b/, // qualquer menção a "Tim" na mensagem = reprovado
+// Fallback (formato antigo, caso ainda apareça em algum caso não visto).
+const PALAVRAS_REPROVADO_FALLBACK = [
+  /\btim\b/,
   /duvidas? financeiras?/,
-  /restric/, // "sócios com restrição..."
+  /restric/,
   /cheque sem fundo/,
 ]
 
@@ -101,16 +111,13 @@ function acharCampoCnpj() {
   return null
 }
 
-// O botão de busca (lupa) normalmente é o próximo elemento clicável depois
-// do campo CNPJ, dentro do mesmo bloco.
-function acharBotaoBusca(campoCnpj) {
-  const bloco = campoCnpj.closest('div')
-  if (!bloco) return null
-  let atual = bloco
-  for (let i = 0; i < 4 && atual; i++) {
-    const botao = atual.querySelector('button, md-icon, [role="button"]')
-    if (botao) return botao.closest('button, [role="button"]') || botao
-    atual = atual.parentElement
+// Acha um botão pelo texto exato (sem acento/maiúscula) — ex: "CRÉDITO", "OK".
+function acharBotaoPorTexto(...alvos) {
+  const normalizados = alvos.map((a) => semAcento(a).trim())
+  const elementos = [...document.querySelectorAll('button, [role="button"], a')]
+  for (const el of elementos) {
+    const texto = semAcento(el.textContent || '').trim()
+    if (normalizados.includes(texto)) return el
   }
   return null
 }
@@ -127,55 +134,58 @@ function formatarCnpj(digitos) {
   return digitos.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
 }
 
-// Procura na página o texto da "Pré-Análise" e devolve só a frase do
-// resultado — não o bloco/tela inteira onde ela está encaixada.
-//
-// Como a tela tem vários elementos "pai" cujo texto (somando os dos filhos
-// todos) também contém "pré-análise" — um card, uma coluna, a página
-// inteira —, pegar o PRIMEIRO que bate dá bug (pega esses blocos gigantes,
-// com menu/formulário/botões junto, que às vezes têm até a palavra "TIM" da
-// marca em algum canto e classificavam errado). Por isso: junta todo mundo
-// que bate e fica com o texto MAIS CURTO — que é sempre a frase certinha,
-// nunca o contêiner por cima dela.
-function candidatosPreAnalise() {
-  const candidatos = []
-  for (const el of document.querySelectorAll('body *')) {
-    const texto = (el.textContent || '').trim()
-    if (texto.length <= 12 || !/pr[ée]-an[áa]lise/i.test(texto)) continue
-    candidatos.push({ texto, tag: el.tagName, classe: el.className, filhos: el.children.length })
-  }
-  return candidatos
+function textoDaTela() {
+  return (document.body.innerText || '')
 }
 
-function lerPreAnalise() {
-  const candidatos = candidatosPreAnalise()
-  if (candidatos.length === 0) return null
-  let melhor = candidatos[0]
-  for (const c of candidatos) {
-    if (c.texto.length < melhor.texto.length) melhor = c
-  }
-  return melhor.texto
+function linhas(texto) {
+  return texto.split('\n').map((l) => l.trim()).filter(Boolean)
 }
 
-// Só pra diagnóstico: imprime TODOS os textos candidatos que batem com
-// "pré-análise" na tela, não só o escolhido — ajuda a achar se tem algum
-// texto "fantasma" (tipo uma dica/rótulo fixo) atrapalhando a escolha.
-function logarCandidatosPreAnalise(numeroSistema, motivo) {
-  const candidatos = candidatosPreAnalise()
-  log(numeroSistema, `[debug] ${motivo} — ${candidatos.length} candidato(s):`)
-  candidatos.forEach((c, i) => {
-    log(numeroSistema, `  [debug] #${i} <${c.tag} class="${c.classe}" filhos=${c.filhos}> (${c.texto.length} chars): ${JSON.stringify(c.texto.slice(0, 200))}`)
-  })
+// Compara o texto da tela antes/depois de clicar em CRÉDITO e devolve só o
+// que APARECEU de novo — é assim que a extensão acha a janela "Análise de
+// crédito" sem depender de saber a estrutura exata do modal (class, id
+// etc.), que a gente não tem como inspecionar direto.
+function linhasNovas(anterior, atual) {
+  const antigas = new Set(linhas(anterior))
+  return linhas(atual).filter((l) => !antigas.has(l))
+}
+
+// Dentro das linhas novas (o conteúdo do modal), acha a mensagem da
+// "Análise de crédito" — tira o título e o botão "OK", fica só com a frase
+// do resultado (ex: "RECOMENDADO MEI. Recomendado valor de compra.").
+function extrairMensagemModal(linhasModal) {
+  for (let i = 0; i < linhasModal.length; i++) {
+    const linha = linhasModal[i]
+    const normalizada = semAcento(linha)
+    const posicao = normalizada.indexOf('analise de credito')
+    if (posicao === -1) continue
+
+    // às vezes o título e a mensagem vêm na mesma linha
+    const restoMesmaLinha = linha.slice(posicao + 'analise de credito'.length).trim()
+    if (restoMesmaLinha.length > 5 && semAcento(restoMesmaLinha) !== 'ok') return restoMesmaLinha
+
+    // senão, a mensagem é a(s) linha(s) seguinte(s) (tirando o "OK" do botão)
+    const seguintes = linhasModal.slice(i + 1).filter((l) => semAcento(l) !== 'ok')
+    if (seguintes.length > 0) return seguintes.join(' ').trim()
+  }
+  return null
 }
 
 function ehNaoEncontrado(texto) {
   return /nao solicitada|nao encontrad/.test(semAcento(texto))
 }
 
-function classificar(textoPreAnalise) {
-  const normalizado = semAcento(textoPreAnalise)
-  const reprovado = PALAVRAS_REPROVADO.some((re) => re.test(normalizado))
-  return reprovado ? 'reprovado' : 'aprovado'
+// A mensagem da "Análise de crédito" começa com "RECOMENDADO" quando dá pra
+// vender, e (por dedução — ainda não vimos um caso reprovado de verdade)
+// deve começar com "NÃO RECOMENDADO" quando não dá. Guarda também os
+// padrões antigos como reforço, caso apareça alguma variação diferente.
+function classificarModal(mensagem) {
+  const normalizado = semAcento(mensagem)
+  if (/nao recomendado|nao aprovado/.test(normalizado)) return 'reprovado'
+  if (/recomendado|aprovado/.test(normalizado)) return 'aprovado'
+  const reprovadoFallback = PALAVRAS_REPROVADO_FALLBACK.some((re) => re.test(normalizado))
+  return reprovadoFallback ? 'reprovado' : 'aprovado'
 }
 
 async function processarConsulta(numeroSistema, consulta) {
@@ -183,58 +193,55 @@ async function processarConsulta(numeroSistema, consulta) {
 
   try {
     const campoCnpj = acharCampoCnpj()
-    if (!campoCnpj) throw new Error('não achei o campo de CNPJ na tela')
+    if (!campoCnpj) {
+      throw new Error(
+        'não achei o campo de CNPJ — deixa a aba aberta numa tela de Negociação > "Dados do cliente" (com os botões CRÉDITO/AVANÇAR)'
+      )
+    }
 
     // Limpa antes de digitar: se o campo já tiver ESSE MESMO cnpj de uma
-    // tentativa anterior (ex: reprocessando um erro), digitar o mesmo valor
-    // de novo pode não disparar a busca — a tela não percebe "mudança"
-    // nenhuma. Passar por vazio primeiro garante que sempre conta como novo.
+    // tentativa anterior, digitar o mesmo valor de novo pode não disparar
+    // nada — a tela não percebe "mudança" nenhuma.
     definirValorInput(campoCnpj, '')
     await dormir(150)
     definirValorInput(campoCnpj, formatarCnpj(consulta.cnpj))
-    await dormir(400)
+    await dormir(300)
 
-    const botaoBusca = acharBotaoBusca(campoCnpj)
-    if (!botaoBusca) throw new Error('não achei o botão de buscar ao lado do CNPJ')
-    log(numeroSistema, '[debug] campo CNPJ agora tem:', JSON.stringify(campoCnpj.value))
-    log(numeroSistema, '[debug] botão de busca:', botaoBusca.outerHTML.slice(0, 200))
-    botaoBusca.click()
-    logarCandidatosPreAnalise(numeroSistema, 'logo após clicar em buscar')
+    const botaoCredito = acharBotaoPorTexto('credito')
+    if (!botaoCredito) throw new Error('não achei o botão CRÉDITO na tela')
 
-    // espera o resultado da pré-análise aparecer/mudar. Importante: NÃO
-    // aceita "não solicitada" assim que vê — esse texto também aparece
-    // rapidinho enquanto a tela ainda está carregando o resultado de
-    // verdade (já vimos isso classificar CNPJ válido como "CNPJ errado" por
-    // engano). Só aceita se o texto ainda estiver assim depois do prazo
-    // inteiro — aí sim é porque realmente não carregou nada.
+    const antesTexto = textoDaTela()
+    log(numeroSistema, '[debug] clicando em CRÉDITO com o campo CNPJ =', JSON.stringify(campoCnpj.value))
+    botaoCredito.click()
+
+    // espera a janela "Análise de crédito" aparecer (compara o texto da
+    // tela inteira antes/depois, pra achar o que apareceu de novo)
     const inicio = Date.now()
-    let textoAnterior = lerPreAnalise()
-    let textoFinal = null
+    let mensagem = null
     while (Date.now() - inicio < TIMEOUT_RESULTADO_MS) {
-      await dormir(500)
-      const atual = lerPreAnalise()
-      if (atual && atual !== textoAnterior) {
-        textoFinal = atual
-        break
-      }
-    }
-    // Se não mudou dentro do prazo, só confia nisso se for claramente "não
-    // encontrado" (faz sentido nunca mudar). Qualquer outro caso continua
-    // sendo erro — não dá pra confiar que não é sobra da consulta anterior.
-    if (!textoFinal) {
-      logarCandidatosPreAnalise(numeroSistema, 'passou o prazo sem detectar mudança')
-      const atualFinal = lerPreAnalise()
-      if (atualFinal && ehNaoEncontrado(atualFinal)) {
-        textoFinal = atualFinal
-      } else {
-        throw new Error('a tela não mostrou um resultado novo a tempo (pode ter ficado com o resultado da consulta anterior) — tenta de novo')
-      }
+      await dormir(400)
+      const atual = textoDaTela()
+      const novas = linhasNovas(antesTexto, atual)
+      mensagem = extrairMensagemModal(novas)
+      if (mensagem) break
     }
 
-    const resultado = ehNaoEncontrado(textoFinal) ? 'nao_encontrado' : classificar(textoFinal)
-    log(numeroSistema, 'Resultado:', resultado, '—', textoFinal)
+    if (!mensagem) {
+      const atual = textoDaTela()
+      log(numeroSistema, '[debug] não achou o modal a tempo. Linhas novas:', JSON.stringify(linhasNovas(antesTexto, atual)))
+      throw new Error('a janela "Análise de crédito" não apareceu a tempo — confere se a extensão está numa tela de Negociação válida')
+    }
 
-    await salvarResultado(consulta.id, numeroSistema, { resultado, motivo: textoFinal })
+    log(numeroSistema, 'Mensagem da Análise de crédito:', mensagem)
+
+    // fecha a janela, pra deixar pronta pro próximo CNPJ
+    const botaoOk = acharBotaoPorTexto('ok', 'fechar')
+    if (botaoOk) botaoOk.click()
+
+    const resultado = ehNaoEncontrado(mensagem) ? 'nao_encontrado' : classificarModal(mensagem)
+    log(numeroSistema, 'Resultado:', resultado)
+
+    await salvarResultado(consulta.id, numeroSistema, { resultado, motivo: mensagem })
   } catch (err) {
     log(numeroSistema, 'Erro:', err.message)
     await salvarResultado(consulta.id, numeroSistema, { erro: `[${numeroSistema}º sistema] ${err.message}` })
