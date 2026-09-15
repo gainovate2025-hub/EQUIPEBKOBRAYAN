@@ -137,14 +137,35 @@ function formatarCnpj(digitos) {
 // marca em algum canto e classificavam errado). Por isso: junta todo mundo
 // que bate e fica com o texto MAIS CURTO — que é sempre a frase certinha,
 // nunca o contêiner por cima dela.
-function lerPreAnalise() {
-  let melhor = null
+function candidatosPreAnalise() {
+  const candidatos = []
   for (const el of document.querySelectorAll('body *')) {
     const texto = (el.textContent || '').trim()
     if (texto.length <= 12 || !/pr[ée]-an[áa]lise/i.test(texto)) continue
-    if (!melhor || texto.length < melhor.length) melhor = texto
+    candidatos.push({ texto, tag: el.tagName, classe: el.className, filhos: el.children.length })
   }
-  return melhor
+  return candidatos
+}
+
+function lerPreAnalise() {
+  const candidatos = candidatosPreAnalise()
+  if (candidatos.length === 0) return null
+  let melhor = candidatos[0]
+  for (const c of candidatos) {
+    if (c.texto.length < melhor.texto.length) melhor = c
+  }
+  return melhor.texto
+}
+
+// Só pra diagnóstico: imprime TODOS os textos candidatos que batem com
+// "pré-análise" na tela, não só o escolhido — ajuda a achar se tem algum
+// texto "fantasma" (tipo uma dica/rótulo fixo) atrapalhando a escolha.
+function logarCandidatosPreAnalise(numeroSistema, motivo) {
+  const candidatos = candidatosPreAnalise()
+  log(numeroSistema, `[debug] ${motivo} — ${candidatos.length} candidato(s):`)
+  candidatos.forEach((c, i) => {
+    log(numeroSistema, `  [debug] #${i} <${c.tag} class="${c.classe}" filhos=${c.filhos}> (${c.texto.length} chars): ${JSON.stringify(c.texto.slice(0, 200))}`)
+  })
 }
 
 function ehNaoEncontrado(texto) {
@@ -175,7 +196,10 @@ async function processarConsulta(numeroSistema, consulta) {
 
     const botaoBusca = acharBotaoBusca(campoCnpj)
     if (!botaoBusca) throw new Error('não achei o botão de buscar ao lado do CNPJ')
+    log(numeroSistema, '[debug] campo CNPJ agora tem:', JSON.stringify(campoCnpj.value))
+    log(numeroSistema, '[debug] botão de busca:', botaoBusca.outerHTML.slice(0, 200))
     botaoBusca.click()
+    logarCandidatosPreAnalise(numeroSistema, 'logo após clicar em buscar')
 
     // espera o resultado da pré-análise aparecer/mudar. Importante: NÃO
     // aceita "não solicitada" assim que vê — esse texto também aparece
@@ -198,6 +222,7 @@ async function processarConsulta(numeroSistema, consulta) {
     // encontrado" (faz sentido nunca mudar). Qualquer outro caso continua
     // sendo erro — não dá pra confiar que não é sobra da consulta anterior.
     if (!textoFinal) {
+      logarCandidatosPreAnalise(numeroSistema, 'passou o prazo sem detectar mudança')
       const atualFinal = lerPreAnalise()
       if (atualFinal && ehNaoEncontrado(atualFinal)) {
         textoFinal = atualFinal
