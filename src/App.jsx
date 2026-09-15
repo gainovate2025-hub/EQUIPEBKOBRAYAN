@@ -12,6 +12,7 @@ import SupervisorNotas from './pages/supervisor/Notas'
 import SupervisorEquipe from './pages/supervisor/Equipe'
 import SupervisorConfiguracoes from './pages/supervisor/Configuracoes'
 import SupervisorAprovacao from './pages/supervisor/Aprovacao'
+import SupervisorCustCodes from './pages/supervisor/CustCodes'
 import SupervisorCrivo from './pages/supervisor/Crivo'
 import SupervisorAutomacoes from './pages/supervisor/Automacoes'
 
@@ -47,6 +48,7 @@ export default function App() {
       >
         <Route index element={<SupervisorDashboard />} />
         <Route path="aprovacao" element={<SupervisorAprovacao />} />
+        <Route path="cust-codes" element={<SupervisorCustCodes />} />
         <Route path="comissao" element={<SupervisorComissao />} />
         <Route path="contestacoes" element={<SupervisorContestacoes />} />
         <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
