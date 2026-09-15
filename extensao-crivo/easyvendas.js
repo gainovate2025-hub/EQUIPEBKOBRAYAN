@@ -231,7 +231,16 @@ async function processarConsulta(numeroSistema, consulta) {
       botaoAvancar = acharBotaoPorTexto('avancar')
       if (!botaoAvancar) await dormir(500)
     }
-    if (!botaoAvancar) throw new Error('não achei o botão AVANÇAR na tela')
+    if (!botaoAvancar) {
+      const botoesVisiveis = [...document.querySelectorAll('button, [role="button"], a')]
+        .map((el) => (el.textContent || '').trim())
+        .filter(Boolean)
+        .slice(0, 20)
+        .join(' | ')
+      throw new Error(
+        `não achei o botão AVANÇAR na tela — url: ${location.href} — botões vistos: ${botoesVisiveis || 'nenhum'}`
+      )
+    }
 
     const antesTexto = textoDaTela()
     log(numeroSistema, '[debug] clicando em AVANÇAR com o campo CNPJ =', JSON.stringify(campoCnpj.value))
