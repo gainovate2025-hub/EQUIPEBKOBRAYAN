@@ -195,7 +195,7 @@ async function processarConsulta(numeroSistema, consulta) {
     const campoCnpj = acharCampoCnpj()
     if (!campoCnpj) {
       throw new Error(
-        'não achei o campo de CNPJ — deixa a aba aberta numa tela de Negociação > "Dados do cliente" (com os botões CRÉDITO/AVANÇAR)'
+        'não achei o campo de CNPJ — deixa a aba aberta numa tela de Negociação > "Dados do cliente" (com o botão AVANÇAR)'
       )
     }
 
@@ -207,12 +207,16 @@ async function processarConsulta(numeroSistema, consulta) {
     definirValorInput(campoCnpj, formatarCnpj(consulta.cnpj))
     await dormir(300)
 
-    const botaoCredito = acharBotaoPorTexto('credito')
-    if (!botaoCredito) throw new Error('não achei o botão CRÉDITO na tela')
+    // O botão que realmente dispara a Análise de Crédito é o "AVANÇAR"
+    // (o "CRÉDITO" não faz nada sozinho — confirmado ao vivo). Depois de
+    // fechar a janela, a tela continua a mesma "Dados do cliente", então dá
+    // pra reaproveitar pro próximo CNPJ sem navegar pra lugar nenhum.
+    const botaoAvancar = acharBotaoPorTexto('avancar')
+    if (!botaoAvancar) throw new Error('não achei o botão AVANÇAR na tela')
 
     const antesTexto = textoDaTela()
-    log(numeroSistema, '[debug] clicando em CRÉDITO com o campo CNPJ =', JSON.stringify(campoCnpj.value))
-    botaoCredito.click()
+    log(numeroSistema, '[debug] clicando em AVANÇAR com o campo CNPJ =', JSON.stringify(campoCnpj.value))
+    botaoAvancar.click()
 
     // espera a janela "Análise de crédito" aparecer (compara o texto da
     // tela inteira antes/depois, pra achar o que apareceu de novo)
