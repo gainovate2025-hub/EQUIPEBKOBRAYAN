@@ -21,12 +21,31 @@ class EasyVendasAutomation {
     this.selectors = selectors
   }
 
+  // Acha o campo de CNPJ de dois jeitos, porque a tela "Adicionar Clientes"
+  // (2º sistema) não tem o rótulo dentro do mesmo <div> do campo — só um
+  // container de 1 nível acima (como testava antes) nunca achava nada ali,
+  // mesmo com "CNPJ *" bem visível do lado do campo (confirmado com o
+  // diagnóstico: botão certo apareceu na lista, mas o campo nunca batia).
   acharCampoCnpj() {
+    const alvo = this.selectors.campoCnpjContainerTexto
     const inputs = [...document.querySelectorAll('input')]
     for (const input of inputs) {
-      const container = input.closest('div, label, section') || input.parentElement
-      const texto = semAcento(container?.textContent || '')
-      if (texto.includes(this.selectors.campoCnpjContainerTexto)) return input
+      // 1) atributos do próprio campo (placeholder/aria-label/name/id) —
+      // pega o caso de rótulo flutuante feito via placeholder, sem texto
+      // de verdade em nenhum elemento ao redor.
+      const atributos = semAcento(
+        [input.placeholder, input.getAttribute('aria-label'), input.name, input.id].filter(Boolean).join(' ')
+      )
+      if (atributos.includes(alvo)) return input
+
+      // 2) sobe até 4 níveis na árvore (não só o pai direto) atrás de
+      // "CNPJ" em algum texto ali perto — cobre rótulo que fica alguns
+      // níveis acima do campo, com outros elementos (ícone de busca etc.)
+      // no meio.
+      let container = input.parentElement
+      for (let nivel = 0; container && nivel < 4; nivel++, container = container.parentElement) {
+        if (semAcento(container.textContent || '').includes(alvo)) return input
+      }
     }
     return null
   }
