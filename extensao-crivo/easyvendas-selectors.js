@@ -4,46 +4,41 @@
 // Easy Vendas. Se alguma coisa mudar na tela (texto de botão, mensagem,
 // etc.), ajusta só aqui — não precisa mexer no resto do código.
 //
-// IMPORTANTE: diferente do projeto P2B (onde os seletores foram
-// capturados AO VIVO navegando no sistema de verdade — veja
-// p2b-selectors.js), aqui ainda são baseados em prints/vídeo que o
-// Brayan mandou, não confirmados ao vivo ainda. Isso é o que a gente
-// termina de confirmar testando juntos.
+// Confirmado ao vivo pelo Brayan (não é mais só baseado em print/vídeo):
+// o campo de CNPJ é `input[name="cnpj"]` nos dois sistemas, e as regras de
+// aprovado/reprovado abaixo são as palavras exatas que cada sistema usa.
 // -----------------------------------------------------------------------
 
 const EASYVENDAS_SELECTORS = {
-  // Acha o campo de CNPJ pelo texto do rótulo/contêiner ao redor do input.
+  // Seletor direto do campo de CNPJ — confirmado no HTML real da tela:
+  // <input md-cnpj-input mask="99.999.999/9999-99" name="cnpj" ...>
+  campoCnpjSeletor: 'input[name="cnpj"]',
+  // Fallback (se o nome do campo mudar num dos sistemas): procura pelo
+  // texto "cnpj" no rótulo/contêiner ao redor do input.
   campoCnpjContainerTexto: 'cnpj',
 
-  // Botão que dispara a Análise de Crédito. Depende da tela em que a
-  // extensão encontrar o CNPJ: em "Dados do cliente" é "AVANÇAR" (o botão
-  // "CRÉDITO" sozinho não faz nada, confirmado ao vivo). Em "Adicionar
-  // Clientes" é "SOLICITAR" (embaixo de "Pré-Análise de Crédito"), print
-  // confirmado pelo Brayan — os dois sistemas usam telas diferentes pra
-  // chegar na análise, então a extensão aceita qualquer um dos dois.
+  // Botão que dispara a consulta. No sistema 1 (tela de Cliente) é
+  // "SOLICITAR"; no sistema 2 (Negociação > 1ª Venda) é "AVANÇAR" — a
+  // extensão aceita qualquer um dos dois, tanto faz em qual sistema tá.
   botaoAvancarTextos: ['avancar', 'solicitar'],
 
-  // Botão(ões) que fecham a janela de resultado.
+  // Botão(ões) que fecham uma janela de resultado deixada aberta de uma
+  // consulta anterior, antes de começar uma nova.
   botaoOkTextos: ['ok', 'fechar'],
 
-  // Título da janela de resultado. A tela normal de "Dados do cliente"
-  // também mostra um rótulo parecido o tempo todo ("Pré-Análise de
-  // Crédito -  Não solicitada") — por isso NÃO basta achar esse texto
-  // em qualquer lugar da tela, veja a lógica de exclusão em
-  // easyvendas-automation.js > lerModalSeAberto().
-  modalTituloTexto: 'analise de credito',
-  modalRotuloPermanenteTexto: 'solicitada',
+  // CNPJ não encontrado (mensagem já vista: "Não foi encontrada nenhuma
+  // empresa com o CNPJ: ...") — vale pros dois sistemas.
+  padraoNaoEncontrado: /nao (foi )?encontrad|nenhuma empresa/,
 
-  // Classificação da mensagem dentro da janela.
-  // A mensagem real já vista é "Não foi encontrada nenhuma empresa com o
-  // CNPJ: ..." — por isso "nao (foi )?encontrad", não só "nao encontrad".
-  // Radical sem o "o"/"a" final — pega "aprovado" e "aprovada" (a Pré-
-  // Análise às vezes concorda no feminino), mesma ideia pros outros.
-  padraoNaoEncontrado: /nao solicitada|nao (foi )?encontrad|nenhuma empresa/,
-  padraoReprovado: /nao recomendad|nao aprovad|reprovad/,
-  padraoAprovado: /recomendad|aprovad/,
-  // Fallback (formato antigo, caso apareça alguma variação diferente).
-  padraoReprovadoFallback: [/\btim\b/, /duvidas? financeiras?/, /restric/, /cheque sem fundo/],
+  // Sistema 1 (Cliente): só é REPROVADO se a mensagem citar "Tim" (ex.:
+  // "Constam dúvidas financeiras com o grupo TIM"). Qualquer outra
+  // mensagem de resultado é APROVADO — regra confirmada pelo Brayan.
+  sistema1PadraoReprovado: /\btim\b/,
+
+  // Sistema 2 (Negociação > 1ª Venda): é REPROVADO se a mensagem citar
+  // qualquer uma dessas palavras. Qualquer outra coisa é APROVADO —
+  // regra confirmada pelo Brayan.
+  sistema2PadraoReprovado: /retaguarda|negado|inadimplente/,
 }
 
 if (typeof module !== 'undefined' && module.exports) {

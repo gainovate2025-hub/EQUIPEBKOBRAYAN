@@ -3,25 +3,34 @@
 // Orquestra a automação: fica de olho na tabela crivo_consultas
 // (Supabase) e, quando aparece uma consulta pendente, usa
 // EasyVendasAutomation (easyvendas-automation.js) pra digitar o CNPJ,
-// clicar AVANÇAR e ler o resultado da janela "Análise de crédito".
+// clicar no botão certo e ler a mensagem de resultado.
+//
+// FLUXO É SEQUENCIAL, não os dois sistemas em paralelo:
+//   1º sistema (Cliente) — https://.../EasyVendasWeb/#!/master/cliente/...
+//      consulta o CNPJ que a operação mandou no chat. Se a mensagem citar
+//      "Tim", é REPROVADO na hora (não passa pro 2º sistema). Qualquer
+//      outra mensagem é aprovado ali e segue pro 2º sistema.
+//   2º sistema (Negociação > 1ª Venda) —
+//      https://.../EasyVendasWeb/#!/master/negociacao/primeiravenda/...
+//      só entra em ação depois que o 1º aprovou. Digita o mesmo CNPJ,
+//      clica AVANÇAR, e reprova se a mensagem citar retaguarda/negado/
+//      inadimplente. Qualquer outra coisa é aprovado.
+//
+// Cada aba do Easy Vendas descobre SOZINHA se é o 1º ou o 2º sistema pela
+// URL (não precisa mais escolher manualmente no ícone da extensão — isso
+// evitava erro de marcar a aba errada). O popup continua existindo só
+// como reforço/fallback caso a URL não bata com nenhum dos dois padrões.
 //
 // ESTRATÉGIA (igual o projeto P2B — veja background/service-worker.js de
 // lá): em vez de uma função só que clica e fica esperando dentro dela
 // (que quebra se a tela navegar no meio), o laço abaixo roda em rodadas
-// curtas chamando detectarEstado() a cada uma — lê a tela ATUAL e decide
-// o próximo passo, igual uma pessoa faria. Se a tela navegar pra um
-// lugar inesperado depois do clique, a PRÓXIMA rodada já percebe isso
-// (estado 'desconhecido') em vez de travar numa espera cega de 15s.
+// curtas chamando detectarEstado()/textoNovoDesde() a cada uma — lê a
+// tela ATUAL e decide o próximo passo, igual uma pessoa faria.
 //
 // IMPORTANTE — como preparar a tela: essa extensão NÃO cria uma
-// negociação nova sozinha. Antes de ligar, deixa a aba aberta numa tela
-// de "Negociações" > "Dados do cliente" (não precisa ser de um cliente
-// real — só usa o campo CNPJ pra consultar, nunca clica em SALVAR).
-//
-// O 1º e o 2º sistema são o MESMO site (só logins/contas diferentes),
-// então essa mesma extensão serve pros dois — em cada ABA aberta no Easy
-// Vendas, clica no ícone da extensão e escolhe se aquela aba é o "1º
-// sistema" ou o "2º sistema" (guardado por aba pelo background.js).
+// negociação/cliente novo sozinha. Antes de ligar, deixa a aba aberta já
+// na tela certa (Cliente, ou Negociação > 1ª Venda) — só usa o campo CNPJ
+// pra consultar, nunca clica em SALVAR.
 //
 // Não precisa de login nenhum aqui — usa a chave pública (anon) do
 // Supabase, que só permite mexer em consultas ainda "pendente" (veja
@@ -32,14 +41,24 @@ const ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
 
 const POLL_IDLE_MS = 5000 // sem consulta em andamento: procura pendente de tanto em tanto
-const POLL_ANDAMENTO_MS = 700 // com consulta em andamento: checa a tela rápido (é aí que a modal aparece)
-const TIMEOUT_ANDAMENTO_MS = 15000 // tempo máximo esperando a janela aparecer antes de desistir
+const POLL_ANDAMENTO_MS = 700 // com consulta em andamento: checa a tela rápido
+const TIMEOUT_ANDAMENTO_MS = 15000 // tempo máximo esperando a mensagem de resultado antes de desistir
 
 function dormir(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+// Descobre pela URL da própria aba se é o 1º ou o 2º sistema — não
+// depende de escolha manual (fonte de erro antiga: aba marcada errada).
+function detectarSistemaPelaUrl() {
+  if (location.href.includes('/negociacao/primeiravenda')) return 2
+  if (location.href.includes('/cliente/')) return 1
+  return null
+}
+
 async function pegarNumeroSistema() {
+  const pelaUrl = detectarSistemaPelaUrl()
+  if (pelaUrl) return pelaUrl
   try {
     const resp = await chrome.runtime.sendMessage({ tipo: 'crivo:pegarSistema' })
     return resp?.numero === 2 ? 2 : 1
@@ -67,10 +86,16 @@ async function supaFetch(path, options = {}) {
   return res.status === 204 ? null : res.json()
 }
 
+// O 2º sistema só pode pegar uma consulta depois que o 1º já aprovou —
+// por isso o filtro extra de sistema1_resultado=eq.aprovado. Se o 1º
+// reprovar (ou não encontrar o CNPJ), a consulta nunca aparece pro 2º.
 async function buscarPendente(numeroSistema) {
   const campoResultado = `sistema${numeroSistema}_resultado`
+  let filtro = `status=eq.pendente&${campoResultado}=is.null`
+  if (numeroSistema === 2) filtro += `&sistema1_resultado=eq.aprovado`
+
   const linhas = await supaFetch(
-    `crivo_consultas?select=*&status=eq.pendente&${campoResultado}=is.null&order=created_at.asc&limit=1`
+    `crivo_consultas?select=*&${filtro}&order=created_at.asc&limit=1`
   )
   return linhas?.[0] || null
 }
@@ -98,45 +123,53 @@ function mensagemDiagnostico(estado) {
 }
 
 // Tenta começar uma consulta nova. Devolve o "andamento" (consulta em
-// curso) se conseguiu clicar AVANÇAR, ou null se não tinha pendente.
+// curso) se conseguiu clicar no botão de consultar, ou null se não tinha
+// pendente (ou se deu erro já de cara, ex: não achou o formulário).
 async function tentarComecarNova(numeroSistema, automation) {
   const consulta = await buscarPendente(numeroSistema)
   if (!consulta) return null
 
   log(numeroSistema, 'Processando CNPJ', consulta.cnpj)
+
+  // fecha qualquer janela de resultado deixada aberta de antes, sem
+  // depender disso pra decidir o estado da tela.
+  automation.fecharModal()
+
   const estado = automation.detectarEstado()
-
-  if (estado.tipo === 'modal') {
-    // uma janela de resultado antiga ainda aberta — fecha antes de começar
-    automation.fecharModal()
-    return { consulta, iniciadoEm: Date.now(), tentativas: 0 }
-  }
-
   if (estado.tipo !== 'formulario') {
     await salvarResultado(consulta.id, numeroSistema, {
-      erro: `[${numeroSistema}º sistema] não achei o formulário de CNPJ/botão AVANÇAR na tela${mensagemDiagnostico(estado)}`,
+      erro: `[${numeroSistema}º sistema] não achei o campo de CNPJ/botão na tela${mensagemDiagnostico(estado)}`,
     })
     return null
   }
 
+  const fotoAntes = automation.tirarFotoTexto()
   automation.preencherEAvancar(estado, consulta.cnpj)
-  return { consulta, iniciadoEm: Date.now(), tentativas: 0 }
+  return { consulta, iniciadoEm: Date.now(), fotoAntes, ultimoTextoNovo: '', estavel: 0 }
 }
 
-// Checa uma consulta já em andamento (AVANÇAR já foi clicado). Devolve
-// true quando terminou (sucesso ou erro definitivo) — o chamador limpa o
-// andamento nesse caso.
+// Checa uma consulta já em andamento (botão já foi clicado). Devolve true
+// quando terminou (sucesso ou erro definitivo) — o chamador limpa o
+// andamento nesse caso. Só considera a mensagem "chegou de verdade" depois
+// que o texto novo fica igual por 2 rodadas seguidas (~1,4s parado) — evita
+// confundir com a tela ainda carregando/preenchendo campos.
 async function verificarAndamento(numeroSistema, automation, andamento) {
-  const estado = automation.detectarEstado()
+  const textoNovo = automation.textoNovoDesde(andamento.fotoAntes)
 
-  if (estado.tipo === 'modal') {
-    log(numeroSistema, 'Mensagem da Análise de crédito:', estado.mensagem)
-    automation.fecharModal()
-    const resultado = automation.ehNaoEncontrado(estado.mensagem)
+  if (textoNovo && textoNovo === andamento.ultimoTextoNovo) {
+    andamento.estavel += 1
+  } else {
+    andamento.estavel = 0
+  }
+  andamento.ultimoTextoNovo = textoNovo
+
+  if (textoNovo && andamento.estavel >= 2) {
+    log(numeroSistema, 'Mensagem de resultado:', textoNovo)
+    const resultado = automation.ehNaoEncontrado(textoNovo)
       ? 'nao_encontrado'
-      : automation.classificarModal(estado.mensagem)
+      : automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, 'Resultado:', resultado)
-    await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: estado.mensagem })
+    await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
     return true
   }
 
@@ -144,7 +177,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   if (decorrido < TIMEOUT_ANDAMENTO_MS) return false // ainda dentro do prazo, tenta de novo na próxima rodada
 
   await salvarResultado(andamento.consulta.id, numeroSistema, {
-    erro: `[${numeroSistema}º sistema] a janela "Análise de crédito" não apareceu a tempo${mensagemDiagnostico(estado)}`,
+    erro: `[${numeroSistema}º sistema] não vi mensagem de resultado a tempo — url: ${location.href} — texto novo visto: ${textoNovo || '(nada)'}`,
   })
   return true
 }
