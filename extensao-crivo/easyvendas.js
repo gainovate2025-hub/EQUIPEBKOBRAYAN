@@ -1,52 +1,42 @@
-// Extensão Crivo — Easy Vendas (portaleasyvendas.timbrasil.com.br)
+// easyvendas.js — Extensão Crivo (Easy Vendas)
+// -----------------------------------------------------------------------
+// Orquestra a automação: fica de olho na tabela crivo_consultas
+// (Supabase) e, quando aparece uma consulta pendente, usa
+// EasyVendasAutomation (easyvendas-automation.js) pra digitar o CNPJ,
+// clicar AVANÇAR e ler o resultado da janela "Análise de crédito".
 //
-// Fica de olho na tabela crivo_consultas (Supabase). Quando aparece uma
-// consulta pendente, digita o CNPJ no campo da tela de "Dados do cliente"
-// (dentro de uma Negociação — a que tem os botões CANCELAR/SALVAR/
-// CRÉDITO/AVANÇAR), clica em AVANÇAR (o "CRÉDITO" sozinho não faz nada —
-// confirmado ao vivo), lê a mensagem da janela "Análise de crédito" que
-// abre e devolve aprovado/reprovado.
+// ESTRATÉGIA (igual o projeto P2B — veja background/service-worker.js de
+// lá): em vez de uma função só que clica e fica esperando dentro dela
+// (que quebra se a tela navegar no meio), o laço abaixo roda em rodadas
+// curtas chamando detectarEstado() a cada uma — lê a tela ATUAL e decide
+// o próximo passo, igual uma pessoa faria. Se a tela navegar pra um
+// lugar inesperado depois do clique, a PRÓXIMA rodada já percebe isso
+// (estado 'desconhecido') em vez de travar numa espera cega de 15s.
 //
-// IMPORTANTE — como preparar a tela: essa extensão NÃO cria uma negociação
-// nova sozinha. Antes de ligar, deixa a aba aberta numa tela de
-// "Negociações" > "Dados do cliente" (não precisa ser de um cliente real —
-// só usa o campo CNPJ pra consultar, nunca clica em SALVAR). A extensão
-// tenta reaproveitar essa mesma tela pra cada CNPJ novo, trocando só o
-// valor do campo CNPJ — mas se depois de uma consulta a tela não voltar
-// pro estado normal (ex: "não achei o campo de CNPJ" no log), pode ser
-// que essa negociação em especial só aguente UMA consulta — nesse caso
-// é preciso abrir uma negociação nova (Negociações > Nova) antes da
-// próxima consulta.
+// IMPORTANTE — como preparar a tela: essa extensão NÃO cria uma
+// negociação nova sozinha. Antes de ligar, deixa a aba aberta numa tela
+// de "Negociações" > "Dados do cliente" (não precisa ser de um cliente
+// real — só usa o campo CNPJ pra consultar, nunca clica em SALVAR).
 //
-// O 1º e o 2º sistema são o MESMO site (só logins/contas diferentes), então
-// essa mesma extensão serve pros dois — em cada ABA aberta no Easy Vendas,
-// clica no ícone da extensão e escolhe se aquela aba é o "1º sistema" ou o
-// "2º sistema". Essa escolha é guardada por aba (pelo background.js), então
-// mudar uma aba não mexe na outra. Sem escolha feita, assume "1º sistema".
+// O 1º e o 2º sistema são o MESMO site (só logins/contas diferentes),
+// então essa mesma extensão serve pros dois — em cada ABA aberta no Easy
+// Vendas, clica no ícone da extensão e escolhe se aquela aba é o "1º
+// sistema" ou o "2º sistema" (guardado por aba pelo background.js).
 //
-// Não precisa de login nenhum aqui — usa a chave pública (anon) do Supabase,
-// que só permite mexer em consultas ainda "pendente" (veja migration_013).
+// Não precisa de login nenhum aqui — usa a chave pública (anon) do
+// Supabase, que só permite mexer em consultas ainda "pendente" (veja
+// migration_013 e migration_017 — grava via RPC, não direto na tabela).
 
 const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
 const ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
 
-const INTERVALO_BUSCA_MS = 5000
-const TIMEOUT_RESULTADO_MS = 15000
+const POLL_IDLE_MS = 5000 // sem consulta em andamento: procura pendente de tanto em tanto
+const POLL_ANDAMENTO_MS = 700 // com consulta em andamento: checa a tela rápido (é aí que a modal aparece)
+const TIMEOUT_ANDAMENTO_MS = 15000 // tempo máximo esperando a janela aparecer antes de desistir
 
-// Fallback (formato antigo, caso ainda apareça em algum caso não visto).
-const PALAVRAS_REPROVADO_FALLBACK = [
-  /\btim\b/,
-  /duvidas? financeiras?/,
-  /restric/,
-  /cheque sem fundo/,
-]
-
-function semAcento(txt) {
-  return (txt || '')
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
+function dormir(ms) {
+  return new Promise((r) => setTimeout(r, ms))
 }
 
 async function pegarNumeroSistema() {
@@ -101,204 +91,89 @@ async function salvarResultado(id, numeroSistema, { resultado = null, motivo = n
   })
 }
 
-function dormir(ms) {
-  return new Promise((r) => setTimeout(r, ms))
+function mensagemDiagnostico(estado) {
+  if (estado.tipo !== 'desconhecido') return ''
+  const botoes = estado.botoesVisiveis.join(' | ') || 'nenhum'
+  return ` — url: ${estado.url} — botões vistos: ${botoes}`
 }
 
-// Acha o <input> do CNPJ procurando por um rótulo/texto "CNPJ" perto dele.
-function acharCampoCnpj() {
-  const inputs = [...document.querySelectorAll('input')]
-  for (const input of inputs) {
-    const container = input.closest('div, label, section') || input.parentElement
-    const texto = semAcento(container?.textContent || '')
-    if (texto.includes('cnpj')) return input
-  }
-  return null
-}
+// Tenta começar uma consulta nova. Devolve o "andamento" (consulta em
+// curso) se conseguiu clicar AVANÇAR, ou null se não tinha pendente.
+async function tentarComecarNova(numeroSistema, automation) {
+  const consulta = await buscarPendente(numeroSistema)
+  if (!consulta) return null
 
-// Acha um botão cujo texto CONTENHA um dos alvos (sem acento/maiúscula) —
-// ex: "AVANÇAR", "OK". Não exige igualdade exata porque o botão às vezes
-// tem um ícone junto (setinha etc.) que entra no texto — fica com o
-// elemento de texto MAIS CURTO entre os que batem, pra não pegar sem
-// querer um contêiner grande por cima do botão.
-function acharBotaoPorTexto(...alvos) {
-  const normalizados = alvos.map((a) => semAcento(a).trim())
-  const elementos = [...document.querySelectorAll('button, [role="button"], a')]
-  let melhor = null
-  for (const el of elementos) {
-    const texto = semAcento(el.textContent || '').trim()
-    if (!texto) continue
-    const bate = normalizados.some((alvo) => texto.includes(alvo))
-    if (!bate) continue
-    if (!melhor || texto.length < melhor.texto.length) melhor = { el, texto }
-  }
-  return melhor?.el || null
-}
-
-function definirValorInput(input, valor) {
-  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-  setter.call(input, valor)
-  input.dispatchEvent(new Event('input', { bubbles: true }))
-  input.dispatchEvent(new Event('change', { bubbles: true }))
-  input.dispatchEvent(new Event('blur', { bubbles: true }))
-}
-
-function formatarCnpj(digitos) {
-  return digitos.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5')
-}
-
-function textoDaTela() {
-  return (document.body.innerText || '')
-}
-
-function linhas(texto) {
-  return texto.split('\n').map((l) => l.trim()).filter(Boolean)
-}
-
-// Compara o texto da tela antes/depois de clicar em CRÉDITO e devolve só o
-// que APARECEU de novo — é assim que a extensão acha a janela "Análise de
-// crédito" sem depender de saber a estrutura exata do modal (class, id
-// etc.), que a gente não tem como inspecionar direto.
-function linhasNovas(anterior, atual) {
-  const antigas = new Set(linhas(anterior))
-  return linhas(atual).filter((l) => !antigas.has(l))
-}
-
-// Dentro das linhas novas (o conteúdo do modal), acha a mensagem da
-// "Análise de crédito" — tira o título e o botão "OK", fica só com a frase
-// do resultado (ex: "RECOMENDADO MEI. Recomendado valor de compra.").
-function extrairMensagemModal(linhasModal) {
-  for (let i = 0; i < linhasModal.length; i++) {
-    const linha = linhasModal[i]
-    const normalizada = semAcento(linha)
-    const posicao = normalizada.indexOf('analise de credito')
-    if (posicao === -1) continue
-
-    // às vezes o título e a mensagem vêm na mesma linha
-    const restoMesmaLinha = linha.slice(posicao + 'analise de credito'.length).trim()
-    if (restoMesmaLinha.length > 5 && semAcento(restoMesmaLinha) !== 'ok') return restoMesmaLinha
-
-    // senão, a mensagem é a(s) linha(s) seguinte(s) (tirando o "OK" do botão)
-    const seguintes = linhasModal.slice(i + 1).filter((l) => semAcento(l) !== 'ok')
-    if (seguintes.length > 0) return seguintes.join(' ').trim()
-  }
-  return null
-}
-
-function ehNaoEncontrado(texto) {
-  return /nao solicitada|nao encontrad/.test(semAcento(texto))
-}
-
-// A mensagem da "Análise de crédito" começa com "RECOMENDADO" quando dá pra
-// vender, e (por dedução — ainda não vimos um caso reprovado de verdade)
-// deve começar com "NÃO RECOMENDADO" quando não dá. Guarda também os
-// padrões antigos como reforço, caso apareça alguma variação diferente.
-function classificarModal(mensagem) {
-  const normalizado = semAcento(mensagem)
-  if (/nao recomendado|nao aprovado/.test(normalizado)) return 'reprovado'
-  if (/recomendado|aprovado/.test(normalizado)) return 'aprovado'
-  const reprovadoFallback = PALAVRAS_REPROVADO_FALLBACK.some((re) => re.test(normalizado))
-  return reprovadoFallback ? 'reprovado' : 'aprovado'
-}
-
-async function processarConsulta(numeroSistema, consulta) {
   log(numeroSistema, 'Processando CNPJ', consulta.cnpj)
+  const estado = automation.detectarEstado()
 
-  try {
-    const campoCnpj = acharCampoCnpj()
-    if (!campoCnpj) {
-      throw new Error(
-        'não achei o campo de CNPJ — deixa a aba aberta numa tela de Negociação > "Dados do cliente" (com o botão AVANÇAR)'
-      )
-    }
-
-    // Limpa antes de digitar: se o campo já tiver ESSE MESMO cnpj de uma
-    // tentativa anterior, digitar o mesmo valor de novo pode não disparar
-    // nada — a tela não percebe "mudança" nenhuma.
-    definirValorInput(campoCnpj, '')
-    await dormir(150)
-    definirValorInput(campoCnpj, formatarCnpj(consulta.cnpj))
-    await dormir(300)
-
-    // O botão que realmente dispara a Análise de Crédito é o "AVANÇAR"
-    // (o "CRÉDITO" não faz nada sozinho — confirmado ao vivo). Depois de
-    // fechar a janela, a tela continua a mesma "Dados do cliente", então dá
-    // pra reaproveitar pro próximo CNPJ sem navegar pra lugar nenhum.
-    // Tenta achar por alguns segundos — pode ser um instante de transição
-    // da tela logo depois de fechar a janela da consulta anterior.
-    let botaoAvancar = null
-    for (let i = 0; i < 6 && !botaoAvancar; i++) {
-      botaoAvancar = acharBotaoPorTexto('avancar')
-      if (!botaoAvancar) await dormir(500)
-    }
-    if (!botaoAvancar) {
-      const botoesVisiveis = [...document.querySelectorAll('button, [role="button"], a')]
-        .map((el) => (el.textContent || '').trim())
-        .filter(Boolean)
-        .slice(0, 20)
-        .join(' | ')
-      throw new Error(
-        `não achei o botão AVANÇAR na tela — url: ${location.href} — botões vistos: ${botoesVisiveis || 'nenhum'}`
-      )
-    }
-
-    const antesTexto = textoDaTela()
-    log(numeroSistema, '[debug] clicando em AVANÇAR com o campo CNPJ =', JSON.stringify(campoCnpj.value))
-    botaoAvancar.click()
-
-    // espera a janela "Análise de crédito" aparecer (compara o texto da
-    // tela inteira antes/depois, pra achar o que apareceu de novo)
-    const inicio = Date.now()
-    let mensagem = null
-    while (Date.now() - inicio < TIMEOUT_RESULTADO_MS) {
-      await dormir(400)
-      const atual = textoDaTela()
-      const novas = linhasNovas(antesTexto, atual)
-      mensagem = extrairMensagemModal(novas)
-      if (mensagem) break
-    }
-
-    if (!mensagem) {
-      const atual = textoDaTela()
-      log(numeroSistema, '[debug] não achou o modal a tempo. Linhas novas:', JSON.stringify(linhasNovas(antesTexto, atual)))
-      throw new Error('a janela "Análise de crédito" não apareceu a tempo — confere se a extensão está numa tela de Negociação válida')
-    }
-
-    log(numeroSistema, 'Mensagem da Análise de crédito:', mensagem)
-
-    // fecha a janela, pra deixar pronta pro próximo CNPJ
-    const botaoOk = acharBotaoPorTexto('ok', 'fechar')
-    if (botaoOk) botaoOk.click()
-
-    const resultado = ehNaoEncontrado(mensagem) ? 'nao_encontrado' : classificarModal(mensagem)
-    log(numeroSistema, 'Resultado:', resultado)
-
-    await salvarResultado(consulta.id, numeroSistema, { resultado, motivo: mensagem })
-  } catch (err) {
-    log(numeroSistema, 'Erro:', err.message)
-    await salvarResultado(consulta.id, numeroSistema, { erro: `[${numeroSistema}º sistema] ${err.message}` })
+  if (estado.tipo === 'modal') {
+    // uma janela de resultado antiga ainda aberta — fecha antes de começar
+    automation.fecharModal()
+    return { consulta, iniciadoEm: Date.now(), tentativas: 0 }
   }
+
+  if (estado.tipo !== 'formulario') {
+    await salvarResultado(consulta.id, numeroSistema, {
+      erro: `[${numeroSistema}º sistema] não achei o formulário de CNPJ/botão AVANÇAR na tela${mensagemDiagnostico(estado)}`,
+    })
+    return null
+  }
+
+  automation.preencherEAvancar(estado, consulta.cnpj)
+  return { consulta, iniciadoEm: Date.now(), tentativas: 0 }
 }
 
-let ocupado = false
-async function cicloDeChecagem(numeroSistema) {
-  if (ocupado) return
-  ocupado = true
-  try {
-    const consulta = await buscarPendente(numeroSistema)
-    if (consulta) await processarConsulta(numeroSistema, consulta)
-  } catch (err) {
-    log(numeroSistema, 'Falha ao checar pendências:', err.message)
-  } finally {
-    ocupado = false
+// Checa uma consulta já em andamento (AVANÇAR já foi clicado). Devolve
+// true quando terminou (sucesso ou erro definitivo) — o chamador limpa o
+// andamento nesse caso.
+async function verificarAndamento(numeroSistema, automation, andamento) {
+  const estado = automation.detectarEstado()
+
+  if (estado.tipo === 'modal') {
+    log(numeroSistema, 'Mensagem da Análise de crédito:', estado.mensagem)
+    automation.fecharModal()
+    const resultado = automation.ehNaoEncontrado(estado.mensagem)
+      ? 'nao_encontrado'
+      : automation.classificarModal(estado.mensagem)
+    log(numeroSistema, 'Resultado:', resultado)
+    await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: estado.mensagem })
+    return true
+  }
+
+  const decorrido = Date.now() - andamento.iniciadoEm
+  if (decorrido < TIMEOUT_ANDAMENTO_MS) return false // ainda dentro do prazo, tenta de novo na próxima rodada
+
+  await salvarResultado(andamento.consulta.id, numeroSistema, {
+    erro: `[${numeroSistema}º sistema] a janela "Análise de crédito" não apareceu a tempo${mensagemDiagnostico(estado)}`,
+  })
+  return true
+}
+
+async function laco(numeroSistema, automation) {
+  let andamento = null
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    try {
+      if (andamento) {
+        const terminou = await verificarAndamento(numeroSistema, automation, andamento)
+        if (terminou) andamento = null
+      } else {
+        andamento = await tentarComecarNova(numeroSistema, automation)
+      }
+    } catch (err) {
+      log(numeroSistema, 'Falha no laço:', err.message)
+      andamento = null
+    }
+    await dormir(andamento ? POLL_ANDAMENTO_MS : POLL_IDLE_MS)
   }
 }
 
 async function iniciar() {
   const numeroSistema = await pegarNumeroSistema()
   log(numeroSistema, 'Ativo em', location.href)
-  setInterval(() => cicloDeChecagem(numeroSistema), INTERVALO_BUSCA_MS)
-  cicloDeChecagem(numeroSistema)
+
+  const automation = new EasyVendasAutomation(EASYVENDAS_SELECTORS)
+  laco(numeroSistema, automation)
 
   // se a pessoa trocar a escolha dessa aba no ícone da extensão, o
   // background.js manda recarregar pra já começar a valer.

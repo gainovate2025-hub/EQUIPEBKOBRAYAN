@@ -23,7 +23,28 @@ function formatarCnpj(v) {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
-function RespostaCrivo({ consulta: c }) {
+// Junta os dois sistemas num veredito só: reprovado em qualquer um decide
+// na hora (mesma regra do banco — migration_018), CNPJ errado em qualquer
+// um também já é motivo de aviso, e só é aprovado quando os dois concordam.
+function veredito(c) {
+  const s1 = c.sistema1_resultado
+  const s2 = c.sistema2_resultado
+  if (s1 === 'reprovado' || s2 === 'reprovado') return 'reprovado'
+  if (s1 === 'nao_encontrado' || s2 === 'nao_encontrado') return 'nao_encontrado'
+  if (s1 === 'aprovado' && s2 === 'aprovado') return 'aprovado'
+  return null
+}
+
+function RespostaCrivoSimples({ consulta: c }) {
+  if (c.status === 'erro') {
+    return <div className="text-red-600">⚠️ Erro ao consultar — manda o CNPJ de novo.</div>
+  }
+  const resultado = veredito(c)
+  if (!resultado) return <span className="text-muted">⏳ aguardando…</span>
+  return <span className={`text-base font-bold ${RESULT_COLOR[resultado]}`}>{RESULT_LABEL[resultado]}</span>
+}
+
+function RespostaCrivoDetalhada({ consulta: c }) {
   if (c.status === 'erro') {
     return <div className="text-red-600">⚠️ Erro ao consultar — manda o CNPJ de novo.</div>
   }
@@ -48,6 +69,7 @@ function RespostaCrivo({ consulta: c }) {
 
 export default function Crivo() {
   const { profile } = useAuth()
+  const visaoSimples = profile?.role === 'operacao'
   const [cnpj, setCnpj] = useState('')
   const [consultas, setConsultas] = useState([])
   const [loading, setLoading] = useState(true)
@@ -121,7 +143,7 @@ export default function Crivo() {
             <div className="flex flex-col items-start gap-0.5 self-start">
               <div className="text-[11px] text-muted">Crivo</div>
               <div className="max-w-[85%] rounded-lg rounded-tl-sm border border-line bg-paper px-3 py-2 text-xs">
-                <RespostaCrivo consulta={c} />
+                {visaoSimples ? <RespostaCrivoSimples consulta={c} /> : <RespostaCrivoDetalhada consulta={c} />}
               </div>
             </div>
           </div>
