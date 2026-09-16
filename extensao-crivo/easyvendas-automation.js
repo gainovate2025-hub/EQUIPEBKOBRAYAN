@@ -86,7 +86,7 @@ class EasyVendasAutomation {
       // título — aceita um prefixo curto, não uma frase inteira antes.
       if (posicao > 10) continue
 
-      const restoMesmaLinha = linha.slice(posicao + alvo.length).trim()
+      const restoMesmaLinha = linha.slice(posicao + alvo.length).trim().replace(/^[-–—:]+\s*/, '')
       if (restoMesmaLinha.length > 5 && semAcento(restoMesmaLinha) !== 'ok') return restoMesmaLinha
 
       const seguintes = linhas.slice(i + 1).filter((l) => semAcento(l) !== 'ok')

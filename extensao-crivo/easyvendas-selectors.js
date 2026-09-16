@@ -15,9 +15,13 @@ const EASYVENDAS_SELECTORS = {
   // Acha o campo de CNPJ pelo texto do rótulo/contêiner ao redor do input.
   campoCnpjContainerTexto: 'cnpj',
 
-  // Botão que dispara a Análise de Crédito. É "AVANÇAR" — o botão
-  // "CRÉDITO" sozinho não faz nada (confirmado ao vivo pelo Brayan).
-  botaoAvancarTextos: ['avancar'],
+  // Botão que dispara a Análise de Crédito. Depende da tela em que a
+  // extensão encontrar o CNPJ: em "Dados do cliente" é "AVANÇAR" (o botão
+  // "CRÉDITO" sozinho não faz nada, confirmado ao vivo). Em "Adicionar
+  // Clientes" é "SOLICITAR" (embaixo de "Pré-Análise de Crédito"), print
+  // confirmado pelo Brayan — os dois sistemas usam telas diferentes pra
+  // chegar na análise, então a extensão aceita qualquer um dos dois.
+  botaoAvancarTextos: ['avancar', 'solicitar'],
 
   // Botão(ões) que fecham a janela de resultado.
   botaoOkTextos: ['ok', 'fechar'],
@@ -33,9 +37,11 @@ const EASYVENDAS_SELECTORS = {
   // Classificação da mensagem dentro da janela.
   // A mensagem real já vista é "Não foi encontrada nenhuma empresa com o
   // CNPJ: ..." — por isso "nao (foi )?encontrad", não só "nao encontrad".
+  // Radical sem o "o"/"a" final — pega "aprovado" e "aprovada" (a Pré-
+  // Análise às vezes concorda no feminino), mesma ideia pros outros.
   padraoNaoEncontrado: /nao solicitada|nao (foi )?encontrad|nenhuma empresa/,
-  padraoReprovado: /nao recomendado|nao aprovado/,
-  padraoAprovado: /recomendado|aprovado/,
+  padraoReprovado: /nao recomendad|nao aprovad|reprovad/,
+  padraoAprovado: /recomendad|aprovad/,
   // Fallback (formato antigo, caso apareça alguma variação diferente).
   padraoReprovadoFallback: [/\btim\b/, /duvidas? financeiras?/, /restric/, /cheque sem fundo/],
 }
