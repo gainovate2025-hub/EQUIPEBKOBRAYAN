@@ -22,7 +22,29 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
+// CORS: o site (GitHub Pages) e essa função vivem em domínios diferentes,
+// então o navegador manda um pedido OPTIONS de "preflight" antes do POST
+// de verdade — sem responder ele com esses cabeçalhos, o navegador barra
+// tudo com um erro de rede genérico (tipo "Failed to fetch"), antes
+// disso aqui sequer rodar.
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+}
+
+function resposta(body, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+  })
+}
+
 Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders })
+  }
+
   try {
     const authHeader = req.headers.get('Authorization') ?? ''
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -35,7 +57,7 @@ Deno.serve(async (req) => {
     })
     const { data: { user }, error: userError } = await callerClient.auth.getUser()
     if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Não autenticado.' }), { status: 401 })
+      return resposta({ error: 'Não autenticado.' }, 401)
     }
 
     const admin = createClient(supabaseUrl, serviceKey)
@@ -47,19 +69,19 @@ Deno.serve(async (req) => {
       .single()
 
     if (callerProfile?.role !== 'supervisor' && callerProfile?.role !== 'lider') {
-      return new Response(JSON.stringify({ error: 'Apenas supervisor ou líder podem trocar senhas.' }), { status: 403 })
+      return resposta({ error: 'Apenas supervisor ou líder podem trocar senhas.' }, 403)
     }
 
     const { userId, newPassword, newUsername } = await req.json()
     if (!userId || (!newPassword && !newUsername)) {
-      return new Response(JSON.stringify({ error: 'Dados inválidos.' }), { status: 400 })
+      return resposta({ error: 'Dados inválidos.' }, 400)
     }
     if (newPassword && newPassword.length < 6) {
-      return new Response(JSON.stringify({ error: 'Senha muito curta.' }), { status: 400 })
+      return resposta({ error: 'Senha muito curta.' }, 400)
     }
     const usernameLimpo = newUsername ? newUsername.trim().toLowerCase() : null
     if (newUsername && !usernameLimpo) {
-      return new Response(JSON.stringify({ error: 'Usuário inválido.' }), { status: 400 })
+      return resposta({ error: 'Usuário inválido.' }, 400)
     }
 
     // líder só pode trocar a senha de alguém do próprio time
@@ -70,7 +92,7 @@ Deno.serve(async (req) => {
         .eq('id', userId)
         .single()
       if (!targetProfile || targetProfile.team_id !== callerProfile.team_id) {
-        return new Response(JSON.stringify({ error: 'Você só pode trocar a senha de alguém do seu time.' }), { status: 403 })
+        return resposta({ error: 'Você só pode trocar a senha de alguém do seu time.' }, 403)
       }
     }
 
@@ -80,7 +102,7 @@ Deno.serve(async (req) => {
 
     const { error: updateError } = await admin.auth.admin.updateUserById(userId, authUpdate)
     if (updateError) {
-      return new Response(JSON.stringify({ error: updateError.message }), { status: 400 })
+      return resposta({ error: updateError.message }, 400)
     }
 
     if (usernameLimpo) {
@@ -89,12 +111,12 @@ Deno.serve(async (req) => {
         .update({ username: usernameLimpo })
         .eq('id', userId)
       if (profileError) {
-        return new Response(JSON.stringify({ error: profileError.message }), { status: 400 })
+        return resposta({ error: profileError.message }, 400)
       }
     }
 
-    return new Response(JSON.stringify({ ok: true }), { status: 200 })
+    return resposta({ ok: true })
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), { status: 500 })
+    return resposta({ error: String(err) }, 500)
   }
 })
