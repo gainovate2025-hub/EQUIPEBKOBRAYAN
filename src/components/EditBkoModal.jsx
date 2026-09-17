@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from './ui/Modal'
 import Field from './ui/Field'
 import { useAuth } from '../lib/AuthContext'
-import { addNote, updatePassword, updatePerformance, updateProfile } from '../lib/api'
+import { addNote, updateLogin, updatePerformance, updateProfile } from '../lib/api'
 
 export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
   const { contestacaoLabel } = useAuth()
@@ -29,7 +29,7 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
     e.preventDefault()
     setSaving(true)
     try {
-      await updateProfile(bko.id, { name: form.name, username: form.username })
+      await updateProfile(bko.id, { name: form.name })
       await updatePerformance(bko.id, {
         contestation_goal: Number(form.contestation_goal) || 0,
         contestations_done: Number(form.contestations_done) || 0,
@@ -38,8 +38,14 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
         commission: Number(form.commission) || 0,
         objective: form.objective,
       })
-      if (form.password.trim()) {
-        await updatePassword(bko.id, form.password.trim())
+      // usuário (login) e senha passam pela Edge Function juntos — trocar
+      // só o profiles.username não move o login de verdade (auth.users).
+      const usernameMudou = form.username.trim().toLowerCase() !== bko.username.trim().toLowerCase()
+      if (usernameMudou || form.password.trim()) {
+        await updateLogin(bko.id, {
+          username: usernameMudou ? form.username.trim() : undefined,
+          password: form.password.trim() || undefined,
+        })
       }
       if (form.newNote.trim()) {
         await addNote(bko.id, form.newNote.trim())

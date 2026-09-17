@@ -1,6 +1,15 @@
 // Edge Function: admin-set-password
 // Permite que o Supervisor (qualquer BKO) ou um Líder (só o próprio time)
-// troque a senha de um BKO sem expor a service_role key no frontend.
+// troque a senha e/ou o usuário (login) de um BKO sem expor a
+// service_role key no frontend.
+//
+// IMPORTANTE sobre o usuário: o login real (auth.users.email) e o
+// "profiles.username" mostrado na tela precisam mudar JUNTOS — antes só
+// o profiles.username era atualizado (direto pelo cliente, sem passar
+// aqui), então a tela mostrava um usuário novo que não existia de
+// verdade no login (auth.users.email continuava o antigo). Por isso o
+// troca de usuário agora só acontece aqui, atualizando os dois de uma
+// vez.
 // Rode no ambiente do Supabase (Deno).
 //
 // Deploy:
@@ -41,9 +50,16 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Apenas supervisor ou líder podem trocar senhas.' }), { status: 403 })
     }
 
-    const { userId, newPassword } = await req.json()
-    if (!userId || !newPassword || newPassword.length < 6) {
+    const { userId, newPassword, newUsername } = await req.json()
+    if (!userId || (!newPassword && !newUsername)) {
       return new Response(JSON.stringify({ error: 'Dados inválidos.' }), { status: 400 })
+    }
+    if (newPassword && newPassword.length < 6) {
+      return new Response(JSON.stringify({ error: 'Senha muito curta.' }), { status: 400 })
+    }
+    const usernameLimpo = newUsername ? newUsername.trim().toLowerCase() : null
+    if (newUsername && !usernameLimpo) {
+      return new Response(JSON.stringify({ error: 'Usuário inválido.' }), { status: 400 })
     }
 
     // líder só pode trocar a senha de alguém do próprio time
@@ -58,9 +74,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { error: updateError } = await admin.auth.admin.updateUserById(userId, { password: newPassword })
+    const authUpdate = {}
+    if (newPassword) authUpdate.password = newPassword
+    if (usernameLimpo) authUpdate.email = `${usernameLimpo}@painelbko.internal`
+
+    const { error: updateError } = await admin.auth.admin.updateUserById(userId, authUpdate)
     if (updateError) {
       return new Response(JSON.stringify({ error: updateError.message }), { status: 400 })
+    }
+
+    if (usernameLimpo) {
+      const { error: profileError } = await admin
+        .from('profiles')
+        .update({ username: usernameLimpo })
+        .eq('id', userId)
+      if (profileError) {
+        return new Response(JSON.stringify({ error: profileError.message }), { status: 400 })
+      }
     }
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 })

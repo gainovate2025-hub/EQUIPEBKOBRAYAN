@@ -102,6 +102,14 @@ export async function updateProfile(userId, patch) {
 }
 
 export async function updatePassword(userId, newPassword) {
+  return updateLogin(userId, { password: newPassword })
+}
+
+// Troca o usuário (login) e/ou a senha de um BKO. O usuário PRECISA
+// passar por aqui (não por updateProfile) porque o login de verdade é o
+// e-mail no Supabase Auth — mudar só o profiles.username deixava a tela
+// mostrando um usuário que não existia de fato no login.
+export async function updateLogin(userId, { username, password } = {}) {
   // Chama a Edge Function "admin-set-password" diretamente por fetch (em vez
   // de supabase.functions.invoke) porque o gateway novo de Functions do
   // Supabase exige a chave "publishable" nova no header apikey — a chave
@@ -119,11 +127,11 @@ export async function updatePassword(userId, newPassword) {
         apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ userId, newPassword }),
+      body: JSON.stringify({ userId, newPassword: password || undefined, newUsername: username || undefined }),
     }
   )
   const body = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(body.error || 'Falha ao trocar senha.')
+  if (!res.ok) throw new Error(body.error || 'Falha ao trocar login.')
 }
 
 export async function addNote(userId, note) {
