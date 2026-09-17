@@ -31,8 +31,11 @@ const EASYVENDAS_SELECTORS = {
   botaoBuscarTextos: ['search', 'buscar', 'pesquisar'],
 
   // Botão(ões) que fecham uma janela de resultado deixada aberta de uma
-  // consulta anterior, antes de começar uma nova.
-  botaoOkTextos: ['ok', 'fechar'],
+  // consulta anterior, antes de começar uma nova. "Não" cobre a janela de
+  // "Deseja realizar a reanálise de crédito?" (some após um NEGADO) — a
+  // extensão nunca deve aceitar reanálise/redução de comissionamento
+  // sozinha, só fecha e mantém o resultado que já leu.
+  botaoOkTextos: ['ok', 'fechar', 'nao'],
 
   // CNPJ não encontrado (mensagem já vista: "Não foi encontrada nenhuma
   // empresa com o CNPJ: ..."). Exige "cnpj" perto de "não encontrad" (ou a
