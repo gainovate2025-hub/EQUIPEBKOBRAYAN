@@ -121,14 +121,28 @@ class EasyVendasAutomation {
     }
   }
 
-  // Preenche o CNPJ e clica no botão de consultar. Ação que PODE navegar a
-  // tela — por isso não fica esperando resposta aqui dentro; quem confirma
-  // o que aconteceu é a próxima rodada do laço, comparando o texto da tela
-  // com a foto tirada antes (veja textoNovoDesde em easyvendas.js).
+  // Só digita o CNPJ, sem clicar em nada — usado quando o clique é um
+  // passo separado (veja acharBotaoBuscar, pro sistema 1).
+  digitarCnpj(campoCnpj, cnpjDigitos) {
+    this.definirValorInput(campoCnpj, '')
+    this.definirValorInput(campoCnpj, this.formatarCnpj(cnpjDigitos))
+  }
+
+  // Preenche o CNPJ e clica no botão de consultar, num passo só — usado
+  // quando não tem uma busca separada antes (sistema 2). Ação que PODE
+  // navegar a tela — por isso não fica esperando resposta aqui dentro;
+  // quem confirma o que aconteceu é a próxima rodada do laço, comparando
+  // o texto da tela com a foto tirada antes (veja textoNovoDesde).
   preencherEAvancar(estadoFormulario, cnpjDigitos) {
-    this.definirValorInput(estadoFormulario.campoCnpj, '')
-    this.definirValorInput(estadoFormulario.campoCnpj, this.formatarCnpj(cnpjDigitos))
+    this.digitarCnpj(estadoFormulario.campoCnpj, cnpjDigitos)
     estadoFormulario.botaoAvancar.click()
+  }
+
+  // Lupa de busca ao lado do CNPJ (só sistema 1) — busca/carrega os dados
+  // da empresa antes do Solicitar. Devolve null se não achar (aí segue
+  // direto pro botão de consultar, como antes).
+  acharBotaoBuscar() {
+    return this.acharBotaoPorTexto(this.selectors.botaoBuscarTextos)
   }
 
   ehNaoEncontrado(mensagem) {

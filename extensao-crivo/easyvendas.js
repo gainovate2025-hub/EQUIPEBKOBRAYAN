@@ -42,7 +42,7 @@ const ANON_KEY =
 
 const POLL_IDLE_MS = 5000 // sem consulta em andamento: procura pendente de tanto em tanto
 const POLL_ANDAMENTO_MS = 700 // com consulta em andamento: checa a tela rápido
-const TIMEOUT_ANDAMENTO_MS = 15000 // tempo máximo esperando a mensagem de resultado antes de desistir
+const TIMEOUT_ANDAMENTO_MS = 25000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar)
 
 function dormir(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -123,8 +123,16 @@ function mensagemDiagnostico(estado) {
 }
 
 // Tenta começar uma consulta nova. Devolve o "andamento" (consulta em
-// curso) se conseguiu clicar no botão de consultar, ou null se não tinha
-// pendente (ou se deu erro já de cara, ex: não achou o formulário).
+// curso) se conseguiu agir na tela, ou null se não tinha pendente (ou se
+// deu erro já de cara, ex: não achou o formulário).
+//
+// No sistema 1, digita o CNPJ e clica na LUPA de busca primeiro (se
+// achar uma) — a tela "Adicionar Clientes" parece exigir isso antes do
+// Solicitar funcionar de verdade. Fica na fase 'buscando' até achar o
+// botão de consultar (ou dar timeout). Se não achar nenhuma lupa, já
+// tenta o botão de consultar direto, do jeito antigo.
+// No sistema 2, digita e clica direto no botão de consultar (AVANÇAR) —
+// não tem etapa de busca separada nessa tela.
 async function tentarComecarNova(numeroSistema, automation) {
   const consulta = await buscarPendente(numeroSistema)
   if (!consulta) return null
@@ -143,16 +151,29 @@ async function tentarComecarNova(numeroSistema, automation) {
     return null
   }
 
+  const base = { consulta, iniciadoEm: Date.now(), ultimoTextoNovo: '', estavel: 0 }
+
+  if (numeroSistema === 1) {
+    const botaoBuscar = automation.acharBotaoBuscar()
+    if (botaoBuscar) {
+      log(numeroSistema, 'Digitando CNPJ e clicando na lupa de busca')
+      const fotoAntes = automation.tirarFotoTexto()
+      automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
+      botaoBuscar.click()
+      return { ...base, fotoAntes, fase: 'buscando' }
+    }
+  }
+
   const fotoAntes = automation.tirarFotoTexto()
   automation.preencherEAvancar(estado, consulta.cnpj)
-  return { consulta, iniciadoEm: Date.now(), fotoAntes, ultimoTextoNovo: '', estavel: 0 }
+  return { ...base, fotoAntes, fase: 'consultando' }
 }
 
-// Checa uma consulta já em andamento (botão já foi clicado). Devolve true
-// quando terminou (sucesso ou erro definitivo) — o chamador limpa o
-// andamento nesse caso. Só considera a mensagem "chegou de verdade" depois
-// que o texto novo fica igual por 2 rodadas seguidas (~1,4s parado) — evita
-// confundir com a tela ainda carregando/preenchendo campos.
+// Checa uma consulta já em andamento. Devolve true quando terminou
+// (sucesso ou erro definitivo) — o chamador limpa o andamento nesse caso.
+// Só considera a mensagem "chegou de verdade" depois que o texto novo
+// fica igual por 2 rodadas seguidas (~1,4s parado) — evita confundir com
+// a tela ainda carregando/preenchendo campos.
 async function verificarAndamento(numeroSistema, automation, andamento) {
   const textoNovo = automation.textoNovoDesde(andamento.fotoAntes)
 
@@ -163,6 +184,39 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
   andamento.ultimoTextoNovo = textoNovo
 
+  const decorrido = Date.now() - andamento.iniciadoEm
+
+  if (andamento.fase === 'buscando') {
+    // "não encontrado" já na busca (empresa de verdade não existe) — pode
+    // parar por aqui, sem tentar consultar crédito de algo que não existe.
+    if (textoNovo && andamento.estavel >= 2 && automation.ehNaoEncontrado(textoNovo)) {
+      log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
+      await salvarResultado(andamento.consulta.id, numeroSistema, { resultado: 'nao_encontrado', motivo: textoNovo })
+      return true
+    }
+
+    // a busca deve ter carregado os dados da empresa — tenta achar o
+    // botão de consultar (Solicitar/Avançar) pra seguir pra próxima fase.
+    const botaoConsultar = automation.acharBotaoPorTexto(EASYVENDAS_SELECTORS.botaoAvancarTextos)
+    if (botaoConsultar) {
+      log(numeroSistema, 'Achou o botão de consultar depois da busca. Texto visto na busca:', textoNovo || '(nada)')
+      andamento.fotoAntes = automation.tirarFotoTexto()
+      botaoConsultar.click()
+      andamento.fase = 'consultando'
+      andamento.ultimoTextoNovo = ''
+      andamento.estavel = 0
+      andamento.iniciadoEm = Date.now() // reinicia o prazo pra essa fase
+      return false
+    }
+
+    if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
+    await salvarResultado(andamento.consulta.id, numeroSistema, {
+      erro: `[${numeroSistema}º sistema] busquei o CNPJ mas não achei o botão de consultar depois — url: ${location.href} — texto visto na busca: ${textoNovo || '(nada)'}`,
+    })
+    return true
+  }
+
+  // fase 'consultando'
   if (textoNovo && andamento.estavel >= 2) {
     log(numeroSistema, 'Mensagem de resultado:', textoNovo)
     const resultado = automation.ehNaoEncontrado(textoNovo)
@@ -173,7 +227,6 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     return true
   }
 
-  const decorrido = Date.now() - andamento.iniciadoEm
   if (decorrido < TIMEOUT_ANDAMENTO_MS) return false // ainda dentro do prazo, tenta de novo na próxima rodada
 
   await salvarResultado(andamento.consulta.id, numeroSistema, {

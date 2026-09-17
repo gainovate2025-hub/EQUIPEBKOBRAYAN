@@ -22,13 +22,23 @@ const EASYVENDAS_SELECTORS = {
   // extensão aceita qualquer um dos dois, tanto faz em qual sistema tá.
   botaoAvancarTextos: ['avancar', 'solicitar'],
 
+  // Lupa de busca ao lado do campo de CNPJ — só usada no sistema 1
+  // ("Adicionar Clientes"): antes de "Solicitar" a Pré-Análise, parece que
+  // precisa buscar/carregar os dados da empresa primeiro (senão o
+  // Solicitar reclama que não achou nada, mesmo com CNPJ válido). É um
+  // ícone de fonte (Material Icons), por isso o texto dele é literalmente
+  // a palavra do ícone.
+  botaoBuscarTextos: ['search', 'buscar', 'pesquisar'],
+
   // Botão(ões) que fecham uma janela de resultado deixada aberta de uma
   // consulta anterior, antes de começar uma nova.
   botaoOkTextos: ['ok', 'fechar'],
 
   // CNPJ não encontrado (mensagem já vista: "Não foi encontrada nenhuma
-  // empresa com o CNPJ: ...") — vale pros dois sistemas.
-  padraoNaoEncontrado: /nao (foi )?encontrad|nenhuma empresa/,
+  // empresa com o CNPJ: ..."). Exige "cnpj" perto de "não encontrad" (ou a
+  // frase inteira "nenhuma empresa") — só "não encontrado" sozinho é
+  // genérico demais (pode ser de CEP, endereço etc., nada a ver com CNPJ).
+  padraoNaoEncontrado: /nenhuma empresa|cnpj[\s\S]{0,30}nao encontrad|nao encontrad[\s\S]{0,30}cnpj/,
 
   // Sistema 1 (Cliente): só é REPROVADO se a mensagem citar "Tim" (ex.:
   // "Constam dúvidas financeiras com o grupo TIM"). Qualquer outra
