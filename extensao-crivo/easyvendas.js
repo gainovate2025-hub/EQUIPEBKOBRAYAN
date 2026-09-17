@@ -43,6 +43,7 @@ const ANON_KEY =
 const POLL_IDLE_MS = 5000 // sem consulta em andamento: procura pendente de tanto em tanto
 const POLL_ANDAMENTO_MS = 700 // com consulta em andamento: checa a tela rápido
 const TIMEOUT_ANDAMENTO_MS = 25000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar)
+const ESTAVEL_MIN = 4 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2,8s) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer
 
 function dormir(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -189,7 +190,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   if (andamento.fase === 'buscando') {
     // "não encontrado" já na busca (empresa de verdade não existe) — pode
     // parar por aqui, sem tentar consultar crédito de algo que não existe.
-    if (textoNovo && andamento.estavel >= 2 && automation.ehNaoEncontrado(textoNovo)) {
+    if (textoNovo && andamento.estavel >= ESTAVEL_MIN && automation.ehNaoEncontrado(textoNovo)) {
       log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
       await salvarResultado(andamento.consulta.id, numeroSistema, { resultado: 'nao_encontrado', motivo: textoNovo })
       return true
@@ -217,7 +218,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
 
   // fase 'consultando'
-  if (textoNovo && andamento.estavel >= 2) {
+  if (textoNovo && andamento.estavel >= ESTAVEL_MIN) {
     log(numeroSistema, 'Mensagem de resultado:', textoNovo)
     const resultado = automation.ehNaoEncontrado(textoNovo)
       ? 'nao_encontrado'

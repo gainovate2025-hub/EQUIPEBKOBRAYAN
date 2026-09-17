@@ -100,9 +100,14 @@ class EasyVendasAutomation {
   }
 
   // Linhas que estão na tela AGORA mas não estavam na foto tirada antes.
+  // Ignora linhas que são só "CNPJ: ..." — isso aparece na tela ANTES do
+  // resultado de verdade (a empresa carregando), nunca é o resultado em
+  // si, e já vimos ele fazer a extensão "travar" achando que já tinha
+  // terminado (leu só isso e classificou errado como aprovado).
   textoNovoDesde(fotoAntes) {
     return linhasDoBody()
       .filter((l) => !fotoAntes.has(l))
+      .filter((l) => !/^cnpj:?\s*[\d.\-/]+$/i.test(l.trim()))
       .join(' ')
       .trim()
   }
