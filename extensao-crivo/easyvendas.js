@@ -170,11 +170,27 @@ async function tentarComecarNova(numeroSistema, automation) {
   return { ...base, fotoAntes, fase: 'consultando' }
 }
 
+// Classifica o texto novo, se der pra classificar. Devolve null se o
+// texto não bate com NENHUMA palavra-chave conhecida (aí quem chama
+// decide se espera mais ou aceita como aprovado por padrão).
+function classificarSeReconhecido(automation, texto, numeroSistema) {
+  if (!texto) return null
+  if (automation.ehNaoEncontrado(texto)) return 'nao_encontrado'
+  const resultado = automation.classificarMensagem(texto, numeroSistema)
+  return resultado === 'reprovado' ? 'reprovado' : null
+}
+
 // Checa uma consulta já em andamento. Devolve true quando terminou
 // (sucesso ou erro definitivo) — o chamador limpa o andamento nesse caso.
-// Só considera a mensagem "chegou de verdade" depois que o texto novo
-// fica igual por 2 rodadas seguidas (~1,4s parado) — evita confundir com
-// a tela ainda carregando/preenchendo campos.
+//
+// Um texto que bate com uma palavra-chave conhecida (reprovado ou não
+// encontrado) é aceito NA HORA, sem esperar nada — é sinal forte,
+// especialmente porque já vimos mensagem real ficar mudando de leve a
+// cada rodada (nunca "parada" o suficiente) e isso dava timeout à toa.
+// Só quando o texto NÃO bate com nada conhecido (candidato a aprovado
+// por padrão) é que espera ficar igual por várias rodadas seguidas —
+// esse é o caso arriscado, que já vimos pegar lixo de tela (tipo "CNPJ:
+// ...") em vez do resultado de verdade.
 async function verificarAndamento(numeroSistema, automation, andamento) {
   const textoNovo = automation.textoNovoDesde(andamento.fotoAntes)
 
@@ -186,11 +202,12 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   andamento.ultimoTextoNovo = textoNovo
 
   const decorrido = Date.now() - andamento.iniciadoEm
+  const reconhecido = classificarSeReconhecido(automation, textoNovo, numeroSistema)
 
   if (andamento.fase === 'buscando') {
     // "não encontrado" já na busca (empresa de verdade não existe) — pode
     // parar por aqui, sem tentar consultar crédito de algo que não existe.
-    if (textoNovo && andamento.estavel >= ESTAVEL_MIN && automation.ehNaoEncontrado(textoNovo)) {
+    if (reconhecido === 'nao_encontrado') {
       log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
       await salvarResultado(andamento.consulta.id, numeroSistema, { resultado: 'nao_encontrado', motivo: textoNovo })
       return true
@@ -218,12 +235,9 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
 
   // fase 'consultando'
-  if (textoNovo && andamento.estavel >= ESTAVEL_MIN) {
-    log(numeroSistema, 'Mensagem de resultado:', textoNovo)
-    const resultado = automation.ehNaoEncontrado(textoNovo)
-      ? 'nao_encontrado'
-      : automation.classificarMensagem(textoNovo, numeroSistema)
-    log(numeroSistema, 'Resultado:', resultado)
+  if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {
+    const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
+    log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
     await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
     return true
   }
