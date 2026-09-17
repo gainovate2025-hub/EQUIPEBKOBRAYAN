@@ -150,9 +150,11 @@ class EasyVendasAutomation {
   }
 
   // numeroSistema decide qual regra de reprovação vale (são diferentes em
-  // cada sistema — veja easyvendas-selectors.js). Fora isso, é aprovado.
+  // cada sistema — veja easyvendas-selectors.js). "Restrição de mercado"
+  // vale nos dois. Fora isso, é aprovado.
   classificarMensagem(mensagem, numeroSistema) {
     const normalizado = semAcento(mensagem)
+    if (this.selectors.padraoRestricaoMercado.test(normalizado)) return 'reprovado'
     const padraoReprovado =
       numeroSistema === 1 ? this.selectors.sistema1PadraoReprovado : this.selectors.sistema2PadraoReprovado
     return padraoReprovado.test(normalizado) ? 'reprovado' : 'aprovado'

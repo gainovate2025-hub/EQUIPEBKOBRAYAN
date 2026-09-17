@@ -40,14 +40,19 @@ const EASYVENDAS_SELECTORS = {
   // genérico demais (pode ser de CEP, endereço etc., nada a ver com CNPJ).
   padraoNaoEncontrado: /nenhuma empresa|cnpj[\s\S]{0,30}nao encontrad|nao encontrad[\s\S]{0,30}cnpj/,
 
-  // Sistema 1 (Cliente): só é REPROVADO se a mensagem citar "Tim" (ex.:
-  // "Constam dúvidas financeiras com o grupo TIM"). Qualquer outra
-  // mensagem de resultado é APROVADO — regra confirmada pelo Brayan.
+  // "Sócio com restrição de mercado" — vale nos dois sistemas (confirmado
+  // pelo Brayan depois de ver um caso passar como aprovado errado).
+  padraoRestricaoMercado: /restri\w*\s*(de\s+|no\s+)?mercado/,
+
+  // Sistema 1 (Cliente): é REPROVADO se a mensagem citar "Tim" (ex.:
+  // "Constam dúvidas financeiras com o grupo TIM") ou "restrição de
+  // mercado" do sócio. Qualquer outra mensagem de resultado é APROVADO —
+  // regra confirmada pelo Brayan.
   sistema1PadraoReprovado: /\btim\b/,
 
   // Sistema 2 (Negociação > 1ª Venda): é REPROVADO se a mensagem citar
-  // qualquer uma dessas palavras. Qualquer outra coisa é APROVADO —
-  // regra confirmada pelo Brayan.
+  // qualquer uma dessas palavras, ou "restrição de mercado". Qualquer
+  // outra coisa é APROVADO — regra confirmada pelo Brayan.
   sistema2PadraoReprovado: /retaguarda|negado|inadimplente/,
 }
 
