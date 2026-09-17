@@ -40,10 +40,14 @@ const EASYVENDAS_SELECTORS = {
   // genérico demais (pode ser de CEP, endereço etc., nada a ver com CNPJ).
   padraoNaoEncontrado: /nenhuma empresa|cnpj[\s\S]{0,30}nao encontrad|nao encontrad[\s\S]{0,30}cnpj/,
 
-  // "Restrição de mercado" — SÓ vale no 2º sistema (Crivo 2, que é o
-  // crivo de mercado). No 1º sistema (Crivo 1, interno TIM) restrição de
-  // CNPJ/sócio NÃO reprova sozinha — confirmado pelo Brayan.
-  padraoRestricaoMercado: /restri\w*\s*(de\s+|no\s+)?mercado/,
+  // Restrição (de qualquer tipo — de mercado, ou "para empresa e sócios",
+  // etc.) — SÓ vale no 2º sistema (Crivo 2, que é o crivo de mercado).
+  // Mensagem real já vista: "Cliente MEI com restrição para empresa e
+  // sócios" (sem citar "mercado" no texto) — por isso não exige a
+  // palavra "mercado" perto, só "restri" em qualquer forma. No 1º
+  // sistema (Crivo 1, interno TIM) restrição de CNPJ/sócio NÃO reprova
+  // sozinha — confirmado pelo Brayan.
+  padraoRestricaoMercado: /restri\w*/,
 
   // Empresa recém-aberta: frase direta, ou "aberta/constituída/fundada há
   // N meses" com N menor que 6 (checado em código, não só regex — veja
