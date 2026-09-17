@@ -44,6 +44,13 @@ function RespostaCrivoSimples({ consulta: c }) {
   return <span className={`text-base font-bold ${RESULT_COLOR[resultado]}`}>{RESULT_LABEL[resultado]}</span>
 }
 
+// Se o 1º sistema já reprovou (ou não achou o CNPJ), o 2º nunca roda de
+// propósito — mostrar "não necessário" em vez de "aguardando" pra sempre,
+// que dava a entender que ainda tava processando.
+function sistema1Terminal(c) {
+  return c.sistema1_resultado === 'reprovado' || c.sistema1_resultado === 'nao_encontrado'
+}
+
 function RespostaCrivoDetalhada({ consulta: c }) {
   if (c.status === 'erro') {
     return <div className="text-red-600">⚠️ Erro ao consultar — manda o CNPJ de novo.</div>
@@ -57,6 +64,8 @@ function RespostaCrivoDetalhada({ consulta: c }) {
             <span className="text-muted">{i + 1}º sistema: </span>
             {resultado ? (
               <span className={`font-semibold ${RESULT_COLOR[resultado]}`}>{RESULT_LABEL[resultado]}</span>
+            ) : sis === 'sistema2' && sistema1Terminal(c) ? (
+              <span className="text-muted">— não necessário</span>
             ) : (
               <span className="text-muted">⏳ aguardando…</span>
             )}
