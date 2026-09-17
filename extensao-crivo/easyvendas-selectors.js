@@ -40,19 +40,29 @@ const EASYVENDAS_SELECTORS = {
   // genérico demais (pode ser de CEP, endereço etc., nada a ver com CNPJ).
   padraoNaoEncontrado: /nenhuma empresa|cnpj[\s\S]{0,30}nao encontrad|nao encontrad[\s\S]{0,30}cnpj/,
 
-  // "Sócio com restrição de mercado" — vale nos dois sistemas (confirmado
-  // pelo Brayan depois de ver um caso passar como aprovado errado).
+  // "Restrição de mercado" — SÓ vale no 2º sistema (Crivo 2, que é o
+  // crivo de mercado). No 1º sistema (Crivo 1, interno TIM) restrição de
+  // CNPJ/sócio NÃO reprova sozinha — confirmado pelo Brayan.
   padraoRestricaoMercado: /restri\w*\s*(de\s+|no\s+)?mercado/,
 
-  // Sistema 1 (Cliente): é REPROVADO se a mensagem citar "Tim" (ex.:
-  // "Constam dúvidas financeiras com o grupo TIM") ou "restrição de
-  // mercado" do sócio. Qualquer outra mensagem de resultado é APROVADO —
-  // regra confirmada pelo Brayan.
+  // Empresa recém-aberta: frase direta, ou "aberta/constituída/fundada há
+  // N meses" com N menor que 6 (checado em código, não só regex — veja
+  // classificarMensagem em easyvendas-automation.js).
+  padraoEmpresaRecenteDireto: /menos de (6|seis) meses/,
+  padraoEmpresaRecenteComNumero: /(abert\w*|constitu\w*|fundad\w*)[^\d]{0,20}(\d+)\s*mes/,
+
+  padraoChequeSemFundo: /cheque sem fundo/,
+
+  // Sistema 1 (Cliente — Crivo 1, INTERNO TIM): é REPROVADO só nesses 3
+  // casos — dívida com a Tim, cheque sem fundo, ou empresa aberta há
+  // menos de 6 meses. Qualquer outra coisa (inclusive CNPJ ou sócio com
+  // restrição) é APROVADO — regra confirmada pelo Brayan.
   sistema1PadraoReprovado: /\btim\b/,
 
-  // Sistema 2 (Negociação > 1ª Venda): é REPROVADO se a mensagem citar
-  // qualquer uma dessas palavras, ou "restrição de mercado". Qualquer
-  // outra coisa é APROVADO — regra confirmada pelo Brayan.
+  // Sistema 2 (Negociação > 1ª Venda — Crivo 2, CRIVO DE MERCADO, pesa
+  // mais que o 1º): é REPROVADO se a mensagem citar qualquer uma dessas
+  // palavras, ou "restrição de mercado". Qualquer outra coisa é
+  // APROVADO — regra confirmada pelo Brayan.
   sistema2PadraoReprovado: /retaguarda|negado|inadimplente/,
 }
 

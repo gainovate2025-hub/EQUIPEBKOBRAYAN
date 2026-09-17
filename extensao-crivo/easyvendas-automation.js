@@ -149,15 +149,37 @@ class EasyVendasAutomation {
     return this.selectors.padraoNaoEncontrado.test(semAcento(mensagem))
   }
 
+  // Empresa aberta há menos de 6 meses — frase direta, ou "aberta/
+  // constituída/fundada há N meses" com N < 6 (número checado em código).
+  empresaMuitoRecente(normalizado) {
+    if (this.selectors.padraoEmpresaRecenteDireto.test(normalizado)) return true
+    const m = normalizado.match(this.selectors.padraoEmpresaRecenteComNumero)
+    return m ? Number(m[2]) < 6 : false
+  }
+
   // numeroSistema decide qual regra de reprovação vale (são diferentes em
-  // cada sistema — veja easyvendas-selectors.js). "Restrição de mercado"
-  // vale nos dois. Fora isso, é aprovado.
+  // cada sistema — veja easyvendas-selectors.js):
+  // - sistema 1 (Crivo 1, interno TIM): só reprova com dívida Tim, cheque
+  //   sem fundo ou empresa recém-aberta. Restrição de CNPJ/sócio sozinha
+  //   NÃO reprova aqui.
+  // - sistema 2 (Crivo 2, crivo de mercado — pesa mais): reprova com
+  //   retaguarda/negado/inadimplente OU restrição de mercado.
+  // Fora isso, é aprovado.
   classificarMensagem(mensagem, numeroSistema) {
     const normalizado = semAcento(mensagem)
-    if (this.selectors.padraoRestricaoMercado.test(normalizado)) return 'reprovado'
-    const padraoReprovado =
-      numeroSistema === 1 ? this.selectors.sistema1PadraoReprovado : this.selectors.sistema2PadraoReprovado
-    return padraoReprovado.test(normalizado) ? 'reprovado' : 'aprovado'
+
+    if (numeroSistema === 1) {
+      const reprovado =
+        this.selectors.sistema1PadraoReprovado.test(normalizado) ||
+        this.selectors.padraoChequeSemFundo.test(normalizado) ||
+        this.empresaMuitoRecente(normalizado)
+      return reprovado ? 'reprovado' : 'aprovado'
+    }
+
+    const reprovado =
+      this.selectors.sistema2PadraoReprovado.test(normalizado) ||
+      this.selectors.padraoRestricaoMercado.test(normalizado)
+    return reprovado ? 'reprovado' : 'aprovado'
   }
 
   // Fecha uma janela de resultado deixada aberta de uma consulta anterior
