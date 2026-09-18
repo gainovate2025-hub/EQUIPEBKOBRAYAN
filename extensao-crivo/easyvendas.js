@@ -45,16 +45,32 @@ const POLL_ANDAMENTO_MS = 400 // com consulta em andamento: checa a tela rápido
 const TIMEOUT_ANDAMENTO_MS = 25000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar)
 const ESTAVEL_MIN = 7 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2,8s, igual antes — só poll mais rápido) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer
 
-// "Não encontrado" às vezes é falso (a tela ainda não carregou direito) —
-// antes de aceitar de vez, recarrega a página e tenta de nova algumas
-// vezes. Guarda a contagem no sessionStorage porque o reload apaga tudo
-// da memória (a extensão reinicia do zero e pega essa MESMA consulta de
+// "Não encontrado" e erros (tela não carregou, serviço temporariamente
+// indisponível, timeout etc.) às vezes são passageiros — antes de
+// aceitar de vez, recarrega a página e tenta de novo algumas vezes.
+// Guarda a contagem no sessionStorage porque o reload apaga tudo da
+// memória (a extensão reinicia do zero e pega essa MESMA consulta de
 // novo, já que ela continua "pendente").
-const MAX_TENTATIVAS_NAO_ENCONTRADO = 2
+const MAX_TENTATIVAS = 2
 const chaveTentativas = (consultaId) => `crivo_tentativas_${consultaId}`
 
 function tentativasFeitas(consultaId) {
   return Number(sessionStorage.getItem(chaveTentativas(consultaId)) || 0)
+}
+
+// Decide entre tentar de novo (recarregando a página) ou salvar o
+// resultado/erro de vez — usado tanto pra "não encontrado" quanto pra
+// qualquer erro (timeout, serviço indisponível, formulário não achado).
+async function finalizarComRetry(numeroSistema, consultaId, dados) {
+  const feitas = tentativasFeitas(consultaId)
+  if (feitas < MAX_TENTATIVAS) {
+    sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
+    log(numeroSistema, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), recarregando a página pra tentar de novo`)
+    location.reload()
+    return
+  }
+  sessionStorage.removeItem(chaveTentativas(consultaId))
+  await salvarResultado(consultaId, numeroSistema, dados)
 }
 
 function dormir(ms) {
@@ -129,21 +145,6 @@ async function salvarResultado(id, numeroSistema, { resultado = null, motivo = n
   })
 }
 
-// "Não encontrado" pode ser a tela ainda carregando, não o CNPJ de
-// verdade não existir — por isso tenta de novo (recarregando a página)
-// até MAX_TENTATIVAS_NAO_ENCONTRADO vezes antes de aceitar como final.
-async function salvarNaoEncontradoOuTentarDeNovo(numeroSistema, consultaId, motivo) {
-  const feitas = tentativasFeitas(consultaId)
-  if (feitas < MAX_TENTATIVAS_NAO_ENCONTRADO) {
-    sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
-    log(numeroSistema, `CNPJ não encontrado — tentativa ${feitas + 1}/${MAX_TENTATIVAS_NAO_ENCONTRADO}, recarregando a página pra tentar de novo`)
-    location.reload()
-    return
-  }
-  sessionStorage.removeItem(chaveTentativas(consultaId))
-  await salvarResultado(consultaId, numeroSistema, { resultado: 'nao_encontrado', motivo })
-}
-
 function mensagemDiagnostico(estado) {
   if (estado.tipo !== 'desconhecido') return ''
   const botoes = estado.botoesVisiveis.join(' | ') || 'nenhum'
@@ -173,7 +174,7 @@ async function tentarComecarNova(numeroSistema, automation) {
 
   const estado = automation.detectarEstado()
   if (estado.tipo !== 'formulario') {
-    await salvarResultado(consulta.id, numeroSistema, {
+    await finalizarComRetry(numeroSistema, consulta.id, {
       erro: `[${numeroSistema}º sistema] não achei o campo de CNPJ/botão na tela${mensagemDiagnostico(estado)}`,
     })
     return null
@@ -236,7 +237,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // parar por aqui, sem tentar consultar crédito de algo que não existe.
     if (reconhecido === 'nao_encontrado') {
       log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
-      await salvarNaoEncontradoOuTentarDeNovo(numeroSistema, andamento.consulta.id, textoNovo)
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo })
       return true
     }
 
@@ -255,7 +256,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     }
 
     if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
-    await salvarResultado(andamento.consulta.id, numeroSistema, {
+    await finalizarComRetry(numeroSistema, andamento.consulta.id, {
       erro: `[${numeroSistema}º sistema] busquei o CNPJ mas não achei o botão de consultar depois — url: ${location.href} — texto visto na busca: ${textoNovo || '(nada)'}`,
     })
     return true
@@ -266,7 +267,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
     if (resultado === 'nao_encontrado') {
-      await salvarNaoEncontradoOuTentarDeNovo(numeroSistema, andamento.consulta.id, textoNovo)
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo })
     } else {
       await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
     }
@@ -277,7 +278,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 
   const invalidos = automation.camposInvalidosVisiveis()
   const dicaInvalidos = invalidos.length ? ` — campos inválidos na tela: ${invalidos.join(' | ')}` : ''
-  await salvarResultado(andamento.consulta.id, numeroSistema, {
+  await finalizarComRetry(numeroSistema, andamento.consulta.id, {
     erro: `[${numeroSistema}º sistema] não vi mensagem de resultado a tempo — url: ${location.href} — texto novo visto: ${textoNovo || '(nada)'}${dicaInvalidos}`,
   })
   return true
