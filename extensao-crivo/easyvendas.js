@@ -152,14 +152,16 @@ function mensagemDiagnostico(estado) {
 }
 
 // Tenta começar uma consulta nova. Devolve o "andamento" (consulta em
-// curso) se conseguiu agir na tela, ou null se não tinha pendente (ou se
-// deu erro já de cara, ex: não achou o formulário).
+// curso) se conseguiu agir na tela, null se não tinha pendente, ou
+// undefined se ainda está tentando voltar pro formulário certo (não
+// conta como erro — só espera a próxima rodada).
 //
-// No sistema 1, digita o CNPJ e clica na LUPA de busca primeiro (se
-// achar uma) — a tela "Adicionar Clientes" parece exigir isso antes do
-// Solicitar funcionar de verdade. Fica na fase 'buscando' até achar o
-// botão de consultar (ou dar timeout). Se não achar nenhuma lupa, já
-// tenta o botão de consultar direto, do jeito antigo.
+// No sistema 1: se tiver um CEP junto da consulta, preenche e busca ele
+// PRIMEIRO (fase 'aguardando_cep') — ajuda a carregar o endereço da
+// empresa antes do CNPJ. Depois (ou direto, sem CEP), digita o CNPJ e
+// clica na LUPA de busca dele, se achar uma (fase 'buscando'). Se não
+// achar nenhuma lupa, já tenta o botão de consultar direto, do jeito
+// antigo.
 // No sistema 2, digita e clica direto no botão de consultar (AVANÇAR) —
 // não tem etapa de busca separada nessa tela.
 async function tentarComecarNova(numeroSistema, automation) {
@@ -174,6 +176,13 @@ async function tentarComecarNova(numeroSistema, automation) {
 
   const estado = automation.detectarEstado()
   if (estado.tipo !== 'formulario') {
+    // no sistema 1, um reload pode cair em outra tela (não direto no
+    // formulário) — tenta navegar de volta (Clientes > Adicionar) antes
+    // de considerar isso um erro de verdade.
+    if (numeroSistema === 1 && automation.navegarParaAdicionarClientes()) {
+      log(numeroSistema, 'Não achei o formulário — cliquei pra navegar de volta, espero a próxima rodada')
+      return null
+    }
     await finalizarComRetry(numeroSistema, consulta.id, {
       erro: `[${numeroSistema}º sistema] não achei o campo de CNPJ/botão na tela${mensagemDiagnostico(estado)}`,
     })
@@ -181,6 +190,18 @@ async function tentarComecarNova(numeroSistema, automation) {
   }
 
   const base = { consulta, iniciadoEm: Date.now(), ultimoTextoNovo: '', estavel: 0 }
+
+  if (numeroSistema === 1 && consulta.cep) {
+    const campoCep = automation.acharCampoCep()
+    if (campoCep) {
+      log(numeroSistema, 'Preenchendo CEP fornecido:', consulta.cep)
+      const fotoAntes = automation.tirarFotoTexto()
+      automation.definirValorInput(campoCep, consulta.cep)
+      const botaoBuscarCep = automation.acharBotaoBuscarCep(campoCep)
+      if (botaoBuscarCep) botaoBuscarCep.click()
+      return { ...base, fotoAntes, fase: 'aguardando_cep' }
+    }
+  }
 
   if (numeroSistema === 1) {
     const botaoBuscar = automation.acharBotaoBuscar()
@@ -231,6 +252,35 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 
   const decorrido = Date.now() - andamento.iniciadoEm
   const reconhecido = classificarSeReconhecido(automation, textoNovo, numeroSistema)
+
+  // fase 'aguardando_cep': preencheu o CEP e clicou na lupa dele — espera
+  // um pouco (ou até aparecer algo novo, tipo o endereço carregado) antes
+  // de seguir pro CNPJ, dando tempo do endereço vir.
+  if (andamento.fase === 'aguardando_cep') {
+    const tempoMinimoPassou = decorrido >= 1200
+    if (textoNovo || tempoMinimoPassou) {
+      const estadoAgora = automation.detectarEstado()
+      if (estadoAgora.tipo === 'formulario') {
+        log(numeroSistema, 'Endereço do CEP carregado, digitando CNPJ agora')
+        const fotoAntes = automation.tirarFotoTexto()
+        automation.digitarCnpj(estadoAgora.campoCnpj, andamento.consulta.cnpj)
+        const botaoBuscar = automation.acharBotaoBuscar()
+        if (botaoBuscar) botaoBuscar.click()
+        andamento.fotoAntes = fotoAntes
+        andamento.fase = 'buscando'
+        andamento.ultimoTextoNovo = ''
+        andamento.estavel = 0
+        andamento.iniciadoEm = Date.now()
+        return false
+      }
+    }
+
+    if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
+    await finalizarComRetry(numeroSistema, andamento.consulta.id, {
+      erro: `[${numeroSistema}º sistema] preenchi o CEP mas não consegui seguir pro CNPJ — url: ${location.href}`,
+    })
+    return true
+  }
 
   if (andamento.fase === 'buscando') {
     // "não encontrado" já na busca (empresa de verdade não existe) — pode

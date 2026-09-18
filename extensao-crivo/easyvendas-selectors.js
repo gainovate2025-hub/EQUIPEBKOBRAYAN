@@ -30,6 +30,21 @@ const EASYVENDAS_SELECTORS = {
   // a palavra do ícone.
   botaoBuscarTextos: ['search', 'buscar', 'pesquisar'],
 
+  // Campo de CEP — só existe na tela "Adicionar Clientes" (sistema 1).
+  // Confirmado no HTML real: <input md-cep-input mask="99999-999"
+  // name="cep" ...>. Opcional: quando o operador manda o CEP junto do
+  // CNPJ, a extensão preenche ele e clica na lupa (perto do próprio
+  // campo, não a lupa do CNPJ) ANTES de mexer no CNPJ — ajuda a carregar
+  // o endereço da empresa de antemão.
+  campoCepSeletor: 'input[name="cep"]',
+
+  // Botões pra voltar na tela de "Adicionar Clientes" depois de um
+  // reload que caiu em outro lugar — confirmados no HTML real:
+  // <button aria-label="Clientes">           (sem texto visível)
+  // <button id="adicionarButtonTestId">Adicionar</button>
+  botaoClientesTextos: ['clientes'],
+  botaoAdicionarTextos: ['adicionar'],
+
   // Botão(ões) que fecham uma janela de resultado deixada aberta de uma
   // consulta anterior, antes de começar uma nova. "Não" cobre a janela de
   // "Deseja realizar a reanálise de crédito?" (some após um NEGADO) — a

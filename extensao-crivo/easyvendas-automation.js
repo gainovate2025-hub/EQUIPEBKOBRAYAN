@@ -56,22 +56,41 @@ class EasyVendasAutomation {
     return null
   }
 
-  // Acha um botão cujo texto CONTENHA um dos alvos (sem acento/maiúscula).
-  // Não exige igualdade exata porque o botão às vezes tem um ícone junto
-  // que entra no texto — fica com o elemento de texto MAIS CURTO entre os
-  // que batem, pra não pegar um contêiner grande por cima do botão.
-  acharBotaoPorTexto(alvos) {
+  // Acha, dentro de um container qualquer (pode ser o document inteiro),
+  // um botão cujo texto OU aria-label CONTENHA um dos alvos (sem acento/
+  // maiúscula) — alguns botões (ex: "Clientes" no menu) não têm texto
+  // visível, só aria-label. Não exige igualdade exata porque o botão às
+  // vezes tem um ícone junto que entra no texto — fica com o elemento de
+  // texto MAIS CURTO entre os que batem, pra não pegar um contêiner
+  // grande por cima do botão.
+  acharBotaoDentro(container, alvos) {
     const normalizados = alvos.map((a) => semAcento(a).trim())
-    const elementos = [...document.querySelectorAll('button, [role="button"], a')]
+    const elementos = [...container.querySelectorAll('button, [role="button"], a')]
     let melhor = null
     for (const el of elementos) {
-      const texto = semAcento(el.textContent || '').trim()
+      const texto = semAcento(`${el.textContent || ''} ${el.getAttribute('aria-label') || ''}`).trim()
       if (!texto) continue
       const bate = normalizados.some((alvo) => texto.includes(alvo))
       if (!bate) continue
       if (!melhor || texto.length < melhor.texto.length) melhor = { el, texto }
     }
     return melhor?.el || null
+  }
+
+  acharBotaoPorTexto(alvos) {
+    return this.acharBotaoDentro(document, alvos)
+  }
+
+  // Mesma busca de botão, mas só perto de um campo (sobe até 6 níveis na
+  // árvore) — usado quando tem MAIS de um botão igual na tela (ex: duas
+  // lupas de busca, uma do CNPJ e outra do CEP) e precisa achar a certa.
+  acharBotaoPertoDe(elemento, alvos) {
+    let container = elemento.parentElement
+    for (let nivel = 0; container && nivel < 6; nivel++, container = container.parentElement) {
+      const achado = this.acharBotaoDentro(container, alvos)
+      if (achado) return achado
+    }
+    return null
   }
 
   listarBotoesVisiveis(limite = 20) {
@@ -165,6 +184,38 @@ class EasyVendasAutomation {
   // direto pro botão de consultar, como antes).
   acharBotaoBuscar() {
     return this.acharBotaoPorTexto(this.selectors.botaoBuscarTextos)
+  }
+
+  // Campo de CEP (só existe na tela "Adicionar Clientes", sistema 1) —
+  // confirmado no HTML real: <input name="cep" md-cep-input ...>.
+  acharCampoCep() {
+    return document.querySelector(this.selectors.campoCepSeletor)
+  }
+
+  // Lupa de busca do CEP — tem o MESMO texto ("search") da lupa do CNPJ,
+  // por isso busca perto do próprio campo de CEP, não em qualquer lugar
+  // da tela (senão podia clicar a lupa errada).
+  acharBotaoBuscarCep(campoCep) {
+    return this.acharBotaoPertoDe(campoCep, this.selectors.botaoBuscarTextos)
+  }
+
+  // Volta pra tela de "Adicionar Clientes" clicando Clientes > Adicionar
+  // — usado quando a extensão recarrega a página e cai numa tela
+  // diferente (não direto no formulário com o campo CNPJ). Devolve true
+  // se clicou em algum dos dois (a próxima rodada do laço confere se já
+  // chegou no formulário).
+  navegarParaAdicionarClientes() {
+    const botaoAdicionar = this.acharBotaoPorTexto(this.selectors.botaoAdicionarTextos)
+    if (botaoAdicionar) {
+      botaoAdicionar.click()
+      return true
+    }
+    const botaoClientes = this.acharBotaoPorTexto(this.selectors.botaoClientesTextos)
+    if (botaoClientes) {
+      botaoClientes.click()
+      return true
+    }
+    return false
   }
 
   ehNaoEncontrado(mensagem) {

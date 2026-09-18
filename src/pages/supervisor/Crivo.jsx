@@ -23,6 +23,15 @@ function formatarCnpj(v) {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
+function soCepDigitos(v) {
+  return v.replace(/\D/g, '').slice(0, 8)
+}
+
+function formatarCep(v) {
+  const d = soCepDigitos(v)
+  return d.replace(/^(\d{5})(\d)/, '$1-$2')
+}
+
 // Junta os dois sistemas num veredito só: reprovado em qualquer um decide
 // na hora (mesma regra do banco — migration_018), CNPJ errado em qualquer
 // um também já é motivo de aviso, e só é aprovado quando os dois concordam.
@@ -80,6 +89,7 @@ export default function Crivo() {
   const { profile } = useAuth()
   const visaoSimples = profile?.role === 'operacao'
   const [cnpj, setCnpj] = useState('')
+  const [cep, setCep] = useState('')
   const [consultas, setConsultas] = useState([])
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
@@ -124,14 +134,19 @@ export default function Crivo() {
       return setMsg('Esse CNPJ já foi o último consultado — espera terminar antes de mandar de novo.')
     }
 
+    const cepLimpo = soCepDigitos(cep)
+    if (cepLimpo && cepLimpo.length !== 8) return setMsg('CEP inválido (8 números) — ou deixa em branco.')
+
     setEnviando(true)
     const { error } = await supabase.from('crivo_consultas').insert({
       cnpj: limpo,
+      cep: cepLimpo ? formatarCep(cepLimpo) : null,
       solicitado_por: profile.id,
     })
     setEnviando(false)
     if (error) return setMsg('Erro: ' + error.message)
     setCnpj('')
+    setCep('')
   }
 
   return (
@@ -151,6 +166,7 @@ export default function Crivo() {
               </div>
               <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-brand-600 px-3 py-2 text-sm font-medium text-white">
                 {formatarCnpj(c.cnpj)}
+                {c.cep && <div className="mt-0.5 text-xs font-normal text-white/80">CEP: {c.cep}</div>}
               </div>
             </div>
 
@@ -172,10 +188,17 @@ export default function Crivo() {
           value={formatarCnpj(cnpj)}
           onChange={(e) => setCnpj(soCnpjDigitos(e.target.value).slice(0, 14))}
         />
+        <input
+          className="field-input w-32"
+          placeholder="CEP (opcional)"
+          value={formatarCep(cep)}
+          onChange={(e) => setCep(soCepDigitos(e.target.value))}
+        />
         <button type="submit" className="btn-primary" disabled={enviando}>
           {enviando ? 'Enviando…' : 'Enviar'}
         </button>
       </form>
+      <p className="text-xs text-muted">CEP é opcional — só ajuda o Crivo a achar a empresa mais rápido quando você já souber.</p>
 
       {msg && <p className="text-sm font-medium text-red-600">{msg}</p>}
     </div>
