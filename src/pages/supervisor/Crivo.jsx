@@ -119,6 +119,11 @@ export default function Crivo() {
     const limpo = soCnpjDigitos(cnpj)
     if (limpo.length !== 14) return setMsg('Digita um CNPJ válido (14 números).')
 
+    const ultima = consultas[consultas.length - 1]
+    if (ultima && soCnpjDigitos(ultima.cnpj) === limpo) {
+      return setMsg('Esse CNPJ já foi o último consultado — espera terminar antes de mandar de novo.')
+    }
+
     setEnviando(true)
     const { error } = await supabase.from('crivo_consultas').insert({
       cnpj: limpo,

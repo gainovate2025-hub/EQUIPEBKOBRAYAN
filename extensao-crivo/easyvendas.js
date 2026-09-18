@@ -40,10 +40,22 @@ const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
 const ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
 
-const POLL_IDLE_MS = 5000 // sem consulta em andamento: procura pendente de tanto em tanto
-const POLL_ANDAMENTO_MS = 700 // com consulta em andamento: checa a tela rápido
+const POLL_IDLE_MS = 1500 // sem consulta em andamento: procura pendente de tanto em tanto
+const POLL_ANDAMENTO_MS = 400 // com consulta em andamento: checa a tela rápido
 const TIMEOUT_ANDAMENTO_MS = 25000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar)
-const ESTAVEL_MIN = 4 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2,8s) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer
+const ESTAVEL_MIN = 7 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2,8s, igual antes — só poll mais rápido) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer
+
+// "Não encontrado" às vezes é falso (a tela ainda não carregou direito) —
+// antes de aceitar de vez, recarrega a página e tenta de nova algumas
+// vezes. Guarda a contagem no sessionStorage porque o reload apaga tudo
+// da memória (a extensão reinicia do zero e pega essa MESMA consulta de
+// novo, já que ela continua "pendente").
+const MAX_TENTATIVAS_NAO_ENCONTRADO = 2
+const chaveTentativas = (consultaId) => `crivo_tentativas_${consultaId}`
+
+function tentativasFeitas(consultaId) {
+  return Number(sessionStorage.getItem(chaveTentativas(consultaId)) || 0)
+}
 
 function dormir(ms) {
   return new Promise((r) => setTimeout(r, ms))
@@ -115,6 +127,21 @@ async function salvarResultado(id, numeroSistema, { resultado = null, motivo = n
     }),
     prefer: 'return=minimal',
   })
+}
+
+// "Não encontrado" pode ser a tela ainda carregando, não o CNPJ de
+// verdade não existir — por isso tenta de novo (recarregando a página)
+// até MAX_TENTATIVAS_NAO_ENCONTRADO vezes antes de aceitar como final.
+async function salvarNaoEncontradoOuTentarDeNovo(numeroSistema, consultaId, motivo) {
+  const feitas = tentativasFeitas(consultaId)
+  if (feitas < MAX_TENTATIVAS_NAO_ENCONTRADO) {
+    sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
+    log(numeroSistema, `CNPJ não encontrado — tentativa ${feitas + 1}/${MAX_TENTATIVAS_NAO_ENCONTRADO}, recarregando a página pra tentar de novo`)
+    location.reload()
+    return
+  }
+  sessionStorage.removeItem(chaveTentativas(consultaId))
+  await salvarResultado(consultaId, numeroSistema, { resultado: 'nao_encontrado', motivo })
 }
 
 function mensagemDiagnostico(estado) {
@@ -209,7 +236,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // parar por aqui, sem tentar consultar crédito de algo que não existe.
     if (reconhecido === 'nao_encontrado') {
       log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
-      await salvarResultado(andamento.consulta.id, numeroSistema, { resultado: 'nao_encontrado', motivo: textoNovo })
+      await salvarNaoEncontradoOuTentarDeNovo(numeroSistema, andamento.consulta.id, textoNovo)
       return true
     }
 
@@ -238,7 +265,11 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
-    await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
+    if (resultado === 'nao_encontrado') {
+      await salvarNaoEncontradoOuTentarDeNovo(numeroSistema, andamento.consulta.id, textoNovo)
+    } else {
+      await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
+    }
     return true
   }
 
