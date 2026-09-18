@@ -275,8 +275,10 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 
   if (decorrido < TIMEOUT_ANDAMENTO_MS) return false // ainda dentro do prazo, tenta de novo na próxima rodada
 
+  const invalidos = automation.camposInvalidosVisiveis()
+  const dicaInvalidos = invalidos.length ? ` — campos inválidos na tela: ${invalidos.join(' | ')}` : ''
   await salvarResultado(andamento.consulta.id, numeroSistema, {
-    erro: `[${numeroSistema}º sistema] não vi mensagem de resultado a tempo — url: ${location.href} — texto novo visto: ${textoNovo || '(nada)'}`,
+    erro: `[${numeroSistema}º sistema] não vi mensagem de resultado a tempo — url: ${location.href} — texto novo visto: ${textoNovo || '(nada)'}${dicaInvalidos}`,
   })
   return true
 }

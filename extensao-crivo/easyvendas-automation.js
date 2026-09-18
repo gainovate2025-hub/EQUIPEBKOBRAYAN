@@ -81,6 +81,23 @@ class EasyVendasAutomation {
       .slice(0, limite)
   }
 
+  // Campos do formulário que o Angular marca como inválidos agora —
+  // ajuda a explicar quando um clique em "Solicitar"/"Avançar" não faz
+  // nada visível (pode ser o formulário bloqueado por um campo
+  // obrigatório vazio, tipo Contato/Telefone, que a busca de CNPJ não
+  // preenche sozinha).
+  camposInvalidosVisiveis(limite = 10) {
+    return [...document.querySelectorAll('.ng-invalid, [aria-invalid="true"]')]
+      .filter((el) => el.tagName === 'INPUT' || el.tagName === 'SELECT' || el.tagName === 'TEXTAREA')
+      .map((el) => {
+        const container = el.closest('div, label, section')
+        const rotulo = container?.querySelector('label')?.textContent?.trim()
+        return rotulo || el.getAttribute('aria-label') || el.name || el.id || el.tagName
+      })
+      .filter(Boolean)
+      .slice(0, limite)
+  }
+
   definirValorInput(input, valor) {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
     setter.call(input, valor)
