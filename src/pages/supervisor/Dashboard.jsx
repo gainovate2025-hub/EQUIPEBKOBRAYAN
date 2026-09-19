@@ -25,7 +25,6 @@ export default function SupervisorDashboard() {
     { key: 'pctMeta', label: '% Meta', width: '.8fr', align: 'right' },
     { key: 'resched', label: 'Reagendamentos', width: '1fr', align: 'right' },
     { key: 'commission', label: 'Comissão', width: '.9fr', align: 'right' },
-    { key: 'objective', label: 'Objetivo', width: '1.6fr' },
     { key: 'actions', label: '', width: '.7fr', align: 'right' },
   ]
 
@@ -78,7 +77,6 @@ export default function SupervisorDashboard() {
         pctMeta,
         resched: p.rescheduling_done ?? 0,
         commission: Number(p.commission || 0),
-        objective: p.objective || '—',
       }
     })
 
@@ -104,7 +102,6 @@ export default function SupervisorDashboard() {
     pctMeta: `${pctContestacoes}%`,
     resched: totals.resched,
     commission: fmtMoney(totals.commission),
-    objective: '',
     actions: '',
   }
 
@@ -117,7 +114,6 @@ export default function SupervisorDashboard() {
       </span>
     )
     if (key === 'commission') return fmtMoney(row.commission)
-    if (key === 'objective') return <span className="text-muted">{row.objective}</span>
     if (key === 'actions') return (
       <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(row.bko)}>Editar</button>
     )
@@ -139,13 +135,6 @@ export default function SupervisorDashboard() {
             label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
             value={fmtMoney(totals.commission)}
           />
-          {isLider && (
-            <StatCard
-              label="Minha comissão (50% da equipe)"
-              value={fmtMoney(totals.commission * 0.5)}
-              sub="Calculada automaticamente"
-            />
-          )}
         </div>
         <HeroCardRed label="Meta da equipe" value={totals.goal} sub={`${totals.done} / ${totals.goal} · ${pctContestacoes}%`} pct={pctContestacoes} />
       </div>

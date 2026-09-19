@@ -24,25 +24,6 @@ export async function fetchOwnPerformance(userId) {
   return data
 }
 
-export async function fetchNotesFor(userId) {
-  const { data, error } = await supabase
-    .from('notes')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
-}
-
-export async function fetchAllNotes() {
-  const { data, error } = await supabase
-    .from('notes')
-    .select('*, profiles!notes_user_id_fkey(name)')
-    .order('created_at', { ascending: false })
-  if (error) throw error
-  return data
-}
-
 export async function fetchOwnDailyReports(userId) {
   const { data, error } = await supabase
     .from('daily_reports')
@@ -110,16 +91,6 @@ export async function updateLogin(userId, { username, password } = {}) {
   )
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error || 'Falha ao trocar login.')
-}
-
-export async function addNote(userId, note) {
-  const { error } = await supabase.from('notes').insert({ user_id: userId, note })
-  if (error) throw error
-}
-
-export async function deleteNote(noteId) {
-  const { error } = await supabase.from('notes').delete().eq('id', noteId)
-  if (error) throw error
 }
 
 // ---------- registro diário (só reagendamento — contestação agora exige aprovação) ----------

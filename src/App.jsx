@@ -7,8 +7,6 @@ import SupervisorDashboard from './pages/supervisor/Dashboard'
 import SupervisorComissao from './pages/supervisor/Comissao'
 import SupervisorContestacoes from './pages/supervisor/Contestacoes'
 import SupervisorReagendamentos from './pages/supervisor/Reagendamentos'
-import SupervisorObjetivos from './pages/supervisor/Objetivos'
-import SupervisorNotas from './pages/supervisor/Notas'
 import SupervisorEquipe from './pages/supervisor/Equipe'
 import SupervisorConfiguracoes from './pages/supervisor/Configuracoes'
 import SupervisorAprovacao from './pages/supervisor/Aprovacao'
@@ -21,8 +19,6 @@ import BkoDashboard from './pages/bko/Dashboard'
 import BkoContestacoes from './pages/bko/Contestacoes'
 import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoComissao from './pages/bko/Comissao'
-import BkoObjetivo from './pages/bko/Objetivo'
-import BkoNotas from './pages/bko/Notas'
 import BkoRegistroDiario from './pages/bko/RegistroDiario'
 import Ranking from './pages/Ranking'
 
@@ -48,8 +44,6 @@ export default function App() {
         <Route path="comissao" element={<SupervisorComissao />} />
         <Route path="contestacoes" element={<SupervisorContestacoes />} />
         <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
-        <Route path="objetivos" element={<SupervisorObjetivos />} />
-        <Route path="notas" element={<SupervisorNotas />} />
         <Route path="equipe" element={<SupervisorEquipe />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="crivo" element={<SupervisorCrivo />} />
@@ -71,8 +65,6 @@ export default function App() {
         <Route path="registro-diario" element={<BkoRegistroDiario />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="comissao" element={<BkoComissao />} />
-        <Route path="objetivo" element={<BkoObjetivo />} />
-        <Route path="notas" element={<BkoNotas />} />
       </Route>
 
       <Route

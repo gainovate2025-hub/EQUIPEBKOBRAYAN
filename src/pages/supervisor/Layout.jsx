@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Target, StickyNote, Users, Trophy, Settings, Zap, ListOrdered,
+  Users, Trophy, Settings, Zap, ListOrdered,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -19,8 +19,6 @@ export default function SupervisorLayout() {
     { to: '/supervisor/comissao', label: 'Comissão', icon: Percent },
     { to: '/supervisor/contestacoes', label: contestacaoLabel, icon: FileText },
     { to: '/supervisor/reagendamentos', label: 'Reagendamentos', icon: CalendarClock },
-    { to: '/supervisor/objetivos', label: 'Objetivos', icon: Target },
-    { to: '/supervisor/notas', label: 'Notas', icon: StickyNote },
     { to: '/supervisor/equipe', label: 'Equipe', icon: Users },
     { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
     { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },

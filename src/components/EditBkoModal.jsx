@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from './ui/Modal'
 import Field from './ui/Field'
 import { useAuth } from '../lib/AuthContext'
-import { addNote, updateLogin, updatePerformance, updateProfile } from '../lib/api'
+import { updateLogin, updatePerformance, updateProfile } from '../lib/api'
 
 export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
   const { contestacaoLabel } = useAuth()
@@ -16,8 +16,6 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
     rescheduling_goal: perf.rescheduling_goal ?? 0,
     rescheduling_done: perf.rescheduling_done ?? 0,
     commission: perf.commission ?? 0,
-    objective: perf.objective ?? '',
-    newNote: '',
   })
   const [saving, setSaving] = useState(false)
 
@@ -36,7 +34,6 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
         rescheduling_goal: Number(form.rescheduling_goal) || 0,
         rescheduling_done: Number(form.rescheduling_done) || 0,
         commission: Number(form.commission) || 0,
-        objective: form.objective,
       })
       // usuário (login) e senha passam pela Edge Function juntos — trocar
       // só o profiles.username não move o login de verdade (auth.users).
@@ -46,9 +43,6 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
           username: usernameMudou ? form.username.trim() : undefined,
           password: form.password.trim() || undefined,
         })
-      }
-      if (form.newNote.trim()) {
-        await addNote(bko.id, form.newNote.trim())
       }
       showToast(`${form.name} atualizado com sucesso.`)
       onSaved()
@@ -89,14 +83,6 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
             <input type="number" min="0" className="field-input" value={form.rescheduling_done} onChange={(e) => update('rescheduling_done', e.target.value)} />
           </Field>
         </div>
-
-        <Field label="Objetivo">
-          <textarea className="field-input" rows={2} value={form.objective} onChange={(e) => update('objective', e.target.value)} />
-        </Field>
-
-        <Field label="Nova nota (opcional)">
-          <textarea className="field-input" rows={2} placeholder="Ex: Bater a meta de contestação até sexta-feira." value={form.newNote} onChange={(e) => update('newNote', e.target.value)} />
-        </Field>
 
         <div className="mt-1 flex justify-end gap-3">
           <button type="button" className="btn-ghost" onClick={onClose}>Cancelar</button>

@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, CalendarClock, ClipboardList,
-  Trophy, Percent, Target, StickyNote,
+  Trophy, Percent,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -19,8 +19,6 @@ export default function BkoLayout() {
     { to: '/bko/registro-diario', label: 'Registro diário', icon: ClipboardList },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
-    { to: '/bko/objetivo', label: 'Meu Objetivo', icon: Target },
-    { to: '/bko/notas', label: 'Minhas Notas', icon: StickyNote },
   ]
 
   const current = navItems.find((i) => (i.end ? location.pathname === i.to : location.pathname.startsWith(i.to)))
