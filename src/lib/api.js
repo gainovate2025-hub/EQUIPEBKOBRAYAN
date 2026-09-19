@@ -64,28 +64,6 @@ export async function fetchTeamRanking() {
     .sort((a, b) => Number(b.performance?.commission || 0) - Number(a.performance?.commission || 0))
 }
 
-export async function fetchAllTeams() {
-  const { data, error } = await supabase.from('teams').select('id, name').order('name')
-  if (error) throw error
-  return data
-}
-
-export async function fetchTeamMessages(teamId) {
-  const { data, error } = await supabase
-    .from('team_messages')
-    .select('*')
-    .eq('team_id', teamId)
-    .order('created_at', { ascending: false })
-    .limit(100)
-  if (error) throw error
-  return data
-}
-
-export async function postTeamMessage(teamId, message) {
-  const { error } = await supabase.rpc('post_team_message', { p_team_id: teamId, p_message: message })
-  if (error) throw new Error(error.message || 'Falha ao enviar mensagem.')
-}
-
 // ---------- escrita (supervisor apenas — RLS também garante isso no banco) ----------
 
 export async function updatePerformance(userId, patch) {

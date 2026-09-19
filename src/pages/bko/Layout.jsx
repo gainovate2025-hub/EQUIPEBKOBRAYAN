@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, CalendarClock, ClipboardList,
-  Trophy, MessageSquare, Percent, Target, StickyNote, Car, Swords,
+  Trophy, Percent, Target, StickyNote,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -18,12 +18,9 @@ export default function BkoLayout() {
     { to: '/bko/reagendamentos', label: 'Meus Reagendamentos', icon: CalendarClock },
     { to: '/bko/registro-diario', label: 'Registro diário', icon: ClipboardList },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
-    { to: '/bko/chat', label: 'Chat', icon: MessageSquare },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
     { to: '/bko/objetivo', label: 'Meu Objetivo', icon: Target },
     { to: '/bko/notas', label: 'Minhas Notas', icon: StickyNote },
-    { to: '/bko/garagem', label: 'Garagem', icon: Car },
-    { to: '/bko/desafios', label: 'Desafios', icon: Swords },
   ]
 
   const current = navItems.find((i) => (i.end ? location.pathname === i.to : location.pathname.startsWith(i.to)))

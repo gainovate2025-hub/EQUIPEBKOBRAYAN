@@ -10,9 +10,13 @@ export default function CustCodes() {
   const { toast, showToast } = useToast()
   const [statusFilter, setStatusFilter] = useState('pendente')
 
+  // Casos com mais de 30 dias saem da lista de copiar — já são antigos
+  // demais pra fazer sentido reenviar.
   const codigos = useMemo(() => {
+    const limite = Date.now() - 30 * 86400000
     return contestacoes
       .filter((c) => c.cust_code && (statusFilter === 'all' || c.status === statusFilter))
+      .filter((c) => new Date(c.created_at).getTime() >= limite)
       .map((c) => c.cust_code)
   }, [contestacoes, statusFilter])
 
@@ -23,7 +27,7 @@ export default function CustCodes() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Cust Codes" hint="Só os códigos, prontos pra copiar" />
+      <SectionHeading title="Cust Codes" hint="Só os códigos, prontos pra copiar — casos com mais de 30 dias não aparecem aqui" />
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <select className="field-input" style={{ maxWidth: 180 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>

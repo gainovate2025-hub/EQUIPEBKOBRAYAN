@@ -24,11 +24,7 @@ import BkoComissao from './pages/bko/Comissao'
 import BkoObjetivo from './pages/bko/Objetivo'
 import BkoNotas from './pages/bko/Notas'
 import BkoRegistroDiario from './pages/bko/RegistroDiario'
-import Garagem from './pages/Garagem'
-import Corrida from './pages/Corrida'
-import Desafios from './pages/Desafios'
 import Ranking from './pages/Ranking'
-import TeamChat from './pages/TeamChat'
 
 import OperacaoLayout from './pages/operacao/Layout'
 import OperacaoConfiguracoes from './pages/supervisor/Configuracoes'
@@ -56,10 +52,6 @@ export default function App() {
         <Route path="notas" element={<SupervisorNotas />} />
         <Route path="equipe" element={<SupervisorEquipe />} />
         <Route path="ranking" element={<Ranking />} />
-        <Route path="chat" element={<TeamChat />} />
-        <Route path="garagem" element={<Garagem />} />
-        <Route path="corrida" element={<Corrida />} />
-        <Route path="desafios" element={<Desafios />} />
         <Route path="crivo" element={<SupervisorCrivo />} />
         <Route path="automacoes" element={<SupervisorAutomacoes />} />
         <Route path="configuracoes" element={<SupervisorConfiguracoes />} />
@@ -78,13 +70,9 @@ export default function App() {
         <Route path="reagendamentos" element={<BkoReagendamentos />} />
         <Route path="registro-diario" element={<BkoRegistroDiario />} />
         <Route path="ranking" element={<Ranking />} />
-        <Route path="chat" element={<TeamChat />} />
         <Route path="comissao" element={<BkoComissao />} />
         <Route path="objetivo" element={<BkoObjetivo />} />
         <Route path="notas" element={<BkoNotas />} />
-        <Route path="garagem" element={<Garagem />} />
-        <Route path="corrida" element={<Corrida />} />
-        <Route path="desafios" element={<Desafios />} />
       </Route>
 
       <Route
@@ -96,7 +84,6 @@ export default function App() {
         }
       >
         <Route index element={<SupervisorCrivo />} />
-        <Route path="chat" element={<TeamChat />} />
         <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
       </Route>
 

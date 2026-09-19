@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Target, StickyNote, Users, Trophy, MessageSquare, Settings, Car, Swords, Zap, ListOrdered,
+  Target, StickyNote, Users, Trophy, Settings, Zap, ListOrdered,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -23,10 +23,7 @@ export default function SupervisorLayout() {
     { to: '/supervisor/notas', label: 'Notas', icon: StickyNote },
     { to: '/supervisor/equipe', label: 'Equipe', icon: Users },
     { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
-    { to: '/supervisor/garagem', label: 'Garagem', icon: Car },
-    { to: '/supervisor/desafios', label: 'Desafios', icon: Swords },
     { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },
-    { to: '/supervisor/chat', label: 'Chat', icon: MessageSquare },
     { to: '/supervisor/configuracoes', label: 'Configurações', icon: Settings },
   ]
 

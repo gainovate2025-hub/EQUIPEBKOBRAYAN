@@ -9,6 +9,10 @@ import { useToast } from '../../lib/useToast'
 import { submitContestacao } from '../../lib/api'
 import { fmtDateTime } from '../../lib/helpers'
 
+function diasDesde(iso) {
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000)
+}
+
 export default function BkoContestacoes() {
   const { contestacoes, performance, loading, reload } = useBkoData()
   const { contestacaoLabel } = useAuth()
@@ -40,10 +44,19 @@ export default function BkoContestacoes() {
   const pendentes = contestacoes.filter((c) => c.status === 'pendente').length
   const autorizadas = contestacoes.filter((c) => c.status === 'autorizada').length
   const recusadas = contestacoes.filter((c) => c.status === 'recusada').length
+  // Recusada há mais de 9 dias sem ser refeita — o supervisor não aprovou
+  // e o caso já tá parado tempo demais.
+  const paraRefazer = contestacoes.filter((c) => c.status === 'recusada' && diasDesde(c.decided_at || c.created_at) >= 9)
 
   return (
     <div className="flex flex-col gap-6">
       <SectionHeading title={contestacaoLabel} hint="Toda contestação enviada fica pendente até o supervisor autorizar" />
+
+      {paraRefazer.length > 0 && (
+        <div className="card border-bad-text/40 bg-bad-bg p-4 text-sm text-bad-text">
+          ⚠️ {paraRefazer.length} caso{paraRefazer.length === 1 ? '' : 's'} recusado{paraRefazer.length === 1 ? '' : 's'} há mais de 9 dias — refaça e reenvie.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <StatCard label="Enviadas" value={contestacoes.length} />
