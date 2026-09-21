@@ -19,15 +19,48 @@ const PORTAL_URL = 'https://portalparcelamento.timbrasil.com.br/pparcelamentos/a
 const MAX_TENTATIVAS_PORTAL = 2
 const INTERVALO_CICLO_MINUTOS = 1
 
+// Mesmo projeto Supabase do resto do painel-bko (veja extensao-crivo/easyvendas.js)
+// — a extensão só LÊ a config daqui (RLS de parcelamento_config só deixa
+// escrita pra supervisor logado no site; veja migration_022).
+const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
+const ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
+
 chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
 
 function log(...args) {
   console.log('[PortalParcelamento/bg]', ...args)
 }
 
-async function pegarConfig() {
-  const { pp_config: config } = await chrome.storage.local.get('pp_config')
-  return config || null
+function extrairSheetId(urlOuId) {
+  const match = (urlOuId || '').match(/\/d\/([a-zA-Z0-9-_]+)/)
+  return match ? match[1] : (urlOuId || '').trim()
+}
+
+// Config da planilha (qual Apps Script, qual planilha, qual aba) vem do
+// Supabase — editada pelo supervisor no site (tela Automações > Portal
+// Parcelamento). O "ligado/desligado" continua local a cada Chrome (o
+// popup controla isso), pra cada pessoa poder pausar a própria extensão
+// sem depender do site.
+async function pegarConfigPlanilha() {
+  const resposta = await fetch(
+    `${SUPABASE_URL}/rest/v1/parcelamento_config?select=apps_script_url,sheet_url,aba_nome&id=eq.1&limit=1`,
+    { headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` } }
+  )
+  if (!resposta.ok) throw new Error(`Supabase ${resposta.status}: ${await resposta.text()}`)
+  const linhas = await resposta.json()
+  const config = linhas?.[0]
+  if (!config?.apps_script_url || !config?.sheet_url) return null
+  return {
+    webAppUrl: config.apps_script_url,
+    sheetId: extrairSheetId(config.sheet_url),
+    abaNome: config.aba_nome || 'Custo Code',
+  }
+}
+
+async function pegarLigado() {
+  const { pp_ligado: ligado } = await chrome.storage.local.get('pp_ligado')
+  return Boolean(ligado)
 }
 
 async function pegarJob() {
@@ -96,11 +129,22 @@ async function abrirAbaWhatsapp(telefone) {
 }
 
 async function tentarProximoCiclo() {
-  const config = await pegarConfig()
-  if (!config?.ligado || !config.webAppUrl || !config.sheetId || !config.abaNome) return
+  if (!(await pegarLigado())) return
 
   const jobAtual = await pegarJob()
   if (jobAtual?.ativo) return // já tem um cliente em andamento
+
+  let config
+  try {
+    config = await pegarConfigPlanilha()
+  } catch (err) {
+    log('Erro ao buscar a configuração da planilha no Supabase:', err.message)
+    return
+  }
+  if (!config) {
+    log('Nenhuma planilha configurada ainda — configure em Automações > Portal Parcelamento no site.')
+    return
+  }
 
   let proximo
   try {
@@ -128,11 +172,11 @@ async function tentarProximoCiclo() {
 }
 
 async function encerrarClienteAtual(valorColuna) {
-  const config = await pegarConfig()
   const job = await pegarJob()
   if (!job) return
   try {
-    await marcarResultado(config, job.linha, valorColuna)
+    const config = await pegarConfigPlanilha()
+    if (config) await marcarResultado(config, job.linha, valorColuna)
   } catch (err) {
     log('Erro ao gravar resultado na planilha:', err.message)
   }
@@ -206,29 +250,28 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return
     }
 
-    if (msg?.tipo === 'pp:configurar') {
-      await chrome.storage.local.set({ pp_config: msg.config })
-      sendResponse({ ok: true })
-      return
-    }
-
     if (msg?.tipo === 'pp:ligar') {
-      const config = (await pegarConfig()) || {}
-      await chrome.storage.local.set({ pp_config: { ...config, ligado: true } })
+      await chrome.storage.local.set({ pp_ligado: true })
       tentarProximoCiclo()
       sendResponse({ ok: true })
       return
     }
 
     if (msg?.tipo === 'pp:desligar') {
-      const config = (await pegarConfig()) || {}
-      await chrome.storage.local.set({ pp_config: { ...config, ligado: false } })
+      await chrome.storage.local.set({ pp_ligado: false })
       sendResponse({ ok: true })
       return
     }
 
     if (msg?.tipo === 'pp:status') {
-      sendResponse({ config: await pegarConfig(), job: await pegarJob() })
+      let config = null
+      let erroConfig = null
+      try {
+        config = await pegarConfigPlanilha()
+      } catch (err) {
+        erroConfig = err.message
+      }
+      sendResponse({ ligado: await pegarLigado(), config, erroConfig, job: await pegarJob() })
       return
     }
   })()

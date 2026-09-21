@@ -40,16 +40,19 @@ deploy > Aplicativo da Web > acesso "Qualquer pessoa", copia a URL gerada.
 `chrome://extensions` → ativa "Modo do desenvolvedor" → "Carregar sem
 compactação" → seleciona a pasta `extensao-portal-parcelamento/`.
 
-### 4. Configurar
-Clica no ícone da extensão:
-- Cola a **URL do Apps Script**.
-- Cola o **link da planilha** (a extensão extrai o ID sozinha).
-- Confirma o **nome da aba** (ex: "Custo Code").
-- Salvar → Ligar.
+### 4. Configurar qual planilha usar
+Isso é feito **no site do BKO**, não na extensão: tela **Automações >
+Portal Parcelamento** (só supervisor edita) — cola lá a URL do Apps
+Script, o link da planilha e o nome da aba. Vale na hora pra qualquer
+Chrome que tiver a extensão instalada, sem precisar reconfigurar em cada
+computador.
 
-Deixa uma aba do Portal Parcelamento logada e uma aba do WhatsApp Web
-logada (a extensão abre/reaproveita as abas sozinha, mas o login inicial
-é manual, igual o Crivo).
+### 5. Ligar a extensão
+Clica no ícone da extensão e aperta **Ligar** (esse botão é local a cada
+Chrome — cada pessoa liga/desliga a própria extensão sem afetar as
+outras). Deixa uma aba do Portal Parcelamento logada e uma aba do
+WhatsApp Web logada (a extensão abre/reaproveita as abas sozinha, mas o
+login inicial é manual, igual o Crivo).
 
 ## Importante — partes que precisam de um teste ao vivo
 

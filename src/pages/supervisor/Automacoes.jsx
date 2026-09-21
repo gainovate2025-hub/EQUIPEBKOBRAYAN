@@ -1,8 +1,13 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Workflow, FileText } from 'lucide-react'
+import { useAuth } from '../../lib/AuthContext'
+import { fetchParcelamentoConfig, updateParcelamentoConfig } from '../../lib/api'
 import SectionHeading from '../../components/ui/SectionHeading'
 import Modal from '../../components/ui/Modal'
+import Field from '../../components/ui/Field'
+import Toast from '../../components/ui/Toast'
+import { useToast } from '../../lib/useToast'
 
 const AUTOMACOES = [
   {
@@ -76,18 +81,91 @@ export default function Automacoes() {
       )}
 
       {abrindo === 'parcelamento' && (
-        <Modal title="Como configurar o Portal Parcelamento" onClose={() => setAbrindo(null)}>
+        <Modal title="Portal Parcelamento" onClose={() => setAbrindo(null)} width={560}>
           <div className="flex flex-col gap-3 text-sm">
-            <p>Essa automação também roda direto no Chrome (extensão), um por vez — não é centralizada aqui no painel.</p>
+            <p>Essa automação roda direto no Chrome (extensão), um por vez — mas a planilha usada é definida AQUI, pra todo mundo que ligar a extensão usar a mesma.</p>
             <ol className="list-decimal space-y-1 pl-5">
               <li>Instala a extensão em <code className="rounded bg-paper px-1 py-0.5">chrome://extensions</code> a partir da pasta <code className="rounded bg-paper px-1 py-0.5">extensao-portal-parcelamento/</code> do repositório</li>
-              <li>Clica no ícone dela e cola a URL do Apps Script + o link da planilha (veja o README dentro da pasta)</li>
-              <li>Deixa uma aba do Portal Parcelamento e uma do WhatsApp Web logadas, e clica em Ligar</li>
+              <li>Deixa uma aba do Portal Parcelamento e uma do WhatsApp Web logadas, e clica em Ligar no ícone da extensão</li>
             </ol>
-            <p className="text-muted">Ela consulta cada Custcode pendente na planilha, envia a fatura e a cobrança por WhatsApp, e marca o resultado na coluna "DATA DA FATURA".</p>
+            <p className="text-muted">Ela consulta cada Custcode pendente na planilha abaixo, envia a fatura e a cobrança por WhatsApp, e marca o resultado na coluna "DATA DA FATURA".</p>
           </div>
+          <ParcelamentoConfigForm />
         </Modal>
       )}
     </div>
+  )
+}
+
+function ParcelamentoConfigForm() {
+  const { profile } = useAuth()
+  const { toast, showToast } = useToast()
+  const [carregando, setCarregando] = useState(true)
+  const [salvando, setSalvando] = useState(false)
+  const [appsScriptUrl, setAppsScriptUrl] = useState('')
+  const [sheetUrl, setSheetUrl] = useState('')
+  const [abaNome, setAbaNome] = useState('')
+
+  useEffect(() => {
+    fetchParcelamentoConfig()
+      .then((config) => {
+        setAppsScriptUrl(config.apps_script_url || '')
+        setSheetUrl(config.sheet_url || '')
+        setAbaNome(config.aba_nome || 'Custo Code')
+      })
+      .catch((err) => showToast(err.message || 'Falha ao carregar configuração.', 'error'))
+      .finally(() => setCarregando(false))
+  }, [])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setSalvando(true)
+    try {
+      await updateParcelamentoConfig(profile.id, {
+        apps_script_url: appsScriptUrl.trim(),
+        sheet_url: sheetUrl.trim(),
+        aba_nome: abaNome.trim() || 'Custo Code',
+      })
+      showToast('Planilha atualizada — vale pra quem já tiver a extensão ligada.')
+    } catch (err) {
+      showToast(err.message || 'Falha ao salvar.', 'error')
+    } finally {
+      setSalvando(false)
+    }
+  }
+
+  if (carregando) return <p className="mt-4 text-sm text-muted">Carregando configuração…</p>
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+      <Field label="URL do Apps Script (Web App)">
+        <input
+          className="field-input"
+          placeholder="https://script.google.com/macros/s/.../exec"
+          value={appsScriptUrl}
+          onChange={(e) => setAppsScriptUrl(e.target.value)}
+        />
+      </Field>
+      <Field label="Link da planilha">
+        <input
+          className="field-input"
+          placeholder="Cole o link da planilha do Google Sheets"
+          value={sheetUrl}
+          onChange={(e) => setSheetUrl(e.target.value)}
+        />
+      </Field>
+      <Field label="Nome da aba">
+        <input
+          className="field-input"
+          placeholder="Custo Code"
+          value={abaNome}
+          onChange={(e) => setAbaNome(e.target.value)}
+        />
+      </Field>
+      <button type="submit" className="btn-primary self-start" disabled={salvando}>
+        {salvando ? 'Salvando…' : 'Salvar planilha'}
+      </button>
+      <Toast toast={toast} />
+    </form>
   )
 }
