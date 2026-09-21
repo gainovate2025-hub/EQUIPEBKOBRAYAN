@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Portal Parcelamento</title>
+  <style>
+    body { font-family: system-ui, sans-serif; width: 320px; padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 10px; }
+    label { display: block; font-size: 12px; color: #444; margin: 10px 0 4px; }
+    input { width: 100%; box-sizing: border-box; padding: 6px 8px; font-size: 12px; border: 1px solid #ccc; border-radius: 6px; }
+    button { margin-top: 12px; width: 100%; padding: 8px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; }
+    #salvar { background: #2563eb; color: #fff; }
+    #toggle { margin-top: 6px; }
+    #toggle.ligado { background: #dc2626; color: #fff; }
+    #toggle.desligado { background: #16a34a; color: #fff; }
+    #status { font-size: 12px; margin-top: 10px; color: #444; white-space: pre-line; }
+    p.hint { font-size: 11px; color: #666; margin: 2px 0 0; }
+  </style>
+</head>
+<body>
+  <h1>Portal Parcelamento — Envio de Faturas</h1>
+
+  <label>URL do Apps Script (Web App)</label>
+  <input id="webAppUrl" placeholder="https://script.google.com/macros/s/.../exec" />
+  <p class="hint">Veja apps-script/Code.gs no projeto pra saber como publicar.</p>
+
+  <label>Link ou ID da planilha</label>
+  <input id="sheetId" placeholder="Cole o link da planilha do Google Sheets" />
+
+  <label>Nome da aba</label>
+  <input id="abaNome" placeholder="Custo Code" />
+
+  <button id="salvar">Salvar</button>
+  <button id="toggle">Ligar</button>
+
+  <div id="status"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
