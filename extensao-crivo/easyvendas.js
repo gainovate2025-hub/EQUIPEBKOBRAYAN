@@ -307,28 +307,33 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
 
   // fase 'aguardando_dados': digitou o CNPJ mas não tem lupa separada
-  // (sistema 2) — espera um tempo FIXO (não sai mais cedo só porque
-  // apareceu algum texto novo incidental — isso tava clicando Avançar
-  // cedo demais, antes dos dados obrigatórios da empresa carregarem de
-  // verdade, e dando "Formulário com pendências").
+  // (sistema 2) — espera um tempo mínimo E confere se ainda tem campo
+  // obrigatório vazio/inválido na tela (camposInvalidosVisiveis) antes de
+  // clicar Avançar. Só tempo fixo (2,5s) não foi suficiente algumas
+  // vezes — os dados da empresa podem demorar mais que isso pra
+  // carregar, e clicar antes dava "Formulário com pendências" de novo.
   if (andamento.fase === 'aguardando_dados') {
-    if (decorrido < 2500) return false
+    const tempoMinimoPassou = decorrido >= 4000
+    const invalidos = tempoMinimoPassou ? automation.camposInvalidosVisiveis() : null
 
-    const estadoAgora = automation.detectarEstado()
-    if (estadoAgora.tipo === 'formulario') {
-      log(numeroSistema, 'Dados da empresa devem ter carregado, clicando Avançar agora')
-      andamento.fotoAntes = automation.tirarFotoTexto()
-      estadoAgora.botaoAvancar.click()
-      andamento.fase = 'consultando'
-      andamento.ultimoTextoNovo = ''
-      andamento.estavel = 0
-      andamento.iniciadoEm = Date.now()
-      return false
+    if (tempoMinimoPassou && invalidos.length === 0) {
+      const estadoAgora = automation.detectarEstado()
+      if (estadoAgora.tipo === 'formulario') {
+        log(numeroSistema, 'Campos da empresa validados, clicando Avançar agora')
+        andamento.fotoAntes = automation.tirarFotoTexto()
+        estadoAgora.botaoAvancar.click()
+        andamento.fase = 'consultando'
+        andamento.ultimoTextoNovo = ''
+        andamento.estavel = 0
+        andamento.iniciadoEm = Date.now()
+        return false
+      }
     }
 
     if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
+    const dicaInvalidos = invalidos?.length ? ` — campos ainda inválidos: ${invalidos.join(' | ')}` : ''
     await finalizarComRetry(numeroSistema, andamento.consulta.id, {
-      erro: `[${numeroSistema}º sistema] digitei o CNPJ mas não consegui clicar Avançar — url: ${location.href}`,
+      erro: `[${numeroSistema}º sistema] digitei o CNPJ mas não consegui clicar Avançar — url: ${location.href}${dicaInvalidos}`,
     }, automation)
     return true
   }
