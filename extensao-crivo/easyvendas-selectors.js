@@ -75,6 +75,14 @@ const EASYVENDAS_SELECTORS = {
 
   padraoChequeSemFundo: /cheque sem fundo/,
 
+  // Sinal universal de reprovado — a mensagem real já vista começa com
+  // "NEGADO Negado. ..." e o motivo depois pode ser QUALQUER coisa (ex:
+  // "Cliente MEI. Valor em desacordo com o porte." — não bate com
+  // nenhuma das palavras específicas de cada sistema abaixo). Por isso
+  // "negado" sozinho já reprova nos dois sistemas, checado ANTES das
+  // regras específicas — não importa o motivo escrito depois.
+  padraoNegadoExplicito: /\bnegado\b/,
+
   // Tela de Contrato ("Termo de Contratação" / "Contrato de Permanência",
   // com os botões Cancelar/Salvar/Enviar por e-mail) — não é uma tela de
   // resultado (não tem mensagem de texto nem se sabe se sempre significa

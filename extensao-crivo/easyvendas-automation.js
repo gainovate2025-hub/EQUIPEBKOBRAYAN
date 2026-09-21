@@ -254,9 +254,15 @@ class EasyVendasAutomation {
   //   NÃO reprova aqui.
   // - sistema 2 (Crivo 2, crivo de mercado — pesa mais): reprova com
   //   retaguarda/negado/inadimplente OU restrição de mercado.
-  // Fora isso, é aprovado.
+  // ANTES disso: se a mensagem disser "negado" explicitamente, já é
+  // reprovado na hora nos dois sistemas, não importa o motivo escrito
+  // depois (motivo pode ser qualquer coisa, ex: "Valor em desacordo com
+  // o porte" — que não bate com nenhuma regra específica abaixo).
+  // Fora isso tudo, é aprovado.
   classificarMensagem(mensagem, numeroSistema) {
     const normalizado = semAcento(mensagem)
+
+    if (this.selectors.padraoNegadoExplicito.test(normalizado)) return 'reprovado'
 
     if (numeroSistema === 1) {
       const reprovado =
