@@ -58,6 +58,24 @@ function tentativasFeitas(consultaId) {
   return Number(sessionStorage.getItem(chaveTentativas(consultaId)) || 0)
 }
 
+// ID desta aba (guardado no sessionStorage — sobrevive a reload da MESMA
+// aba, mas cada aba/janela nova gera o seu). Usado pra "reivindicar" uma
+// consulta antes de processar (veja migration_022_crivo_trava.sql) — sem
+// isso, duas abas na mesma tela (ou uma aba antiga que não morreu depois
+// de aberta outra) podiam pegar a MESMA consulta pendente e processar
+// ela duas vezes ao mesmo tempo, atrapalhando uma a outra (visto ao vivo:
+// "tá consultando 2 vezes").
+const CHAVE_CLIENT_ID = 'crivo_client_id'
+function pegarClientId() {
+  let id = sessionStorage.getItem(CHAVE_CLIENT_ID)
+  if (!id) {
+    id = `${Date.now()}_${Math.random().toString(36).slice(2)}`
+    sessionStorage.setItem(CHAVE_CLIENT_ID, id)
+  }
+  return id
+}
+const CLIENT_ID = pegarClientId()
+
 // Decide entre tentar de novo ou salvar o resultado/erro de vez — usado
 // tanto pra "não encontrado" quanto pra QUALQUER erro (timeout, serviço
 // indisponível, formulário não achado, campo inválido etc.).
@@ -128,6 +146,11 @@ async function supaFetch(path, options = {}) {
 // O 2º sistema só pode pegar uma consulta depois que o 1º já aprovou —
 // por isso o filtro extra de sistema1_resultado=eq.aprovado. Se o 1º
 // reprovar (ou não encontrar o CNPJ), a consulta nunca aparece pro 2º.
+//
+// Antes de devolver a consulta, REIVINDICA ela (migration_022) — se
+// outra aba já pegou essa mesma consulta há pouco, a reivindicação
+// falha e aqui devolve null (como se não tivesse pendente), evitando
+// que duas abas processem a mesma consulta ao mesmo tempo.
 async function buscarPendente(numeroSistema) {
   const campoResultado = `sistema${numeroSistema}_resultado`
   let filtro = `status=eq.pendente&${campoResultado}=is.null`
@@ -136,7 +159,19 @@ async function buscarPendente(numeroSistema) {
   const linhas = await supaFetch(
     `crivo_consultas?select=*&${filtro}&order=created_at.asc&limit=1`
   )
-  return linhas?.[0] || null
+  const consulta = linhas?.[0]
+  if (!consulta) return null
+
+  const reivindicou = await supaFetch('rpc/crivo_reivindicar', {
+    method: 'POST',
+    body: JSON.stringify({ p_id: consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
+  })
+  if (!reivindicou) {
+    log(numeroSistema, 'Consulta já está sendo processada por outra aba, ignorando por agora:', consulta.cnpj)
+    return null
+  }
+
+  return consulta
 }
 
 // Grava pela função do banco (RPC), não direto na tabela — veja
