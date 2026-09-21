@@ -88,11 +88,11 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
   const feitas = tentativasFeitas(consultaId)
   if (feitas < MAX_TENTATIVAS) {
     sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
-    log(numeroSistema, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
+    log(numeroSistema, consultaId, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
     automation.voltarUmaPagina()
     await dormir(1200)
     if (automation.detectarEstado().tipo !== 'formulario') {
-      log(numeroSistema, 'Voltar não foi suficiente, recarregando a página')
+      log(numeroSistema, consultaId, 'Voltar não foi suficiente, recarregando a página')
       location.reload()
     }
     return
@@ -124,8 +124,21 @@ async function pegarNumeroSistema() {
   }
 }
 
-function log(numeroSistema, ...args) {
+// Loga no console (sempre) E manda pro banco (quando tem uma consulta
+// associada) — grava em crivo_logs (migration_023) pra dar pra
+// diagnosticar um erro direto pelo Supabase depois, sem precisar pedir
+// print do console de quem estava testando. Não espera a gravação
+// terminar (fire-and-forget) nem deixa uma falha de rede quebrar o
+// laço principal.
+function log(numeroSistema, consultaId, ...args) {
   console.log(`[Crivo/EasyVendas #${numeroSistema}]`, ...args)
+  if (!consultaId) return
+  const mensagem = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
+  supaFetch('crivo_logs', {
+    method: 'POST',
+    body: JSON.stringify({ consulta_id: consultaId, numero_sistema: numeroSistema, mensagem }),
+    prefer: 'return=minimal',
+  }).catch(() => {})
 }
 
 async function supaFetch(path, options = {}) {
@@ -167,7 +180,7 @@ async function buscarPendente(numeroSistema) {
     body: JSON.stringify({ p_id: consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
   })
   if (!reivindicou) {
-    log(numeroSistema, 'Consulta já está sendo processada por outra aba, ignorando por agora:', consulta.cnpj)
+    log(numeroSistema, consulta.id, 'Consulta já está sendo processada por outra aba, ignorando por agora:', consulta.cnpj)
     return null
   }
 
@@ -217,7 +230,7 @@ async function tentarComecarNova(numeroSistema, automation) {
   const consulta = await buscarPendente(numeroSistema)
   if (!consulta) return null
 
-  log(numeroSistema, 'Processando CNPJ', consulta.cnpj)
+  log(numeroSistema, consulta.id, 'Processando CNPJ', consulta.cnpj)
 
   // fecha qualquer janela de resultado deixada aberta de antes, sem
   // depender disso pra decidir o estado da tela.
@@ -229,7 +242,7 @@ async function tentarComecarNova(numeroSistema, automation) {
     // formulário) — tenta navegar de volta (Clientes > Adicionar) antes
     // de considerar isso um erro de verdade.
     if (numeroSistema === 1 && automation.navegarParaAdicionarClientes()) {
-      log(numeroSistema, 'Não achei o formulário — cliquei pra navegar de volta, espero a próxima rodada')
+      log(numeroSistema, consulta.id, 'Não achei o formulário — cliquei pra navegar de volta, espero a próxima rodada')
       return null
     }
     await finalizarComRetry(numeroSistema, consulta.id, {
@@ -243,7 +256,7 @@ async function tentarComecarNova(numeroSistema, automation) {
   if (numeroSistema === 1 && consulta.cep) {
     const campoCep = automation.acharCampoCep()
     if (campoCep) {
-      log(numeroSistema, 'Preenchendo CEP fornecido:', consulta.cep)
+      log(numeroSistema, consulta.id, 'Preenchendo CEP fornecido:', consulta.cep)
       const fotoAntes = automation.tirarFotoTexto()
       automation.definirValorInput(campoCep, consulta.cep)
       const botaoBuscarCep = automation.acharBotaoBuscarCep(campoCep)
@@ -255,7 +268,7 @@ async function tentarComecarNova(numeroSistema, automation) {
   if (numeroSistema === 1) {
     const botaoBuscar = automation.acharBotaoBuscar()
     if (botaoBuscar) {
-      log(numeroSistema, 'Digitando CNPJ e clicando na lupa de busca')
+      log(numeroSistema, consulta.id, 'Digitando CNPJ e clicando na lupa de busca')
       const fotoAntes = automation.tirarFotoTexto()
       automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
       botaoBuscar.click()
@@ -271,7 +284,7 @@ async function tentarComecarNova(numeroSistema, automation) {
   // esperar) dava "Formulário com pendências" mesmo com o CNPJ certo —
   // um humano não tem esse problema só porque demora um pouco a mais
   // pra clicar.
-  log(numeroSistema, 'Digitando CNPJ e esperando os dados da empresa carregarem antes de avançar')
+  log(numeroSistema, consulta.id, 'Digitando CNPJ e esperando os dados da empresa carregarem antes de avançar')
   const fotoAntes = automation.tirarFotoTexto()
   automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
   return { ...base, fotoAntes, fase: 'aguardando_dados' }
@@ -320,7 +333,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (textoNovo || tempoMinimoPassou) {
       const estadoAgora = automation.detectarEstado()
       if (estadoAgora.tipo === 'formulario') {
-        log(numeroSistema, 'Endereço do CEP carregado, digitando CNPJ agora')
+        log(numeroSistema, andamento.consulta.id, 'Endereço do CEP carregado, digitando CNPJ agora')
         const fotoAntes = automation.tirarFotoTexto()
         automation.digitarCnpj(estadoAgora.campoCnpj, andamento.consulta.cnpj)
         const botaoBuscar = automation.acharBotaoBuscar()
@@ -354,7 +367,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (tempoMinimoPassou && invalidos.length === 0) {
       const estadoAgora = automation.detectarEstado()
       if (estadoAgora.tipo === 'formulario') {
-        log(numeroSistema, 'Campos da empresa validados, clicando Avançar agora')
+        log(numeroSistema, andamento.consulta.id, 'Campos da empresa validados, clicando Avançar agora')
         andamento.fotoAntes = automation.tirarFotoTexto()
         estadoAgora.botaoAvancar.click()
         andamento.fase = 'consultando'
@@ -377,7 +390,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // "não encontrado" já na busca (empresa de verdade não existe) — pode
     // parar por aqui, sem tentar consultar crédito de algo que não existe.
     if (reconhecido === 'nao_encontrado') {
-      log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
+      log(numeroSistema, andamento.consulta.id, 'CNPJ não encontrado na busca:', textoNovo)
       await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo }, automation)
       return true
     }
@@ -386,7 +399,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // botão de consultar (Solicitar/Avançar) pra seguir pra próxima fase.
     const botaoConsultar = automation.acharBotaoPorTexto(EASYVENDAS_SELECTORS.botaoAvancarTextos)
     if (botaoConsultar) {
-      log(numeroSistema, 'Achou o botão de consultar depois da busca. Texto visto na busca:', textoNovo || '(nada)')
+      log(numeroSistema, andamento.consulta.id, 'Achou o botão de consultar depois da busca. Texto visto na busca:', textoNovo || '(nada)')
       andamento.fotoAntes = automation.tirarFotoTexto()
       botaoConsultar.click()
       andamento.fase = 'consultando'
@@ -412,7 +425,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   // resultado por engano).
   if (andamento.aguardandoSairDoContrato) {
     if (!automation.pareceTelaDeContrato()) {
-      log(numeroSistema, 'Saiu da tela de Contrato, voltando a acompanhar normalmente')
+      log(numeroSistema, andamento.consulta.id, 'Saiu da tela de Contrato, voltando a acompanhar normalmente')
       andamento.aguardandoSairDoContrato = false
       andamento.fotoAntes = automation.tirarFotoTexto()
       andamento.ultimoTextoNovo = ''
@@ -428,7 +441,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   // voltar do navegador) e continua esperando a mensagem de resultado
   // de verdade aparecer, sem decidir nada por conta própria aqui.
   if (automation.pareceTelaDeContrato()) {
-    log(numeroSistema, 'Caiu na tela de Contrato — voltando uma página e esperando o resultado')
+    log(numeroSistema, andamento.consulta.id, 'Caiu na tela de Contrato — voltando uma página e esperando o resultado')
     automation.voltarUmaPagina()
     andamento.aguardandoSairDoContrato = true
     return false
@@ -436,7 +449,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 
   if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
-    log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
+    log(numeroSistema, andamento.consulta.id, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
     if (resultado === 'formulario_incompleto') {
       // Não é resultado, é erro — o formulário não estava completo
       // quando clicou Avançar (nunca grava aprovado/reprovado por isso).
@@ -473,7 +486,7 @@ async function laco(numeroSistema, automation) {
         andamento = await tentarComecarNova(numeroSistema, automation)
       }
     } catch (err) {
-      log(numeroSistema, 'Falha no laço:', err.message)
+      log(numeroSistema, andamento?.consulta?.id || null, 'Falha no laço:', err.message)
       andamento = null
     }
     await dormir(andamento ? POLL_ANDAMENTO_MS : POLL_IDLE_MS)
@@ -482,7 +495,7 @@ async function laco(numeroSistema, automation) {
 
 async function iniciar() {
   const numeroSistema = await pegarNumeroSistema()
-  log(numeroSistema, 'Ativo em', location.href)
+  log(numeroSistema, null, 'Ativo em', location.href)
 
   const automation = new EasyVendasAutomation(EASYVENDAS_SELECTORS)
   laco(numeroSistema, automation)
