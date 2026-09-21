@@ -217,18 +217,29 @@ async function tentarComecarNova(numeroSistema, automation) {
     }
   }
 
-  const botaoBuscar = automation.acharBotaoBuscar()
-  if (botaoBuscar) {
-    log(numeroSistema, 'Digitando CNPJ e clicando na lupa de busca')
-    const fotoAntes = automation.tirarFotoTexto()
-    automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
-    botaoBuscar.click()
-    return { ...base, fotoAntes, fase: 'buscando' }
+  if (numeroSistema === 1) {
+    const botaoBuscar = automation.acharBotaoBuscar()
+    if (botaoBuscar) {
+      log(numeroSistema, 'Digitando CNPJ e clicando na lupa de busca')
+      const fotoAntes = automation.tirarFotoTexto()
+      automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
+      botaoBuscar.click()
+      return { ...base, fotoAntes, fase: 'buscando' }
+    }
   }
 
+  // Sem lupa separada (sistema 2, sempre — confirmado que lá é só CNPJ +
+  // Avançar) — só digita o CNPJ e ESPERA um pouco antes de clicar
+  // Avançar (fase 'aguardando_dados'), dando tempo do site carregar
+  // sozinho os dados obrigatórios da empresa (Razão Social, Endereço
+  // etc.) que aparecem depois do CNPJ. Clicar Avançar rápido demais (sem
+  // esperar) dava "Formulário com pendências" mesmo com o CNPJ certo —
+  // um humano não tem esse problema só porque demora um pouco a mais
+  // pra clicar.
+  log(numeroSistema, 'Digitando CNPJ e esperando os dados da empresa carregarem antes de avançar')
   const fotoAntes = automation.tirarFotoTexto()
-  automation.preencherEAvancar(estado, consulta.cnpj)
-  return { ...base, fotoAntes, fase: 'consultando' }
+  automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
+  return { ...base, fotoAntes, fase: 'aguardando_dados' }
 }
 
 // Classifica o texto novo, se der pra classificar. Devolve null se o
@@ -290,6 +301,33 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
     await finalizarComRetry(numeroSistema, andamento.consulta.id, {
       erro: `[${numeroSistema}º sistema] preenchi o CEP mas não consegui seguir pro CNPJ — url: ${location.href}`,
+    }, automation)
+    return true
+  }
+
+  // fase 'aguardando_dados': digitou o CNPJ mas não tem lupa separada
+  // (sistema 2) — espera um pouco (ou até aparecer algo novo, tipo os
+  // dados da empresa carregando) antes de clicar Avançar, pra não clicar
+  // com o formulário ainda incompleto.
+  if (andamento.fase === 'aguardando_dados') {
+    const tempoMinimoPassou = decorrido >= 1200
+    if (textoNovo || tempoMinimoPassou) {
+      const estadoAgora = automation.detectarEstado()
+      if (estadoAgora.tipo === 'formulario') {
+        log(numeroSistema, 'Dados da empresa devem ter carregado, clicando Avançar agora')
+        andamento.fotoAntes = automation.tirarFotoTexto()
+        estadoAgora.botaoAvancar.click()
+        andamento.fase = 'consultando'
+        andamento.ultimoTextoNovo = ''
+        andamento.estavel = 0
+        andamento.iniciadoEm = Date.now()
+        return false
+      }
+    }
+
+    if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
+    await finalizarComRetry(numeroSistema, andamento.consulta.id, {
+      erro: `[${numeroSistema}º sistema] digitei o CNPJ mas não consegui clicar Avançar — url: ${location.href}`,
     }, automation)
     return true
   }
