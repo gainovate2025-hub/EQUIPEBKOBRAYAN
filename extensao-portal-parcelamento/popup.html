@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Portal Parcelamento</title>
+  <style>
+    body { font-family: system-ui, sans-serif; width: 280px; padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 10px; }
+    p.hint { font-size: 11px; color: #666; margin: 2px 0 0; }
+    button { margin-top: 12px; width: 100%; padding: 8px; font-size: 13px; border-radius: 6px; border: none; cursor: pointer; }
+    #toggle.ligado { background: #dc2626; color: #fff; }
+    #toggle.desligado { background: #16a34a; color: #fff; }
+    #status { font-size: 12px; margin-top: 10px; color: #444; white-space: pre-line; }
+    #erro { font-size: 12px; color: #b42318; margin-top: 6px; }
+  </style>
+</head>
+<body>
+  <h1>Portal Parcelamento — Envio de Faturas</h1>
+  <p class="hint">A planilha usada é configurada no site do BKO, em Automações &gt; Portal Parcelamento.</p>
+
+  <button id="toggle">Ligar</button>
+
+  <div id="status"></div>
+  <div id="erro"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

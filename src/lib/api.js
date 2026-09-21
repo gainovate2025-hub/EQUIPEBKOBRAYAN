@@ -138,4 +138,22 @@ export async function fetchTeamContestacoes() {
   return data
 }
 
+export async function fetchParcelamentoConfig() {
+  const { data, error } = await supabase
+    .from('parcelamento_config')
+    .select('*')
+    .eq('id', 1)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateParcelamentoConfig(userId, patch) {
+  const { error } = await supabase
+    .from('parcelamento_config')
+    .update({ ...patch, atualizado_por: userId, atualizado_em: new Date().toISOString() })
+    .eq('id', 1)
+  if (error) throw error
+}
+
 export { usernameToEmail }
