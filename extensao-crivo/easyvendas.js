@@ -313,6 +313,22 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
 
   // fase 'consultando'
+
+  // Caiu na tela de Contrato (Termo de Contratação) — só chega até aqui
+  // se a pré-análise foi APROVADA. Essa tela não mostra mensagem de
+  // texto de resultado (e o conteúdo muda enquanto carrega os dados do
+  // contrato, então nunca "estabiliza"), por isso é aceita na hora, sem
+  // esperar nada — e a extensão NÃO clica em nada nela (nem Salvar, nem
+  // Enviar por e-mail): só lê que chegou ali e grava aprovado.
+  if (automation.pareceTelaDeContrato()) {
+    log(numeroSistema, 'Caiu na tela de Contrato — aprovado (só chega aqui se passou na pré-análise)')
+    await salvarResultado(andamento.consulta.id, numeroSistema, {
+      resultado: 'aprovado',
+      motivo: 'Foi pra tela de Contrato (aprovado)',
+    })
+    return true
+  }
+
   if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)

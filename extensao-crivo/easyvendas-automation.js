@@ -218,6 +218,15 @@ class EasyVendasAutomation {
     return false
   }
 
+  // Tela de Contrato (Termo de Contratação / Contrato de Permanência) —
+  // só aparece quando a pré-análise foi APROVADA. Detecta pelo texto do
+  // cabeçalho/abas, NUNCA clica em nada aqui (nem Salvar, nem Enviar por
+  // e-mail, nem Cancelar) — só serve pra extensão saber que deu aprovado
+  // e parar de esperar uma mensagem de texto que nunca vai aparecer.
+  pareceTelaDeContrato() {
+    return this.selectors.padraoTelaContrato.test(semAcento(document.body.innerText || ''))
+  }
+
   ehNaoEncontrado(mensagem) {
     return this.selectors.padraoNaoEncontrado.test(semAcento(mensagem))
   }

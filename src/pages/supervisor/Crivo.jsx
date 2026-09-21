@@ -10,6 +10,14 @@ const RESULT_COLOR = {
   nao_encontrado: 'text-amber-600',
 }
 
+// erro_mensagem sempre começa com "[1º sistema]" ou "[2º sistema]" (veja
+// easyvendas.js) — extrai esse número pra avisar o supervisor certinho
+// onde o Crivo travou, em vez de um erro genérico sem contexto.
+function sistemaDoErro(mensagem) {
+  const m = /^\[(\d)º sistema\]/.exec(mensagem || '')
+  return m ? m[1] : null
+}
+
 function soCnpjDigitos(v) {
   return v.replace(/\D/g, '')
 }
@@ -46,7 +54,12 @@ function veredito(c) {
 
 function RespostaCrivoSimples({ consulta: c }) {
   if (c.status === 'erro') {
-    return <div className="text-red-600">⚠️ Erro ao consultar — manda o CNPJ de novo.</div>
+    const sistema = sistemaDoErro(c.erro_mensagem)
+    return (
+      <div className="text-red-600">
+        ⚠️ Erro no {sistema ? `${sistema}º sistema` : 'Crivo'} — manda o CNPJ de novo.
+      </div>
+    )
   }
   const resultado = veredito(c)
   if (!resultado) return <span className="text-muted">⏳ aguardando…</span>
