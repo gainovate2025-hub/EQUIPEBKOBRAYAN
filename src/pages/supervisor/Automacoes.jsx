@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Workflow } from 'lucide-react'
+import { Search, Workflow, FileText } from 'lucide-react'
 import SectionHeading from '../../components/ui/SectionHeading'
 import Modal from '../../components/ui/Modal'
 
@@ -18,6 +18,14 @@ const AUTOMACOES = [
     nome: 'P2B (CUST CODE)',
     descricao: 'Automatiza a busca de CUST CODE no Phoenix2Business e joga na planilha.',
     icon: Workflow,
+    to: null,
+    status: 'Roda local',
+  },
+  {
+    key: 'parcelamento',
+    nome: 'Portal Parcelamento',
+    descricao: 'Consulta fatura no Portal Parcelamento por Custcode, baixa o PDF e envia pro cliente pelo WhatsApp Web.',
+    icon: FileText,
     to: null,
     status: 'Roda local',
   },
@@ -63,6 +71,20 @@ export default function Automacoes() {
               <li>Ele já busca a versão mais nova sozinho antes de abrir</li>
             </ol>
             <p className="text-muted">Se não achar o atalho ou der erro ao abrir, me chama que eu te ajudo a resolver.</p>
+          </div>
+        </Modal>
+      )}
+
+      {abrindo === 'parcelamento' && (
+        <Modal title="Como configurar o Portal Parcelamento" onClose={() => setAbrindo(null)}>
+          <div className="flex flex-col gap-3 text-sm">
+            <p>Essa automação também roda direto no Chrome (extensão), um por vez — não é centralizada aqui no painel.</p>
+            <ol className="list-decimal space-y-1 pl-5">
+              <li>Instala a extensão em <code className="rounded bg-paper px-1 py-0.5">chrome://extensions</code> a partir da pasta <code className="rounded bg-paper px-1 py-0.5">extensao-portal-parcelamento/</code> do repositório</li>
+              <li>Clica no ícone dela e cola a URL do Apps Script + o link da planilha (veja o README dentro da pasta)</li>
+              <li>Deixa uma aba do Portal Parcelamento e uma do WhatsApp Web logadas, e clica em Ligar</li>
+            </ol>
+            <p className="text-muted">Ela consulta cada Custcode pendente na planilha, envia a fatura e a cobrança por WhatsApp, e marca o resultado na coluna "DATA DA FATURA".</p>
           </div>
         </Modal>
       )}
