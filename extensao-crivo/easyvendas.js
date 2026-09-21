@@ -58,15 +58,25 @@ function tentativasFeitas(consultaId) {
   return Number(sessionStorage.getItem(chaveTentativas(consultaId)) || 0)
 }
 
-// Decide entre tentar de novo (recarregando a página) ou salvar o
-// resultado/erro de vez — usado tanto pra "não encontrado" quanto pra
-// qualquer erro (timeout, serviço indisponível, formulário não achado).
-async function finalizarComRetry(numeroSistema, consultaId, dados) {
+// Decide entre tentar de novo ou salvar o resultado/erro de vez — usado
+// tanto pra "não encontrado" quanto pra QUALQUER erro (timeout, serviço
+// indisponível, formulário não achado, campo inválido etc.).
+//
+// Pra tentar de novo, primeiro clica voltar (igual o botão voltar do
+// navegador) e confere se isso já foi suficiente pra voltar pro
+// formulário certo — só recarrega a página (mais lento, e sempre foi o
+// jeito antigo) se voltar não resolveu.
+async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
   const feitas = tentativasFeitas(consultaId)
   if (feitas < MAX_TENTATIVAS) {
     sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
-    log(numeroSistema, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), recarregando a página pra tentar de novo`)
-    location.reload()
+    log(numeroSistema, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
+    automation.voltarUmaPagina()
+    await dormir(1200)
+    if (automation.detectarEstado().tipo !== 'formulario') {
+      log(numeroSistema, 'Voltar não foi suficiente, recarregando a página')
+      location.reload()
+    }
     return
   }
   sessionStorage.removeItem(chaveTentativas(consultaId))
@@ -185,7 +195,7 @@ async function tentarComecarNova(numeroSistema, automation) {
     }
     await finalizarComRetry(numeroSistema, consulta.id, {
       erro: `[${numeroSistema}º sistema] não achei o campo de CNPJ/botão na tela${mensagemDiagnostico(estado)}`,
-    })
+    }, automation)
     return null
   }
 
@@ -278,7 +288,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
     await finalizarComRetry(numeroSistema, andamento.consulta.id, {
       erro: `[${numeroSistema}º sistema] preenchi o CEP mas não consegui seguir pro CNPJ — url: ${location.href}`,
-    })
+    }, automation)
     return true
   }
 
@@ -287,7 +297,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // parar por aqui, sem tentar consultar crédito de algo que não existe.
     if (reconhecido === 'nao_encontrado') {
       log(numeroSistema, 'CNPJ não encontrado na busca:', textoNovo)
-      await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo })
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo }, automation)
       return true
     }
 
@@ -308,7 +318,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
     await finalizarComRetry(numeroSistema, andamento.consulta.id, {
       erro: `[${numeroSistema}º sistema] busquei o CNPJ mas não achei o botão de consultar depois — url: ${location.href} — texto visto na busca: ${textoNovo || '(nada)'}`,
-    })
+    }, automation)
     return true
   }
 
@@ -347,7 +357,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
     if (resultado === 'nao_encontrado') {
-      await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo })
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo }, automation)
     } else {
       await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
     }
@@ -360,7 +370,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   const dicaInvalidos = invalidos.length ? ` — campos inválidos na tela: ${invalidos.join(' | ')}` : ''
   await finalizarComRetry(numeroSistema, andamento.consulta.id, {
     erro: `[${numeroSistema}º sistema] não vi mensagem de resultado a tempo — url: ${location.href} — texto novo visto: ${textoNovo || '(nada)'}${dicaInvalidos}`,
-  })
+  }, automation)
   return true
 }
 
