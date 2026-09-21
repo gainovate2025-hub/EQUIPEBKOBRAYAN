@@ -168,12 +168,16 @@ function mensagemDiagnostico(estado) {
 //
 // No sistema 1: se tiver um CEP junto da consulta, preenche e busca ele
 // PRIMEIRO (fase 'aguardando_cep') — ajuda a carregar o endereço da
-// empresa antes do CNPJ. Depois (ou direto, sem CEP), digita o CNPJ e
-// clica na LUPA de busca dele, se achar uma (fase 'buscando'). Se não
-// achar nenhuma lupa, já tenta o botão de consultar direto, do jeito
-// antigo.
-// No sistema 2, digita e clica direto no botão de consultar (AVANÇAR) —
-// não tem etapa de busca separada nessa tela.
+// empresa antes do CNPJ (só existe nesse sistema — confirmado que o
+// campo de CEP não existe no formulário do sistema 2).
+//
+// Nos DOIS sistemas: depois (ou direto, sem CEP), digita o CNPJ e clica
+// na LUPA de busca dele, se achar uma (fase 'buscando') — é ela que
+// carrega os dados obrigatórios da empresa (Razão Social, Endereço
+// etc.); sem isso o Avançar dá "Formulário com pendências" mesmo com o
+// CNPJ certo (bug real visto no sistema 2 — a extensão pulava a lupa e
+// ia direto pro Avançar). Só tenta o botão de consultar direto se não
+// achar nenhuma lupa na tela.
 async function tentarComecarNova(numeroSistema, automation) {
   const consulta = await buscarPendente(numeroSistema)
   if (!consulta) return null
@@ -213,15 +217,13 @@ async function tentarComecarNova(numeroSistema, automation) {
     }
   }
 
-  if (numeroSistema === 1) {
-    const botaoBuscar = automation.acharBotaoBuscar()
-    if (botaoBuscar) {
-      log(numeroSistema, 'Digitando CNPJ e clicando na lupa de busca')
-      const fotoAntes = automation.tirarFotoTexto()
-      automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
-      botaoBuscar.click()
-      return { ...base, fotoAntes, fase: 'buscando' }
-    }
+  const botaoBuscar = automation.acharBotaoBuscar()
+  if (botaoBuscar) {
+    log(numeroSistema, 'Digitando CNPJ e clicando na lupa de busca')
+    const fotoAntes = automation.tirarFotoTexto()
+    automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
+    botaoBuscar.click()
+    return { ...base, fotoAntes, fase: 'buscando' }
   }
 
   const fotoAntes = automation.tirarFotoTexto()
