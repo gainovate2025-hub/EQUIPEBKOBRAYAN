@@ -239,6 +239,13 @@ class EasyVendasAutomation {
     return this.selectors.padraoNaoEncontrado.test(semAcento(mensagem))
   }
 
+  // "Formulário com pendências" — erro, não resultado (veja o comentário
+  // no seletor). Quem chama isso trata como erro e manda tentar de novo,
+  // nunca grava como aprovado/reprovado.
+  ehFormularioIncompleto(mensagem) {
+    return this.selectors.padraoFormularioIncompleto.test(semAcento(mensagem))
+  }
+
   // Empresa aberta há menos de 6 meses — frase direta, ou "aberta/
   // constituída/fundada há N meses" com N < 6 (número checado em código).
   empresaMuitoRecente(normalizado) {

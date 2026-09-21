@@ -247,6 +247,7 @@ async function tentarComecarNova(numeroSistema, automation) {
 // decide se espera mais ou aceita como aprovado por padrão).
 function classificarSeReconhecido(automation, texto, numeroSistema) {
   if (!texto) return null
+  if (automation.ehFormularioIncompleto(texto)) return 'formulario_incompleto'
   if (automation.ehNaoEncontrado(texto)) return 'nao_encontrado'
   const resultado = automation.classificarMensagem(texto, numeroSistema)
   return resultado === 'reprovado' ? 'reprovado' : null
@@ -306,23 +307,23 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
 
   // fase 'aguardando_dados': digitou o CNPJ mas não tem lupa separada
-  // (sistema 2) — espera um pouco (ou até aparecer algo novo, tipo os
-  // dados da empresa carregando) antes de clicar Avançar, pra não clicar
-  // com o formulário ainda incompleto.
+  // (sistema 2) — espera um tempo FIXO (não sai mais cedo só porque
+  // apareceu algum texto novo incidental — isso tava clicando Avançar
+  // cedo demais, antes dos dados obrigatórios da empresa carregarem de
+  // verdade, e dando "Formulário com pendências").
   if (andamento.fase === 'aguardando_dados') {
-    const tempoMinimoPassou = decorrido >= 1200
-    if (textoNovo || tempoMinimoPassou) {
-      const estadoAgora = automation.detectarEstado()
-      if (estadoAgora.tipo === 'formulario') {
-        log(numeroSistema, 'Dados da empresa devem ter carregado, clicando Avançar agora')
-        andamento.fotoAntes = automation.tirarFotoTexto()
-        estadoAgora.botaoAvancar.click()
-        andamento.fase = 'consultando'
-        andamento.ultimoTextoNovo = ''
-        andamento.estavel = 0
-        andamento.iniciadoEm = Date.now()
-        return false
-      }
+    if (decorrido < 2500) return false
+
+    const estadoAgora = automation.detectarEstado()
+    if (estadoAgora.tipo === 'formulario') {
+      log(numeroSistema, 'Dados da empresa devem ter carregado, clicando Avançar agora')
+      andamento.fotoAntes = automation.tirarFotoTexto()
+      estadoAgora.botaoAvancar.click()
+      andamento.fase = 'consultando'
+      andamento.ultimoTextoNovo = ''
+      andamento.estavel = 0
+      andamento.iniciadoEm = Date.now()
+      return false
     }
 
     if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
@@ -396,7 +397,13 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
-    if (resultado === 'nao_encontrado') {
+    if (resultado === 'formulario_incompleto') {
+      // Não é resultado, é erro — o formulário não estava completo
+      // quando clicou Avançar (nunca grava aprovado/reprovado por isso).
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, {
+        erro: `[${numeroSistema}º sistema] formulário ficou incompleto ao avançar (dados da empresa não carregaram a tempo) — url: ${location.href}`,
+      }, automation)
+    } else if (resultado === 'nao_encontrado') {
       await finalizarComRetry(numeroSistema, andamento.consulta.id, { resultado: 'nao_encontrado', motivo: textoNovo }, automation)
     } else {
       await salvarResultado(andamento.consulta.id, numeroSistema, { resultado, motivo: textoNovo })
