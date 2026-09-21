@@ -219,12 +219,20 @@ class EasyVendasAutomation {
   }
 
   // Tela de Contrato (Termo de Contratação / Contrato de Permanência) —
-  // só aparece quando a pré-análise foi APROVADA. Detecta pelo texto do
-  // cabeçalho/abas, NUNCA clica em nada aqui (nem Salvar, nem Enviar por
-  // e-mail, nem Cancelar) — só serve pra extensão saber que deu aprovado
-  // e parar de esperar uma mensagem de texto que nunca vai aparecer.
+  // detecta pelo texto do cabeçalho/abas. A extensão NUNCA clica em nada
+  // aqui (nem Salvar, nem Enviar por e-mail, nem Cancelar) — só serve pra
+  // saber que caiu nela sem querer e precisa voltar (veja
+  // voltarUmaPagina), sem tentar ler nem decidir nada nessa tela.
   pareceTelaDeContrato() {
     return this.selectors.padraoTelaContrato.test(semAcento(document.body.innerText || ''))
+  }
+
+  // Volta uma página no histórico do navegador — igual clicar no botão
+  // "voltar" — usado quando cai na tela de Contrato sem querer, pra
+  // voltar pra tela anterior e esperar a mensagem de resultado de
+  // verdade aparecer ali.
+  voltarUmaPagina() {
+    history.back()
   }
 
   ehNaoEncontrado(mensagem) {

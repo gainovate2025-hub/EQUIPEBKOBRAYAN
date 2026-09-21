@@ -314,19 +314,33 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 
   // fase 'consultando'
 
-  // Caiu na tela de Contrato (Termo de Contratação) — só chega até aqui
-  // se a pré-análise foi APROVADA. Essa tela não mostra mensagem de
-  // texto de resultado (e o conteúdo muda enquanto carrega os dados do
-  // contrato, então nunca "estabiliza"), por isso é aceita na hora, sem
-  // esperar nada — e a extensão NÃO clica em nada nela (nem Salvar, nem
-  // Enviar por e-mail): só lê que chegou ali e grava aprovado.
+  // Já clicou voltar por ter caído na tela de Contrato — espera sair
+  // dela antes de voltar a olhar o texto normalmente (enquanto ainda tá
+  // nela, ignora tudo: não conta tempo de timeout nem lê texto novo,
+  // senão o texto da própria tela de Contrato pode ser lido como
+  // resultado por engano).
+  if (andamento.aguardandoSairDoContrato) {
+    if (!automation.pareceTelaDeContrato()) {
+      log(numeroSistema, 'Saiu da tela de Contrato, voltando a acompanhar normalmente')
+      andamento.aguardandoSairDoContrato = false
+      andamento.fotoAntes = automation.tirarFotoTexto()
+      andamento.ultimoTextoNovo = ''
+      andamento.estavel = 0
+      andamento.iniciadoEm = Date.now()
+    }
+    return false
+  }
+
+  // Caiu na tela de Contrato (Termo de Contratação) sem querer — não é
+  // uma tela de resultado, e a extensão NUNCA clica em nada nela (nem
+  // Salvar, nem Enviar por e-mail). Só clica voltar (igual o botão
+  // voltar do navegador) e continua esperando a mensagem de resultado
+  // de verdade aparecer, sem decidir nada por conta própria aqui.
   if (automation.pareceTelaDeContrato()) {
-    log(numeroSistema, 'Caiu na tela de Contrato — aprovado (só chega aqui se passou na pré-análise)')
-    await salvarResultado(andamento.consulta.id, numeroSistema, {
-      resultado: 'aprovado',
-      motivo: 'Foi pra tela de Contrato (aprovado)',
-    })
-    return true
+    log(numeroSistema, 'Caiu na tela de Contrato — voltando uma página e esperando o resultado')
+    automation.voltarUmaPagina()
+    andamento.aguardandoSairDoContrato = true
+    return false
   }
 
   if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {

@@ -76,11 +76,12 @@ const EASYVENDAS_SELECTORS = {
   padraoChequeSemFundo: /cheque sem fundo/,
 
   // Tela de Contrato ("Termo de Contratação" / "Contrato de Permanência",
-  // com os botões Cancelar/Salvar/Enviar por e-mail) — só aparece quando a
-  // pré-análise foi APROVADA (é a tela de assinatura do contrato). Não tem
-  // mensagem de texto de resultado nessa tela — por isso é detectada
-  // direto pelo cabeçalho/abas e conta como aprovado na hora, sem esperar
-  // o texto "estabilizar" (evita o erro de timeout que já vimos aqui).
+  // com os botões Cancelar/Salvar/Enviar por e-mail) — não é uma tela de
+  // resultado (não tem mensagem de texto nem se sabe se sempre significa
+  // aprovado), por isso a extensão nunca decide nada nela: só detecta
+  // pelo cabeçalho/abas pra saber que caiu ali sem querer, volta uma
+  // página (history.back) e continua esperando o resultado de verdade
+  // na tela anterior.
   padraoTelaContrato: /termo de contrata|contrato de perman/,
 
   // Sistema 1 (Cliente — Crivo 1, INTERNO TIM): é REPROVADO só nesses 3
