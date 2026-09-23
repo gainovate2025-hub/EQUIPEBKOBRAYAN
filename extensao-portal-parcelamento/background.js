@@ -190,35 +190,16 @@ async function reiniciarPortalComMesmoJob(job) {
   await abrirAbaPortal()
 }
 
-function dormirBg(ms) {
-  return new Promise((r) => setTimeout(r, ms))
-}
-
-// Manda uma tecla de verdade (keyDown + keyUp) via CDP — mais lento que
-// Input.insertText, mas é a simulação mais "de verdade" que existe (é o
-// que fica mais parecido com dedo no teclado).
-async function digitarTeclaCDP(alvo, char) {
-  await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
-    type: 'keyDown',
-    text: char,
-    key: char,
-    unmodifiedText: char,
-  })
-  await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: char })
-}
-
-// Digita de verdade no campo focado da aba, usando o Chrome DevTools
-// Protocol em vez de truque de JavaScript na página — o campo do
-// Custcode ignora/perde caractere quando o valor é colocado via JS puro.
-// Esse campo parece ter uma MÁSCARA de validação (a mensagem de erro é
-// "informe apenas números e pontos") que só reconhece tecla por tecla —
-// colar um pedaço de uma vez (Input.insertText) passa por cima da
-// máscara: o campo mostra o texto certo na tela, mas o Portal recusa
-// como inválido por dentro. Por isso digita o valor INTEIRO tecla por
-// tecla (mais devagar, mas é o que mais se parece com digitação de
-// verdade) — sem precisar de nenhum clique da pessoa, só aparece a faixa
-// amarela do Chrome avisando "extensão depurando essa aba" no instante.
-async function digitarComDebugger(tabId, texto) {
+// Confirmado ao vivo pelo Brayan: colar (Ctrl+V) na mão SEMPRE funciona
+// nesse campo — só digitação simulada (de qualquer jeito) que o Portal
+// às vezes recusa como inválido. Em vez de tentar imitar digitação, manda
+// o Chrome executar o comando de colar de VERDADE (o mesmo que roda
+// quando alguém aperta Ctrl+V) no elemento focado, via CDP — o
+// content-script já deixou o valor certo na área de transferência antes
+// de chamar isso. Sem precisar de nenhum clique da pessoa — só aparece a
+// faixa amarela do Chrome avisando "extensão depurando essa aba" no
+// instante.
+async function colarComDebugger(tabId) {
   const alvo = { tabId }
   log('debugger: anexando na aba', tabId)
   try {
@@ -226,13 +207,15 @@ async function digitarComDebugger(tabId, texto) {
   } catch (err) {
     if (!String(err.message || '').includes('already attach')) throw err
   }
-  log('debugger: anexado, começando a digitar')
+  log('debugger: anexado, colando')
   try {
-    for (const char of texto) {
-      await digitarTeclaCDP(alvo, char)
-      await dormirBg(180)
-    }
-    log('debugger: terminou de digitar')
+    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      commands: ['Paste'],
+      key: 'v',
+    })
+    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'v' })
+    log('debugger: colou')
   } finally {
     try {
       await chrome.debugger.detach(alvo)
@@ -247,9 +230,9 @@ async function digitarComDebugger(tabId, texto) {
 // travar por qualquer motivo (visto ao vivo: ficou preso sem erro nem
 // resposta), desiste depois de alguns segundos em vez de travar o fluxo
 // inteiro da automação esperando uma resposta que nunca chega.
-function digitarComDebuggerComTimeout(tabId, texto) {
+function colarComDebuggerComTimeout(tabId) {
   return Promise.race([
-    digitarComDebugger(tabId, texto),
+    colarComDebugger(tabId),
     new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 8000)),
   ])
 }
@@ -327,12 +310,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return
     }
 
-    if (msg?.tipo === 'pp:digitarComDebugger') {
+    if (msg?.tipo === 'pp:colarComDebugger') {
       try {
-        await digitarComDebuggerComTimeout(_sender.tab.id, msg.texto || '')
+        await colarComDebuggerComTimeout(_sender.tab.id)
         sendResponse({ ok: true })
       } catch (err) {
-        log('Falha ao digitar via debugger:', err.message)
+        log('Falha ao colar via debugger:', err.message)
         sendResponse({ ok: false, erro: err.message })
       }
       return

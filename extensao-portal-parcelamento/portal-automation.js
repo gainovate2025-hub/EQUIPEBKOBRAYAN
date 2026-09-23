@@ -51,19 +51,33 @@ class PortalAutomation {
     }
   }
 
-  // Depois de MUITAS tentativas de fazer o robô digitar sozinho o Custcode
-  // com truques de JavaScript (execCommand, re-tentativa, conferência), o
-  // campo continuava comendo caractere, ou o excesso de tentativas em
-  // sequência chegou a derrubar a sessão do Portal ("session expired").
-  // Confirmado ao vivo: quando a PESSOA digita na mão, sempre funciona de
-  // primeira — o problema nunca foi o valor em si, é o campo não
-  // "acreditar" numa digitação simulada por JS puro.
-  //
-  // Solução: pede pro background.js (via chrome.debugger, permissão nova
-  // no manifest) inserir o texto usando o protocolo de depuração do
-  // Chrome — o mesmo mecanismo que ferramentas como Puppeteer usam pra
-  // digitar "de verdade" em qualquer campo, sem precisar de clique da
-  // pessoa (só aparece uma faixa amarela do Chrome por um instante).
+  // Confirmado ao vivo pelo Brayan: copiar e colar (Ctrl+V) na mão
+  // SEMPRE funciona nesse campo — só digitação simulada (JS puro, ou
+  // até tecla-por-tecla via CDP) que o Portal às vezes recusa como
+  // inválido. Em vez de tentar imitar digitação, a extensão copia o
+  // valor pra área de transferência de verdade e manda o Chrome (via
+  // chrome.debugger) executar o comando de colar de verdade no campo —
+  // ou seja, faz EXATAMENTE o que o Brayan faz na mão, só que sozinha,
+  // sem precisar de nenhum clique (só aparece a faixa amarela do Chrome
+  // avisando "extensão depurando essa aba" no instante).
+  async copiarParaAreaDeTransferencia(texto) {
+    try {
+      await navigator.clipboard.writeText(texto)
+      return true
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = texto
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const copiou = document.execCommand('copy')
+      textarea.remove()
+      return copiou
+    }
+  }
+
   async digitarViaDebugger(input, valor) {
     input.focus()
     await dormir(150)
@@ -75,6 +89,9 @@ class PortalAutomation {
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await dormir(150)
 
+    await this.copiarParaAreaDeTransferencia(valor)
+    await dormir(100)
+
     // Confirmado ao vivo: o pedido pro background (chrome.debugger) pode
     // ficar pendurado sem NUNCA responder nem dar erro — e sem um limite
     // de tempo aqui, isso travava a automação inteira esperando pra
@@ -83,7 +100,7 @@ class PortalAutomation {
     let resposta
     try {
       resposta = await Promise.race([
-        chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', texto: valor }),
+        chrome.runtime.sendMessage({ tipo: 'pp:colarComDebugger' }),
         new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 9000)),
       ])
     } catch (err) {
