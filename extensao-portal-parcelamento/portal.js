@@ -136,6 +136,8 @@ async function rodarFluxo(job) {
   let jaBuscou = false
   let jaTentouNavegarBusca = false
   let inicioFase = inicio
+  let tentativasClickBuscar = 1
+  let esperasSemMudanca = 0
 
   while (true) {
     if (Date.now() - inicioFase > PP_TIMEOUT_MS && faseAtual !== 'aguardando_pdf_lento') {
@@ -224,7 +226,17 @@ async function rodarFluxo(job) {
         }
 
         // nem "sem fatura" nem lista de fatura visível ainda — pode estar
-        // no meio do AJAX de busca. Espera mais um pouco.
+        // no meio do AJAX de busca, OU o clique em Buscar não pegou. Se a
+        // tela de busca (campo + botão) continuar exatamente igual depois
+        // de alguns segundos, clica Buscar de novo — só até 2 vezes no
+        // total, pra não ficar clicando sem parar se o motivo for outro.
+        esperasSemMudanca++
+        if (tentativasClickBuscar < 2 && esperasSemMudanca >= 4 && automation.detectarTelaBusca()) {
+          ppLog('Buscar não pareceu mudar a tela — clicando de novo.')
+          automation.botaoBuscar()?.click()
+          tentativasClickBuscar++
+          esperasSemMudanca = 0
+        }
         await dormir(PP_POLL_MS)
         continue
       }
