@@ -28,6 +28,8 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_WHATSAPP_QR_URL: ${{ secrets.VITE_WHATSAPP_QR_URL }}
+          VITE_WHATSAPP_APP_SECRET: ${{ secrets.VITE_WHATSAPP_APP_SECRET }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
