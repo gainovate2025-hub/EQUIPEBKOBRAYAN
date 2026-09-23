@@ -134,6 +134,7 @@ async function rodarFluxo(job) {
   const inicio = Date.now()
   let faseAtual = 'busca'
   let jaBuscou = false
+  let jaTentouNavegarBusca = false
 
   while (true) {
     if (Date.now() - inicio > PP_TIMEOUT_MS && faseAtual !== 'aguardando_pdf_lento') {
@@ -164,7 +165,17 @@ async function rodarFluxo(job) {
           continue
         }
         if (!telaBusca && !jaBuscou) {
-          // ainda carregando a tela inicial
+          // Nem tela de contexto, nem tela de busca — pode ser a tela
+          // "Home" (Seja bem-vindo) ou outra transição no meio do
+          // caminho. Só navega direto pra tela de busca UMA vez (senão
+          // fica em loop de navegação se a URL fixa também não carregar
+          // certo) — as próximas rodadas só esperam a página carregar.
+          if (!jaTentouNavegarBusca) {
+            ppLog('Tela sem campo de busca nem de contexto — indo direto pra tela de busca. url:', location.href)
+            jaTentouNavegarBusca = true
+            location.href = PORTAL_SELECTORS.urlTelaBusca
+            return // a página vai navegar — o content script recarrega sozinho
+          }
           await dormir(PP_POLL_MS)
           continue
         }

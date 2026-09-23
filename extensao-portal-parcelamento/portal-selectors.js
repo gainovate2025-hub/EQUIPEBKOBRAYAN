@@ -23,6 +23,13 @@ const PORTAL_SELECTORS = {
   textoOpcaoContextoTim: 'tim',
   textoBotaoSelecionarContexto: 'selecionar',
 
+  // CONFIRMADO por print — depois de escolher TIM, cai numa tela "Home"
+  // ("Seja bem-vindo ao Portal SGR da TIM!") que não é nem a tela de
+  // contexto nem a de busca — precisa navegar direto pra essa URL fixa
+  // da tela de busca (mesmo truque do background.js pro PORTAL_URL: não
+  // dá pra confiar em clicar num menu, mais simples ir direto na URL).
+  urlTelaBusca: 'https://portalparcelamento.timbrasil.com.br/pparcelamentos/appSgr/gerarConsultar/filtroPesquisa.xhtml',
+
   // CONFIRMADO — campo de texto pra digitar o Custcode.
   campoCustcodeSeletor: '[id="form1:codcliGSM"]',
 
