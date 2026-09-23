@@ -107,7 +107,6 @@ export default function Automacoes() {
         <Modal title="Bot de Atendimento no WhatsApp" onClose={() => setAbrindo(null)} width={480}>
           <div className="flex flex-col gap-3 text-sm">
             <p>Digita o número que vai atender (com DDI, ex: 55 11 99999-8888) e escaneia o QR pelo celular desse número — como conectar o WhatsApp Web.</p>
-            <p className="text-muted">Método não oficial: bom pra números de equipe/teste. Só desliga aqui se quiser tirar o número do ar.</p>
           </div>
           <WhatsAppBotPanel />
         </Modal>

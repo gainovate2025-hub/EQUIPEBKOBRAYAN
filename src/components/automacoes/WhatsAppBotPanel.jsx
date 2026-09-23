@@ -6,6 +6,8 @@ import { useEffect, useRef, useState } from 'react'
 const QR_SERVER_URL = import.meta.env.VITE_WHATSAPP_QR_URL
 const APP_SECRET = import.meta.env.VITE_WHATSAPP_APP_SECRET
 
+const CHAVE_NUMERO = 'whatsapp_bot_numero'
+
 function soDigitos(v) {
   return v.replace(/\D/g, '')
 }
@@ -32,6 +34,27 @@ export default function WhatsAppBotPanel() {
   const intervaloRef = useRef(null)
 
   useEffect(() => () => clearInterval(intervaloRef.current), [])
+
+  // Se já tinha um número ligado antes (localStorage sobrevive a recarregar
+  // a página), confere no servidor se ele continua conectado em vez de
+  // voltar pra tela de digitar do zero.
+  useEffect(() => {
+    const salvo = localStorage.getItem(CHAVE_NUMERO)
+    if (!salvo || !QR_SERVER_URL) return
+    chamar(`/status?numero=${salvo}`)
+      .then((resp) => {
+        if (resp.status === 'sem_sessao' || resp.status === 'desconectado') {
+          localStorage.removeItem(CHAVE_NUMERO)
+          return
+        }
+        setNumeroAtivo(salvo)
+        setStatus(resp.status)
+        setQr(resp.qr || null)
+        if (resp.status !== 'conectado') comecarChecagem(salvo)
+      })
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   function pararChecagem() {
     clearInterval(intervaloRef.current)
@@ -62,6 +85,7 @@ export default function WhatsAppBotPanel() {
     setCarregando(true)
     try {
       const resp = await chamar('/iniciar', { method: 'POST', body: JSON.stringify({ numero: limpo }) })
+      localStorage.setItem(CHAVE_NUMERO, limpo)
       setNumeroAtivo(limpo)
       setStatus(resp.status)
       comecarChecagem(limpo)
@@ -80,6 +104,7 @@ export default function WhatsAppBotPanel() {
     } catch (err) {
       setErro(err.message)
     } finally {
+      localStorage.removeItem(CHAVE_NUMERO)
       setStatus('sem_sessao')
       setQr(null)
       setNumeroAtivo('')
