@@ -62,11 +62,19 @@ class PortalAutomation {
     input.select()
     document.execCommand('delete', false, null)
     for (const char of valor) {
+      const tamanhoAntes = input.value.length
       input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }))
       input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }))
       document.execCommand('insertText', false, char)
       input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }))
-      await dormir(60)
+      // confirma que o campo realmente cresceu antes de ir pro próximo
+      // caractere — sem isso, digitar rápido demais faz a tela/framework
+      // "comer" os primeiros caracteres (visto ao vivo: só sobraram os
+      // últimos 5 de 9 dígitos).
+      for (let espera = 0; espera < 6 && input.value.length <= tamanhoAntes; espera++) {
+        await dormir(120)
+      }
+      await dormir(180)
     }
     input.dispatchEvent(new Event('change', { bubbles: true }))
     input.dispatchEvent(new Event('blur', { bubbles: true }))
