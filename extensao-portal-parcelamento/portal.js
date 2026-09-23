@@ -158,8 +158,9 @@ async function rodarFluxo(job) {
 
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
-          ppLog('Preenchendo Custcode e buscando:', job.custcode)
+          ppLog('Preenchendo Custcode e buscando:', JSON.stringify(job.custcode))
           automation.preencherEBuscar(job.custcode)
+          ppLog('Valor que ficou no campo depois de preencher:', JSON.stringify(telaBusca.campo.value))
           jaBuscou = true
           await dormir(PP_POLL_MS)
           continue
