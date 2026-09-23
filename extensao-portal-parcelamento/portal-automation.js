@@ -27,6 +27,7 @@ class PortalAutomation {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
     setter.call(input, valor)
     input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true }))
     input.dispatchEvent(new Event('change', { bubbles: true }))
     input.dispatchEvent(new Event('blur', { bubbles: true }))
   }
@@ -223,7 +224,17 @@ class PortalAutomation {
 
     const campo = this.campoCustcode()
     this.digitarDeVerdade(campo, custcode)
-    await dormir(400)
+
+    // Espera ATIVA (confirma o valor de verdade, não só um tempo fixo —
+    // 400ms sozinho não foi suficiente): tenta de novo se ainda não
+    // colou, até 8 rodadas de 300ms (~2,4s no total).
+    for (let tentativa = 0; tentativa < 8 && campo.value !== custcode; tentativa++) {
+      await dormir(300)
+      if (campo.value !== custcode) this.digitarDeVerdade(campo, custcode)
+    }
+    // mesmo confirmado, dá um tempo extra pro framework processar o
+    // evento antes de submeter o formulário.
+    await dormir(600)
 
     this.botaoBuscar().click()
   }
