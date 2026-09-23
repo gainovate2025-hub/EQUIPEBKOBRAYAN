@@ -15,6 +15,14 @@
 // -----------------------------------------------------------------------
 
 const PORTAL_SELECTORS = {
+  // CONFIRMADO por print — tela "Selecione o Contexto que deseja
+  // acessar" (TIM / INTELIG), aparece logo depois do login, ANTES da
+  // tela de busca por Custcode. TIM já vem marcado por padrão, mas
+  // clica mesmo assim pra garantir, igual o Custcode.
+  textoTelaContexto: 'selecione o contexto',
+  textoOpcaoContextoTim: 'tim',
+  textoBotaoSelecionarContexto: 'selecionar',
+
   // CONFIRMADO — campo de texto pra digitar o Custcode.
   campoCustcodeSeletor: '[id="form1:codcliGSM"]',
 

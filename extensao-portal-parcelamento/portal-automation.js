@@ -7,6 +7,10 @@
 // seguir é o laço em portal.js, olhando a tela a cada rodada.
 // -----------------------------------------------------------------------
 
+function dormir(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
 function semAcento(txt) {
   return (txt || '')
     .normalize('NFD')
@@ -25,6 +29,25 @@ class PortalAutomation {
     input.dispatchEvent(new Event('input', { bubbles: true }))
     input.dispatchEvent(new Event('change', { bubbles: true }))
     input.dispatchEvent(new Event('blur', { bubbles: true }))
+  }
+
+  // Alguns campos (visto na tela de login SSO da TIM) usam um framework
+  // que ignora um valor colocado direto via JavaScript, mesmo disparando
+  // os eventos input/change — só reage a uma digitação "de verdade".
+  // execCommand('insertText') faz o navegador tratar como uma edição
+  // real (dispara os mesmos eventos nativos de digitação), funcionando
+  // com mais frameworks. Confere no final se realmente colou; se não,
+  // cai pro método normal como reforço.
+  digitarDeVerdade(input, valor) {
+    input.focus()
+    input.select()
+    const inseriu = document.execCommand('insertText', false, valor)
+    if (!inseriu || input.value !== valor) {
+      this.definirValorInput(input, valor)
+    } else {
+      input.dispatchEvent(new Event('change', { bubbles: true }))
+      input.dispatchEvent(new Event('blur', { bubbles: true }))
+    }
   }
 
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
@@ -52,18 +75,30 @@ class PortalAutomation {
   // Acha um <input> pelo rótulo/placeholder/aria-label ao redor dele —
   // usado pras telas de login (USERNAME, TOKEN), que não têm id fixo
   // conhecido.
+  //
+  // IMPORTANTE: quando dois campos ficam perto um do outro (ex: USUÁRIO
+  // e TOKEN na mesma tela), subir níveis demais a partir de UM input só
+  // pode achar um container-pai que engloba os DOIS rótulos — aí "token"
+  // bateria no campo de usuário por engano. Por isso sobe nível por
+  // nível testando TODOS os inputs em cada nível antes de subir mais um
+  // — assim o container mais PRÓXIMO de algum input sempre ganha de um
+  // container genérico compartilhado entre vários campos.
   acharCampoPorRotulo(rotulo) {
     const alvo = semAcento(rotulo)
     const inputs = [...document.querySelectorAll('input')]
+
     for (const input of inputs) {
       const atributos = semAcento(
         [input.placeholder, input.getAttribute('aria-label'), input.name, input.id].filter(Boolean).join(' ')
       )
       if (atributos.includes(alvo)) return input
+    }
 
-      let container = input.closest('div, label, section') || input.parentElement
-      for (let nivel = 0; container && nivel < 4; nivel++, container = container.parentElement) {
-        if (semAcento(container.textContent || '').includes(alvo)) return input
+    for (let nivel = 0; nivel < 4; nivel++) {
+      for (const input of inputs) {
+        let container = input.closest('div, label, section') || input.parentElement
+        for (let i = 0; i < nivel && container; i++) container = container.parentElement
+        if (container && semAcento(container.textContent || '').includes(alvo)) return input
       }
     }
     return null
@@ -78,8 +113,13 @@ class PortalAutomation {
     return campo && botao ? { campo, botao } : null
   }
 
-  preencherUsuarioEAvancar(etapa, usuario) {
-    this.definirValorInput(etapa.campo, usuario)
+  // Espera um pouco entre preencher e clicar — a tela usa um framework
+  // (React/Angular) que reage aos eventos de forma assíncrona; clicar
+  // logo em seguida pode disparar antes dela "perceber" que o campo foi
+  // preenchido, e a validação acha o campo vazio.
+  async preencherUsuarioEAvancar(etapa, usuario) {
+    this.digitarDeVerdade(etapa.campo, usuario)
+    await dormir(400)
     etapa.botao.click()
   }
 
@@ -91,8 +131,9 @@ class PortalAutomation {
     return campo && botao ? { campo, botao } : null
   }
 
-  preencherTokenEEntrar(etapa, token) {
-    this.definirValorInput(etapa.campo, token)
+  async preencherTokenEEntrar(etapa, token) {
+    this.digitarDeVerdade(etapa.campo, token)
+    await dormir(400)
     etapa.botao.click()
   }
 
@@ -111,6 +152,31 @@ class PortalAutomation {
       }
     }
     return null
+  }
+
+  // Tela "Selecione o Contexto que deseja acessar" (TIM / INTELIG),
+  // aparece logo depois do login, antes da tela de busca.
+  detectarTelaContexto() {
+    const temTitulo = semAcento(this.textoDaTela()).includes(this.selectors.textoTelaContexto)
+    if (!temTitulo) return null
+    const botao = this.acharBotaoPorTexto([this.selectors.textoBotaoSelecionarContexto])
+    return botao ? { botao } : null
+  }
+
+  // Match EXATO do rótulo (não só "contém") — "TIM" tem só 3 letras,
+  // então uma busca por "contém" poderia confundir com o nome "TIM" no
+  // cabeçalho/logo da página, que não é um rótulo de opção de verdade.
+  selecionarContextoTim() {
+    const radios = [...document.querySelectorAll('input[type="radio"]')]
+    for (const radio of radios) {
+      const label = radio.closest('label') || radio.parentElement
+      const texto = semAcento(label?.textContent || '').trim()
+      if (texto === this.selectors.textoOpcaoContextoTim) {
+        radio.click()
+        return true
+      }
+    }
+    return false
   }
 
   campoCustcode() {

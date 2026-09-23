@@ -62,16 +62,20 @@ async function pegarLoginPendente() {
   }
 }
 
-// Evita reenviar o MESMO token em loop se der errado (matrícula errada,
-// token digitado errado etc.) — só tenta um "criado_em" uma vez, e fica
-// esperando a pessoa colar um login novo depois disso.
-async function loginJaTentado(criadoEm) {
-  const { pp_login_tentado_em } = await chrome.storage.session.get('pp_login_tentado_em')
-  return pp_login_tentado_em === criadoEm
+// Evita reenviar o MESMO login em loop se a tela não navegar pra lugar
+// nenhum (matrícula errada, token digitado errado, ou até só uma
+// mensagem de erro que não recarrega a página) — só tenta um "criado_em"
+// UMA VEZ por etapa (usuário e token contam separado, já que são ações
+// diferentes dentro do MESMO login), e fica esperando um login novo
+// depois disso. Sem isso a extensão ficava clicando dezenas de vezes
+// seguidas na mesma tela (visto ao vivo: 40+ tentativas em segundos).
+async function jaTentado(chave, criadoEm) {
+  const resultado = await chrome.storage.session.get(chave)
+  return resultado[chave] === criadoEm
 }
 
-async function marcarLoginTentado(criadoEm) {
-  await chrome.storage.session.set({ pp_login_tentado_em: criadoEm })
+async function marcarTentado(chave, criadoEm) {
+  await chrome.storage.session.set({ [chave]: criadoEm })
 }
 
 // Chamado a cada carregamento da aba (antes de qualquer outra coisa) —
@@ -87,8 +91,13 @@ async function tentarResolverLogin(automation) {
       ppLog('Tela de login (matrícula) — aguardando alguém colar o login no site (Automações > Portal Parcelamento).')
       return true
     }
-    ppLog('Preenchendo matrícula e avançando:', login.usuario)
-    automation.preencherUsuarioEAvancar(etapaUsuario, login.usuario)
+    if (await jaTentado('pp_login_usuario_tentado_em', login.criado_em)) {
+      ppLog('Já tentei essa matrícula nessa tela — aguardando um login novo.')
+      return true
+    }
+    ppLog('Preenchendo matrícula e avançando:', login.usuario, '| criado_em:', login.criado_em)
+    await automation.preencherUsuarioEAvancar(etapaUsuario, login.usuario)
+    await marcarTentado('pp_login_usuario_tentado_em', login.criado_em)
     return true
   }
 
@@ -99,13 +108,13 @@ async function tentarResolverLogin(automation) {
       ppLog('Tela de login (token) — aguardando alguém colar o login no site.')
       return true
     }
-    if (await loginJaTentado(login.criado_em)) {
+    if (await jaTentado('pp_login_token_tentado_em', login.criado_em)) {
       ppLog('Esse token já foi tentado — aguardando um login novo.')
       return true
     }
-    ppLog('Preenchendo token e entrando.')
-    automation.preencherTokenEEntrar(etapaToken, login.token)
-    await marcarLoginTentado(login.criado_em)
+    ppLog('Preenchendo token e entrando. | criado_em:', login.criado_em)
+    await automation.preencherTokenEEntrar(etapaToken, login.token)
+    await marcarTentado('pp_login_token_tentado_em', login.criado_em)
     return true
   }
 
@@ -134,6 +143,18 @@ async function rodarFluxo(job) {
 
     try {
       if (faseAtual === 'busca') {
+        // pode aparecer uma tela "Selecione o Contexto" (TIM/INTELIG)
+        // antes da busca — resolve isso primeiro, sem contar como erro.
+        const telaContexto = automation.detectarTelaContexto()
+        if (telaContexto) {
+          ppLog('Tela de contexto (TIM/INTELIG) — selecionando TIM.')
+          automation.selecionarContextoTim()
+          await dormir(300)
+          telaContexto.botao.click()
+          await dormir(PP_POLL_MS)
+          continue
+        }
+
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
           ppLog('Preenchendo Custcode e buscando:', job.custcode)
@@ -244,8 +265,16 @@ async function rodarFluxo(job) {
 async function iniciar() {
   const automation = new PortalAutomation(PORTAL_SELECTORS)
 
-  const resolveuLogin = await tentarResolverLogin(automation)
-  if (resolveuLogin) return // a tela vai navegar — o content script recarrega sozinho na próxima
+  // Fica checando em loop enquanto a tela continuar sendo de login — se o
+  // RSA recusar o token, a tela de erro normalmente NÃO recarrega a
+  // página (fica exatamente igual, só com uma mensagem de erro), então
+  // checar só uma vez faria a extensão nunca mais notar um login novo
+  // mandado depois. Se a tela realmente navegar pra outro lugar (login
+  // deu certo), o content script inteiro morre aqui e um novo começa do
+  // zero na próxima página — não precisa sair do loop na mão.
+  while (await tentarResolverLogin(automation)) {
+    await dormir(PP_POLL_MS)
+  }
 
   const job = await pegarJob()
   if (!job || !job.ativo) return
