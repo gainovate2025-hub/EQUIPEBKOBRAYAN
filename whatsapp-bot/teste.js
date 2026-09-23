@@ -28,8 +28,8 @@ checar('2 responde portabilidade (7678 e 4196)', r.respostas[0].includes('7678')
 r = responder(r.conversa, '3', minutos(2))
 checar('"3" depois da portabilidade vai pra questões contratuais', r.respostas[0].includes('Questões contratuais'))
 
-// 3/4/5 passam pra atendente: bot fica quieto até "menu"
-for (const n of ['3', '4', '5']) {
+// 3/4/5/6 passam pra atendente: bot fica quieto até "menu"
+for (const n of ['3', '4', '5', '6']) {
   r = responder(c, n, minutos(1))
   checar(`${n} passa pra atendente`, r.conversa.estado === 'humano' && r.respostas[0].startsWith('Você selecionou'))
   const quieto = responder(r.conversa, '12.345.678/0001-90 quero cancelar', minutos(2))

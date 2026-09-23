@@ -12,7 +12,8 @@ Para agilizar seu atendimento, digite o número da opção que melhor representa
 2 Portabilidade (como funciona, prazos, problemas com SMS, titularidade)
 3 Questões contratuais (alterações, cancelamento, renovação)
 4 Adição de novas linhas
-5 Dúvidas ou outros assuntos`
+5 E-SIM / Chip Virtual
+6 Dúvidas ou outros assuntos`
 
 const FATURA = `Você selecionou Fatura. Aqui está o passo a passo para consulta e pagamento:
 
@@ -34,6 +35,7 @@ const PORTABILIDADE = `Você selecionou Portabilidade. Para dar andamento à por
 ⏰ O prazo para seu número ser portado estará disponível no SMS do número 4196
 
 Se não recebeu o SMS, teve problema com o código ou com a titularidade da linha, digite 3 para falar com nossa equipe.
+Ou acesse o link para ser enviado diretamente ao SMS de portabilidade: https://www.portabilidade.online
 
 ${RODAPE}`
 
@@ -57,19 +59,28 @@ Nossa equipe comercial entrará em contato para finalizar sua solicitação.
 
 ${RODAPE}`
 
+const ESIM = `Você selecionou E-SIM / CHIP VIRTUAL. Para agilizar sua solicitação informe o que deseja:
+
+📲 Como fazer a troca de chip físico pelo virtual
+📸 Envio de QR code do chip virtual
+❔ Consultar se o celular tem acesso a e-sim ou não
+
+${RODAPE}`
+
 const OUTROS = `Você selecionou Dúvidas ou outros assuntos. Por favor, descreva brevemente o que você precisa que em instantes um de nossos atendentes irá te ajudar.
 
 ${RODAPE}`
 
-// Opções 3, 4 e 5 passam a conversa pra um atendente — depois delas o bot
-// fica quieto (senão responderia o menu em cima de cada mensagem do
+// Opções 3, 4, 5 e 6 passam a conversa pra um atendente — depois delas o
+// bot fica quieto (senão responderia o menu em cima de cada mensagem do
 // cliente enquanto o atendente conversa). Só "menu" traz o bot de volta.
 const OPCOES = {
   1: { texto: FATURA, estadoDepois: 'menu' },
   2: { texto: PORTABILIDADE, estadoDepois: 'menu' },
   3: { texto: CONTRATUAIS, estadoDepois: 'humano' },
   4: { texto: NOVAS_LINHAS, estadoDepois: 'humano' },
-  5: { texto: OUTROS, estadoDepois: 'humano' },
+  5: { texto: ESIM, estadoDepois: 'humano' },
+  6: { texto: OUTROS, estadoDepois: 'humano' },
 }
 
 function normalizar(txt) {
@@ -94,7 +105,7 @@ export function responder(conversa, texto, agora = Date.now()) {
 
   if (conversa.estado === 'humano') return { respostas: [], conversa: proxima('humano') }
 
-  const achou = norm.match(/^\D*([1-5])\D*$/)
+  const achou = norm.match(/^\D*([1-6])\D*$/)
   if (achou) {
     const opcao = OPCOES[achou[1]]
     return { respostas: [opcao.texto], conversa: proxima(opcao.estadoDepois) }
