@@ -210,13 +210,15 @@ async function digitarTeclaCDP(alvo, char) {
 // Digita de verdade no campo focado da aba, usando o Chrome DevTools
 // Protocol em vez de truque de JavaScript na página — o campo do
 // Custcode ignora/perde caractere quando o valor é colocado via JS puro.
-// Confirmado ao vivo: o começo ("7.") é o que mais se perde. Por isso
-// digita ESSE PREFIXO tecla por tecla, bem devagar (mais parecido com
-// digitação de verdade), e só o RESTO (número) insere de uma vez com
-// Input.insertText (mais rápido, e o resto nunca deu problema). Sem
-// precisar de nenhum clique da pessoa — só aparece a faixa amarela do
-// Chrome avisando "extensão depurando essa aba" durante o instante.
-async function digitarComDebugger(tabId, prefixo, resto) {
+// Esse campo parece ter uma MÁSCARA de validação (a mensagem de erro é
+// "informe apenas números e pontos") que só reconhece tecla por tecla —
+// colar um pedaço de uma vez (Input.insertText) passa por cima da
+// máscara: o campo mostra o texto certo na tela, mas o Portal recusa
+// como inválido por dentro. Por isso digita o valor INTEIRO tecla por
+// tecla (mais devagar, mas é o que mais se parece com digitação de
+// verdade) — sem precisar de nenhum clique da pessoa, só aparece a faixa
+// amarela do Chrome avisando "extensão depurando essa aba" no instante.
+async function digitarComDebugger(tabId, texto) {
   const alvo = { tabId }
   log('debugger: anexando na aba', tabId)
   try {
@@ -226,12 +228,10 @@ async function digitarComDebugger(tabId, prefixo, resto) {
   }
   log('debugger: anexado, começando a digitar')
   try {
-    for (const char of prefixo) {
+    for (const char of texto) {
       await digitarTeclaCDP(alvo, char)
       await dormirBg(180)
     }
-    await dormirBg(200)
-    if (resto) await chrome.debugger.sendCommand(alvo, 'Input.insertText', { text: resto })
     log('debugger: terminou de digitar')
   } finally {
     try {
@@ -247,10 +247,10 @@ async function digitarComDebugger(tabId, prefixo, resto) {
 // travar por qualquer motivo (visto ao vivo: ficou preso sem erro nem
 // resposta), desiste depois de alguns segundos em vez de travar o fluxo
 // inteiro da automação esperando uma resposta que nunca chega.
-function digitarComDebuggerComTimeout(tabId, prefixo, resto) {
+function digitarComDebuggerComTimeout(tabId, texto) {
   return Promise.race([
-    digitarComDebugger(tabId, prefixo, resto),
-    new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 5000)),
+    digitarComDebugger(tabId, texto),
+    new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 8000)),
   ])
 }
 
@@ -329,7 +329,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg?.tipo === 'pp:digitarComDebugger') {
       try {
-        await digitarComDebuggerComTimeout(_sender.tab.id, msg.prefixo || '', msg.resto || '')
+        await digitarComDebuggerComTimeout(_sender.tab.id, msg.texto || '')
         sendResponse({ ok: true })
       } catch (err) {
         log('Falha ao digitar via debugger:', err.message)

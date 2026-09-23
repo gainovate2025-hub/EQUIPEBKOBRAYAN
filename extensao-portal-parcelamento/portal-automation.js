@@ -75,12 +75,6 @@ class PortalAutomation {
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await dormir(150)
 
-    // O prefixo "7." (quando existe) é a parte que mais se perde — o
-    // background digita ELE tecla por tecla, bem devagar, e só o resto
-    // (número) insere de uma vez.
-    const prefixo = valor.startsWith('7.') ? '7.' : ''
-    const resto = valor.slice(prefixo.length)
-
     // Confirmado ao vivo: o pedido pro background (chrome.debugger) pode
     // ficar pendurado sem NUNCA responder nem dar erro — e sem um limite
     // de tempo aqui, isso travava a automação inteira esperando pra
@@ -89,8 +83,8 @@ class PortalAutomation {
     let resposta
     try {
       resposta = await Promise.race([
-        chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', prefixo, resto }),
-        new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 6000)),
+        chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', texto: valor }),
+        new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 9000)),
       ])
     } catch (err) {
       resposta = { ok: false, erro: err.message }
