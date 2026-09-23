@@ -110,7 +110,9 @@ class PortalAutomation {
     // Buscar já tira o foco do campo sozinho — deixa o blur acontecer
     // só nesse momento, junto com o clique, como faria uma pessoa.
     await dormir(300)
-    return input.value === valor
+    const bateu = input.value === valor
+    log('digitou certo?', bateu, '| valor final:', JSON.stringify(input.value), '| esperado:', JSON.stringify(valor))
+    return bateu
   }
 
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
@@ -286,7 +288,14 @@ class PortalAutomation {
 
     const campo = this.campoCustcode()
     const digitouCerto = await this.digitarViaDebugger(campo, custcode)
-    if (!digitouCerto) return { ok: false, valorFinal: campo.value }
+    // Mesmo se a conferência não bater 100% (ex: alguma diferença boba
+    // de espaço), clica em Buscar de qualquer jeito — travar aqui sem
+    // nunca clicar deixa a automação sem tentar nada. Se o valor estiver
+    // mesmo errado, pareceErroValidacao() detecta isso no próximo passo
+    // de um jeito mais confiável.
+    if (!digitouCerto) {
+      console.log('[PortalParcelamento] valor não bateu 100%, mas vou clicar Buscar assim mesmo — valor no campo:', JSON.stringify(campo.value))
+    }
 
     await dormir(400)
     this.botaoBuscar().click()
