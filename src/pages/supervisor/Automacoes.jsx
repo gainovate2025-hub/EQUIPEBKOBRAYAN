@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Workflow, FileText, MessageCircle } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
-import { fetchParcelamentoConfig, updateParcelamentoConfig } from '../../lib/api'
+import { fetchParcelamentoConfig, updateParcelamentoConfig, fetchParcelamentoLogin, enviarParcelamentoLogin } from '../../lib/api'
 import SectionHeading from '../../components/ui/SectionHeading'
 import Modal from '../../components/ui/Modal'
 import Field from '../../components/ui/Field'
@@ -95,11 +95,13 @@ export default function Automacoes() {
             <p>Essa automação roda direto no Chrome (extensão), um por vez — mas a planilha usada é definida AQUI, pra todo mundo que ligar a extensão usar a mesma.</p>
             <ol className="list-decimal space-y-1 pl-5">
               <li>Instala a extensão em <code className="rounded bg-paper px-1 py-0.5">chrome://extensions</code> a partir da pasta <code className="rounded bg-paper px-1 py-0.5">extensao-portal-parcelamento/</code> do repositório</li>
-              <li>Deixa uma aba do Portal Parcelamento e uma do WhatsApp Web logadas, e clica em Ligar no ícone da extensão</li>
+              <li>Deixa uma aba do Portal Parcelamento e uma do WhatsApp Web abertas, e clica em Ligar no ícone da extensão</li>
+              <li>Se a aba do Portal cair numa tela de login, usa o formulário "Login" mais abaixo — ela entra sozinha</li>
             </ol>
             <p className="text-muted">Ela consulta cada Custcode pendente na planilha abaixo, envia a fatura e a cobrança por WhatsApp, e marca o resultado na coluna "DATA DA FATURA".</p>
           </div>
           <ParcelamentoConfigForm />
+          <ParcelamentoLoginForm />
         </Modal>
       )}
 
@@ -183,6 +185,79 @@ function ParcelamentoConfigForm() {
       <button type="submit" className="btn-primary self-start" disabled={salvando}>
         {salvando ? 'Salvando…' : 'Salvar planilha'}
       </button>
+      <Toast toast={toast} />
+    </form>
+  )
+}
+
+function ParcelamentoLoginForm() {
+  const { profile } = useAuth()
+  const { toast, showToast } = useToast()
+  const [usuario, setUsuario] = useState('')
+  const [token, setToken] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [ultimoEnvio, setUltimoEnvio] = useState(null)
+
+  useEffect(() => {
+    fetchParcelamentoLogin()
+      .then((login) => {
+        if (login?.usuario) setUltimoEnvio({ usuario: login.usuario, criadoEm: login.criado_em })
+      })
+      .catch(() => {})
+  }, [])
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!usuario.trim() || !token.trim()) return
+    setEnviando(true)
+    try {
+      const usuarioLimpo = usuario.trim().toUpperCase()
+      await enviarParcelamentoLogin(profile.id, { usuario: usuarioLimpo, token: token.trim() })
+      setUltimoEnvio({ usuario: usuarioLimpo, criado_em: new Date().toISOString() })
+      setToken('')
+      showToast('Login enviado — a extensão usa isso na próxima vez que travar numa tela de login.')
+    } catch (err) {
+      showToast(err.message || 'Falha ao enviar.', 'error')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
+      <div>
+        <p className="text-sm font-semibold">Login (só quando a extensão pedir)</p>
+        <p className="text-xs text-muted">
+          Se a aba do Portal cair numa tela de login, cola aqui a matrícula e o código do token (do chaveiro/app,
+          na hora) e envia — a extensão pega isso e entra sozinha. O código vale só por pouco tempo, então só
+          envia quando for usar.
+        </p>
+      </div>
+      <Field label="Matrícula">
+        <input
+          className="field-input"
+          placeholder="T3786035"
+          value={usuario}
+          onChange={(e) => setUsuario(e.target.value)}
+        />
+      </Field>
+      <Field label="Código do token">
+        <input
+          className="field-input"
+          placeholder="6 dígitos do chaveiro/app"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          autoComplete="off"
+        />
+      </Field>
+      <button type="submit" className="btn-primary self-start" disabled={enviando}>
+        {enviando ? 'Enviando…' : 'Enviar login'}
+      </button>
+      {ultimoEnvio && (
+        <p className="text-xs text-muted">
+          Último envio: {ultimoEnvio.usuario} às {new Date(ultimoEnvio.criado_em).toLocaleTimeString('pt-BR')}
+        </p>
+      )}
       <Toast toast={toast} />
     </form>
   )

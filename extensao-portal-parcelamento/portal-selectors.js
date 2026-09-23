@@ -65,6 +65,26 @@ const PORTAL_SELECTORS = {
   pareceUrlDePdf(url) {
     return /\.pdf(\?|$)/i.test(url) || url.includes('/download') || url.includes('boleto')
   },
+
+  // LOGIN — confirmado por print do Brayan. É um login único (SSO) em 2
+  // etapas, ANTES de chegar em qualquer tela do Portal em si:
+  //   Etapa 1 ("Sign On", estilo Okta): só um campo USERNAME (em inglês)
+  //   + botão "Next" — aqui entra a matrícula (ex: T3786035).
+  //   Etapa 2 (tela com a marca TIM): USUÁRIO já vem preenchido sozinho
+  //   pela etapa 1, só falta o TOKEN (código de 6 dígitos de um chaveiro
+  //   físico RSA SecurID, muda a cada ~60s) + botão "Entrar".
+  // Não tem como guardar usuário/senha fixos pra esse login — por isso a
+  // extensão lê da tabela parcelamento_login (Supabase), onde a pessoa
+  // cola a matrícula + o código do token na hora, pelo site.
+  loginUsuarioRotulo: 'username',
+  loginBotaoAvancarTextos: ['next', 'avancar'],
+  loginTokenRotulo: 'token',
+  loginBotaoEntrarTextos: ['entrar'],
+
+  // Um login colado no site só vale por pouco tempo (o token do RSA
+  // muda toda hora) — depois disso a extensão ignora e fica esperando
+  // um novo em vez de tentar entrar com um código já vencido.
+  loginMaxIdadeMs: 90000,
 }
 
 if (typeof module !== 'undefined' && module.exports) {

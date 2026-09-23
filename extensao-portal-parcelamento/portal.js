@@ -22,6 +22,13 @@
 const PP_POLL_MS = 800
 const PP_TIMEOUT_MS = 30000
 
+// Mesmo projeto Supabase do resto do painel-bko — veja migration_025 pro
+// motivo de existir uma tabela pra isso (login em 2 etapas com token de
+// hardware, não dá pra guardar senha fixa).
+const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
+const ANON_KEY =
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
+
 function ppLog(...args) {
   console.log('[PortalParcelamento]', ...args)
 }
@@ -33,6 +40,76 @@ function dormir(ms) {
 async function pegarJob() {
   const { pp_job: job } = await chrome.storage.session.get('pp_job')
   return job || null
+}
+
+// Busca o login mais recente que alguém colou no site (Automações >
+// Portal Parcelamento). Ignora se estiver velho demais — o token do RSA
+// muda a cada minuto, não adianta tentar entrar com um vencido.
+async function pegarLoginPendente() {
+  try {
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/parcelamento_login?id=eq.1&select=usuario,token,criado_em`, {
+      headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}` },
+    })
+    if (!res.ok) return null
+    const [linha] = await res.json()
+    if (!linha?.usuario || !linha?.token) return null
+    const idadeMs = Date.now() - new Date(linha.criado_em).getTime()
+    if (idadeMs > PORTAL_SELECTORS.loginMaxIdadeMs) return null
+    return linha
+  } catch (err) {
+    ppLog('Falha ao buscar login pendente:', err.message)
+    return null
+  }
+}
+
+// Evita reenviar o MESMO token em loop se der errado (matrícula errada,
+// token digitado errado etc.) — só tenta um "criado_em" uma vez, e fica
+// esperando a pessoa colar um login novo depois disso.
+async function loginJaTentado(criadoEm) {
+  const { pp_login_tentado_em } = await chrome.storage.session.get('pp_login_tentado_em')
+  return pp_login_tentado_em === criadoEm
+}
+
+async function marcarLoginTentado(criadoEm) {
+  await chrome.storage.session.set({ pp_login_tentado_em: criadoEm })
+}
+
+// Chamado a cada carregamento da aba (antes de qualquer outra coisa) —
+// se a tela for de login, tenta resolver com o que tiver pendente no
+// Supabase. Devolve true quando agiu nessa tela (a página vai navegar
+// em seguida, então não faz sentido continuar o resto da função nesse
+// carregamento).
+async function tentarResolverLogin(automation) {
+  const etapaUsuario = automation.detectarTelaLoginUsuario()
+  if (etapaUsuario) {
+    const login = await pegarLoginPendente()
+    if (!login) {
+      ppLog('Tela de login (matrícula) — aguardando alguém colar o login no site (Automações > Portal Parcelamento).')
+      return true
+    }
+    ppLog('Preenchendo matrícula e avançando:', login.usuario)
+    automation.preencherUsuarioEAvancar(etapaUsuario, login.usuario)
+    return true
+  }
+
+  const etapaToken = automation.detectarTelaLoginToken()
+  if (etapaToken) {
+    const login = await pegarLoginPendente()
+    if (!login) {
+      ppLog('Tela de login (token) — aguardando alguém colar o login no site.')
+      return true
+    }
+    if (await loginJaTentado(login.criado_em)) {
+      ppLog('Esse token já foi tentado — aguardando um login novo.')
+      return true
+    }
+    ppLog('Preenchendo token e entrando.')
+    automation.preencherTokenEEntrar(etapaToken, login.token)
+    await marcarLoginTentado(login.criado_em)
+    return true
+  }
+
+  return false
 }
 
 async function avisarBackground(tipo, dados = {}) {
@@ -165,6 +242,11 @@ async function rodarFluxo(job) {
 }
 
 async function iniciar() {
+  const automation = new PortalAutomation(PORTAL_SELECTORS)
+
+  const resolveuLogin = await tentarResolverLogin(automation)
+  if (resolveuLogin) return // a tela vai navegar — o content script recarrega sozinho na próxima
+
   const job = await pegarJob()
   if (!job || !job.ativo) return
   ppLog('Job ativo, começando fluxo para', job.custcode)

@@ -156,4 +156,22 @@ export async function updateParcelamentoConfig(userId, patch) {
   if (error) throw error
 }
 
+export async function fetchParcelamentoLogin() {
+  const { data, error } = await supabase
+    .from('parcelamento_login')
+    .select('usuario, criado_em')
+    .eq('id', 1)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function enviarParcelamentoLogin(userId, { usuario, token }) {
+  const { error } = await supabase
+    .from('parcelamento_login')
+    .update({ usuario, token, criado_por: userId, criado_em: new Date().toISOString() })
+    .eq('id', 1)
+  if (error) throw error
+}
+
 export { usernameToEmail }

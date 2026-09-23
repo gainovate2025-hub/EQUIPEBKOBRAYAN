@@ -49,6 +49,53 @@ class PortalAutomation {
     return this.acharBotaoDentro(document, alvos)
   }
 
+  // Acha um <input> pelo rótulo/placeholder/aria-label ao redor dele —
+  // usado pras telas de login (USERNAME, TOKEN), que não têm id fixo
+  // conhecido.
+  acharCampoPorRotulo(rotulo) {
+    const alvo = semAcento(rotulo)
+    const inputs = [...document.querySelectorAll('input')]
+    for (const input of inputs) {
+      const atributos = semAcento(
+        [input.placeholder, input.getAttribute('aria-label'), input.name, input.id].filter(Boolean).join(' ')
+      )
+      if (atributos.includes(alvo)) return input
+
+      let container = input.closest('div, label, section') || input.parentElement
+      for (let nivel = 0; container && nivel < 4; nivel++, container = container.parentElement) {
+        if (semAcento(container.textContent || '').includes(alvo)) return input
+      }
+    }
+    return null
+  }
+
+  // Etapa 1 do login (SSO, tela "Sign On"): só o campo USERNAME, sem
+  // campo de TOKEN nela (isso distingue da etapa 2, que tem os dois).
+  detectarTelaLoginUsuario() {
+    if (this.acharCampoPorRotulo(this.selectors.loginTokenRotulo)) return null
+    const campo = this.acharCampoPorRotulo(this.selectors.loginUsuarioRotulo)
+    const botao = this.acharBotaoPorTexto(this.selectors.loginBotaoAvancarTextos)
+    return campo && botao ? { campo, botao } : null
+  }
+
+  preencherUsuarioEAvancar(etapa, usuario) {
+    this.definirValorInput(etapa.campo, usuario)
+    etapa.botao.click()
+  }
+
+  // Etapa 2 do login: USUÁRIO já vem preenchido pela etapa 1, só falta
+  // o TOKEN do RSA SecurID.
+  detectarTelaLoginToken() {
+    const campo = this.acharCampoPorRotulo(this.selectors.loginTokenRotulo)
+    const botao = this.acharBotaoPorTexto(this.selectors.loginBotaoEntrarTextos)
+    return campo && botao ? { campo, botao } : null
+  }
+
+  preencherTokenEEntrar(etapa, token) {
+    this.definirValorInput(etapa.campo, token)
+    etapa.botao.click()
+  }
+
   // Acha o container (linha/bloco) da tela cujo texto contenha um trecho
   // dado — usado pra achar a seção "Faturas Em Aberto" ou a opção
   // "IMPRESSÃO ONLINE" sem depender de id.
