@@ -75,9 +75,15 @@ class PortalAutomation {
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await dormir(150)
 
+    // O prefixo "7." (quando existe) é a parte que mais se perde — o
+    // background digita ELE tecla por tecla, bem devagar, e só o resto
+    // (número) insere de uma vez.
+    const prefixo = valor.startsWith('7.') ? '7.' : ''
+    const resto = valor.slice(prefixo.length)
+
     let resposta
     try {
-      resposta = await chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', texto: valor })
+      resposta = await chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', prefixo, resto })
     } catch (err) {
       resposta = { ok: false, erro: err.message }
     }
@@ -265,14 +271,8 @@ class PortalAutomation {
       }
     }
 
-    // Confirmado ao vivo: o Custcode da planilha vem com um prefixo
-    // "7." na frente (ex: "7.2232569") que NÃO faz parte do código de
-    // verdade nesse campo — testando manualmente sem esse prefixo
-    // funcionou normal. Tira só esse "7." do início antes de digitar.
-    const custcodeFormatado = custcode.replace(/^7\./, '')
-
     const campo = this.campoCustcode()
-    const digitouCerto = await this.digitarViaDebugger(campo, custcodeFormatado)
+    const digitouCerto = await this.digitarViaDebugger(campo, custcode)
     if (!digitouCerto) return { ok: false, valorFinal: campo.value }
 
     await dormir(400)

@@ -190,15 +190,33 @@ async function reiniciarPortalComMesmoJob(job) {
   await abrirAbaPortal()
 }
 
+function dormirBg(ms) {
+  return new Promise((r) => setTimeout(r, ms))
+}
+
+// Manda uma tecla de verdade (keyDown + keyUp) via CDP — mais lento que
+// Input.insertText, mas é a simulação mais "de verdade" que existe (é o
+// que fica mais parecido com dedo no teclado).
+async function digitarTeclaCDP(alvo, char) {
+  await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
+    type: 'keyDown',
+    text: char,
+    key: char,
+    unmodifiedText: char,
+  })
+  await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: char })
+}
+
 // Digita de verdade no campo focado da aba, usando o Chrome DevTools
-// Protocol (Input.insertText) em vez de truque de JavaScript na página —
-// o campo do Custcode ignora/perde caractere quando o valor é colocado
-// via JS puro. Via CDP, o navegador processa como se fosse digitação de
-// verdade (é o mesmo mecanismo que o Puppeteer/DevTools usa), sem
-// precisar de nenhum clique da pessoa. Mostra uma faixa amarela do
-// Chrome avisando "extensão depurando essa aba" só durante o instante da
-// digitação.
-async function digitarComDebugger(tabId, texto) {
+// Protocol em vez de truque de JavaScript na página — o campo do
+// Custcode ignora/perde caractere quando o valor é colocado via JS puro.
+// Confirmado ao vivo: o começo ("7.") é o que mais se perde. Por isso
+// digita ESSE PREFIXO tecla por tecla, bem devagar (mais parecido com
+// digitação de verdade), e só o RESTO (número) insere de uma vez com
+// Input.insertText (mais rápido, e o resto nunca deu problema). Sem
+// precisar de nenhum clique da pessoa — só aparece a faixa amarela do
+// Chrome avisando "extensão depurando essa aba" durante o instante.
+async function digitarComDebugger(tabId, prefixo, resto) {
   const alvo = { tabId }
   try {
     await chrome.debugger.attach(alvo, '1.3')
@@ -206,7 +224,12 @@ async function digitarComDebugger(tabId, texto) {
     if (!String(err.message || '').includes('already attach')) throw err
   }
   try {
-    await chrome.debugger.sendCommand(alvo, 'Input.insertText', { text: texto })
+    for (const char of prefixo) {
+      await digitarTeclaCDP(alvo, char)
+      await dormirBg(180)
+    }
+    await dormirBg(200)
+    if (resto) await chrome.debugger.sendCommand(alvo, 'Input.insertText', { text: resto })
   } finally {
     try {
       await chrome.debugger.detach(alvo)
@@ -291,7 +314,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg?.tipo === 'pp:digitarComDebugger') {
       try {
-        await digitarComDebugger(_sender.tab.id, msg.texto)
+        await digitarComDebugger(_sender.tab.id, msg.prefixo || '', msg.resto || '')
         sendResponse({ ok: true })
       } catch (err) {
         log('Falha ao digitar via debugger:', err.message)
