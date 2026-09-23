@@ -190,16 +190,13 @@ async function reiniciarPortalComMesmoJob(job) {
   await abrirAbaPortal()
 }
 
-// Confirmado ao vivo pelo Brayan: colar (Ctrl+V) na mão SEMPRE funciona
-// nesse campo — o campo tem uma máscara de validação que só reconhece um
-// "colar" de verdade (evento paste), não inserção de texto crua (mesmo
-// via CDP Input.insertText — já tentado e confirmado que ainda dá
-// "código inválido"). A tentativa anterior de colar via CDP falhou
-// porque copiar pra área de transferência por JavaScript sem um clique
-// de verdade da pessoa era bloqueado pelo navegador — corrigido agora
-// com a permissão "clipboardWrite" no manifest (permissão feita
-// exatamente pra isso: copiar sem precisar de gesto do usuário). Insere
-// o texto via CDP como reforço, se colar falhar por algum motivo.
+// NOVA ESTRATÉGIA: zero JavaScript mexendo no .value desse campo — nem
+// pra limpar. Tudo feito via CDP, exatamente como uma pessoa faria na
+// mão: seleciona tudo (Ctrl+A de verdade) e cola (Ctrl+V de verdade) por
+// cima. Confirmado ao vivo pelo Brayan que colar na mão sempre funciona
+// nesse campo — a permissão "clipboardWrite" no manifest garante que o
+// content-script consegue copiar pra área de transferência mesmo sem
+// clique da pessoa.
 async function colarComDebugger(tabId) {
   const alvo = { tabId }
   log('debugger: anexando na aba', tabId)
@@ -208,8 +205,16 @@ async function colarComDebugger(tabId) {
   } catch (err) {
     if (!String(err.message || '').includes('already attach')) throw err
   }
-  log('debugger: anexado, colando')
+  log('debugger: anexado, selecionando tudo')
   try {
+    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      commands: ['SelectAll'],
+      key: 'a',
+    })
+    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a' })
+    await new Promise((r) => setTimeout(r, 150))
+    log('debugger: colando')
     await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
       type: 'keyDown',
       commands: ['Paste'],

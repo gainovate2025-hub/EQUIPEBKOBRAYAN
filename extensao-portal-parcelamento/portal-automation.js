@@ -69,42 +69,30 @@ class PortalAutomation {
     }
   }
 
-  // Confirmado ao vivo pelo Brayan: copiar e colar (Ctrl+V) na mão
-  // SEMPRE funciona nesse campo — mesmo inserindo o texto certinho via
-  // CDP (Input.insertText), o Portal ainda recusou como inválido
-  // (confirmado ao vivo, com print da planilha). Isso indica que o campo
-  // tem uma máscara de validação que só reage a um "colar" de verdade
-  // (evento paste), não a uma inserção de texto crua. A tentativa
-  // anterior de colar via CDP falhava porque copiar pra área de
-  // transferência por JavaScript sem clique de verdade era bloqueado
-  // pelo navegador — corrigido agora com a permissão "clipboardWrite" no
-  // manifest (feita exatamente pra isso). Sem clique nenhum da pessoa —
-  // só aparece a faixa amarela do Chrome avisando "extensão depurando
-  // essa aba" no instante.
+  // NOVA ESTRATÉGIA (depois de muitas tentativas com JS "na unha" que só
+  // davam "Código do cliente inválido" de vez em quando): a partir de
+  // agora, ZERO manipulação de valor por JavaScript nesse campo — nem
+  // pra limpar, nem pra digitar. Tudo que acontece nesse campo é feito
+  // pelo próprio Chrome via CDP (chrome.debugger): selecionar tudo
+  // (Ctrl+A de verdade) e colar (Ctrl+V de verdade) — exatamente as duas
+  // ações que o Brayan faz na mão e que sempre funcionam. Nenhum JS toca
+  // no .value do campo em momento nenhum.
   async digitarViaDebugger(input, valor) {
     const log = (...args) => console.log('[PortalParcelamento]', ...args)
 
     input.focus()
-    await dormir(150)
-
-    // limpa o campo antes por JS simples — o problema era só com o valor
-    // FINAL não sendo reconhecido, apagar não tem esse problema.
-    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
-    setter.call(input, '')
-    input.dispatchEvent(new Event('input', { bubbles: true }))
-    await dormir(150)
-    log('campo limpo, valor agora:', JSON.stringify(input.value))
+    await dormir(200)
 
     const copiou = await this.copiarParaAreaDeTransferencia(valor)
     log('copiou pra área de transferência?', copiou, '| valor:', JSON.stringify(valor))
-    await dormir(100)
+    await dormir(150)
 
     // Confirmado ao vivo: o pedido pro background (chrome.debugger) pode
     // ficar pendurado sem NUNCA responder nem dar erro — e sem um limite
     // de tempo aqui, isso travava a automação inteira esperando pra
     // sempre. Corre contra um timeout: se não responder rápido, desiste
     // do debugger e cai pro reforço mais simples em vez de travar.
-    log('mandando pedido de colar pro background...')
+    log('mandando pedido de selecionar tudo + colar pro background...')
     let resposta
     try {
       resposta = await Promise.race([
@@ -122,14 +110,6 @@ class PortalAutomation {
       log('depois do reforço simples, valor do campo:', JSON.stringify(input.value))
     }
 
-    // IMPORTANTE: não dispara blur/change aqui. O campo tem
-    // onblur="PrimeFaces.ab(...)" (dispara uma consulta AJAX de
-    // verdade pro servidor) — se a gente disparasse isso e, pouco
-    // depois, clicasse em Buscar (outra consulta AJAX), as duas podiam
-    // brigar e derrubar o ViewState do JSF, travando a tela sem erro
-    // nenhum (já vimos isso ao vivo). O clique de verdade no botão
-    // Buscar já tira o foco do campo sozinho — deixa o blur acontecer
-    // só nesse momento, junto com o clique, como faria uma pessoa.
     await dormir(300)
     const bateu = input.value === valor
     log('digitou certo?', bateu, '| valor final:', JSON.stringify(input.value), '| esperado:', JSON.stringify(valor))
@@ -269,14 +249,6 @@ class PortalAutomation {
     return document.querySelector(this.selectors.campoCustcodeSeletor)
   }
 
-  radioCustcode() {
-    return document.querySelector(this.selectors.radioCustcodeSeletor)
-  }
-
-  comboMotivo() {
-    return document.querySelector(this.selectors.comboMotivoSeletor)
-  }
-
   botaoBuscar() {
     return document.querySelector(this.selectors.botaoBuscarSeletor)
   }
@@ -289,24 +261,15 @@ class PortalAutomation {
     return campo && botao ? { campo, botao } : null
   }
 
-  // Espera um pouco entre preencher o campo e clicar Buscar — sem isso,
-  // já vimos o clique disparar antes do JSF/PrimeFaces "perceber" que o
-  // campo foi preenchido, e a validação do servidor recusa como se o
-  // campo estivesse vazio ("Código do cliente inválido").
+  // NOVA ESTRATÉGIA: em toda tela que já vimos, a bolinha "Buscar por
+  // código do cliente (Custcode)" e o Motivo "Segunda Via de Conta" já
+  // vêm selecionados sozinhos, por padrão — não precisa (e não deve)
+  // mexer neles. Cada clique/seleção extra dispara uma consulta AJAX a
+  // mais nesse formulário JSF/PrimeFaces, e several dessas rodando perto
+  // uma da outra é o tipo de coisa que corrompe o ViewState e causa
+  // erro/travamento sem motivo aparente. Só mexe no que realmente
+  // precisa: o campo do Custcode e o botão Buscar.
   async preencherEBuscar(custcode) {
-    const radio = this.radioCustcode()
-    if (radio) radio.click()
-
-    const combo = this.comboMotivo()
-    if (combo) {
-      const opcoes = [...combo.options]
-      const alvo = opcoes.find((o) => semAcento(o.textContent).includes(this.selectors.motivoAlvoTexto))
-      if (alvo) {
-        combo.value = alvo.value
-        combo.dispatchEvent(new Event('change', { bubbles: true }))
-      }
-    }
-
     const campo = this.campoCustcode()
     const digitouCerto = await this.digitarViaDebugger(campo, custcode)
     // Mesmo se a conferência não bater 100% (ex: alguma diferença boba

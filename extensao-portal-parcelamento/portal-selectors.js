@@ -33,17 +33,11 @@ const PORTAL_SELECTORS = {
   // CONFIRMADO — campo de texto pra digitar o Custcode.
   campoCustcodeSeletor: '[id="form1:codcliGSM"]',
 
-  // CONFIRMADO — bolinha (radio) de "Buscar por código do cliente
-  // (Custcode)". Já vem marcada por padrão na tela, mas clicamos mesmo
-  // assim pra garantir.
-  radioCustcodeSeletor: '[id="form1:opt1GSM"] .ui-radiobutton-box',
-
-  // CONFIRMADO — combo "Motivo". É um <select> normal escondido dentro
-  // do componente visual da PrimeFaces — dá pra setar o valor direto nele
-  // e disparar o onchange (que já chama o PrimeFaces.ab sozinho).
-  comboMotivoSeletor: '[id="form1:motivoGSM_input"]',
-  // Texto da opção que precisa ficar selecionada.
-  motivoAlvoTexto: 'segunda via',
+  // A bolinha "Buscar por código do cliente (Custcode)" e o Motivo
+  // "Segunda Via de Conta" já vêm selecionados por padrão em toda tela
+  // vista até agora — a extensão não mexe mais neles (cada clique/seleção
+  // extra é mais uma consulta AJAX que pode corromper o ViewState do
+  // formulário perto da hora de buscar).
 
   // CONFIRMADO — botão "Buscar" (dispara a busca da fatura pelo Custcode).
   botaoBuscarSeletor: '[id="form1:btBuscarGSM"]',
