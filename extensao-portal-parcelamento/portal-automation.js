@@ -203,7 +203,11 @@ class PortalAutomation {
     return campo && botao ? { campo, botao } : null
   }
 
-  preencherEBuscar(custcode) {
+  // Espera um pouco entre preencher o campo e clicar Buscar — sem isso,
+  // já vimos o clique disparar antes do JSF/PrimeFaces "perceber" que o
+  // campo foi preenchido, e a validação do servidor recusa como se o
+  // campo estivesse vazio ("Código do cliente inválido").
+  async preencherEBuscar(custcode) {
     const radio = this.radioCustcode()
     if (radio) radio.click()
 
@@ -218,7 +222,8 @@ class PortalAutomation {
     }
 
     const campo = this.campoCustcode()
-    this.definirValorInput(campo, custcode)
+    this.digitarDeVerdade(campo, custcode)
+    await dormir(400)
 
     this.botaoBuscar().click()
   }
@@ -231,15 +236,23 @@ class PortalAutomation {
     return this.selectors.padraoSemFatura.test(semAcento(this.textoDaTela()))
   }
 
+  pareceErroValidacao() {
+    return this.selectors.padraoErroValidacaoCustcode.test(semAcento(this.textoDaTela()))
+  }
+
   // Lista as faturas em aberto encontradas na tela. Cada item tem um
   // "chave" derivado do texto da própria linha (data/valor mostrados) —
   // NÃO um id de DOM — pra continuar identificando a mesma fatura mesmo
   // que a tela seja recarregada, e pra saber quais já foram processadas
   // quando o cliente tem mais de uma fatura em aberto.
   listarFaturas() {
+    // Se não achar o container de "Faturas Em Aberto" de verdade, NÃO
+    // cai pra procurar na página inteira — já vimos isso confundir com
+    // os radios do próprio formulário de busca (Custcode/CPF/Instalação)
+    // numa tela de erro, fingindo achar uma "fatura" que não existe.
     const container = this.acharContainerPorTexto(this.selectors.tituloFaturasEmAberto, ['div', 'table', 'section'])
-    const escopo = container || document
-    const bolinhas = [...escopo.querySelectorAll('.ui-radiobutton-box, input[type="radio"]')]
+    if (!container) return []
+    const bolinhas = [...container.querySelectorAll('.ui-radiobutton-box, input[type="radio"]')]
     return bolinhas
       .map((el) => {
         const clicavel = el.classList?.contains('ui-radiobutton-box') ? el : el

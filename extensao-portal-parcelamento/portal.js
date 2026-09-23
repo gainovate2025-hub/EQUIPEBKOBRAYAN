@@ -159,8 +159,7 @@ async function rodarFluxo(job) {
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
           ppLog('Preenchendo Custcode e buscando:', JSON.stringify(job.custcode))
-          automation.preencherEBuscar(job.custcode)
-          ppLog('Valor que ficou no campo depois de preencher:', JSON.stringify(telaBusca.campo.value))
+          await automation.preencherEBuscar(job.custcode)
           jaBuscou = true
           await dormir(PP_POLL_MS)
           continue
@@ -186,6 +185,13 @@ async function rodarFluxo(job) {
       }
 
       if (faseAtual === 'aguardando_resultado_busca') {
+        if (automation.pareceErroValidacao()) {
+          await avisarBackground('pp:erroPortal', {
+            mensagem: `Custcode "${job.custcode}" recusado como inválido pelo Portal — provavelmente o clique em Buscar disparou cedo demais.`,
+          })
+          return
+        }
+
         if (automation.pareceSemFatura()) {
           if (job.faturasProcessadas.length > 0) {
             // já mandou pelo menos uma fatura nessa rodada anterior — a

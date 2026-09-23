@@ -53,6 +53,14 @@ const PORTAL_SELECTORS = {
   // cliente"). Ajusta o regex se o texto real for diferente.
   padraoSemFatura: /nao\s+(foram\s+encontrad\w*|ha|existe\w*)\s+fatur\w*|nenhuma\s+fatur\w*\s+em\s+aberto/,
 
+  // CONFIRMADO por print — "Código do cliente inválido. Por favor,
+  // informe apenas números e pontos." Vista quando o clique em Buscar
+  // dispara antes do campo terminar de "colar" (já corrigido com um
+  // delay), mas serve de rede de segurança: se aparecer mesmo assim,
+  // reporta como erro de verdade em vez de confundir com "sem fatura"
+  // ou com uma fatura inventada.
+  padraoErroValidacaoCustcode: /codigo do cliente invalido/,
+
   // MELHOR ESFORÇO — título da seção "Faturas Em Aberto", usado só pra
   // achar o container certo na tela e listar as bolinhas de fatura de
   // dentro dele (evita pegar bolinha de outra parte da tela por engano).
