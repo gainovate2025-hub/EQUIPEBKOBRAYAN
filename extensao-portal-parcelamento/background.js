@@ -218,11 +218,13 @@ async function digitarTeclaCDP(alvo, char) {
 // Chrome avisando "extensão depurando essa aba" durante o instante.
 async function digitarComDebugger(tabId, prefixo, resto) {
   const alvo = { tabId }
+  log('debugger: anexando na aba', tabId)
   try {
     await chrome.debugger.attach(alvo, '1.3')
   } catch (err) {
     if (!String(err.message || '').includes('already attach')) throw err
   }
+  log('debugger: anexado, começando a digitar')
   try {
     for (const char of prefixo) {
       await digitarTeclaCDP(alvo, char)
@@ -230,13 +232,26 @@ async function digitarComDebugger(tabId, prefixo, resto) {
     }
     await dormirBg(200)
     if (resto) await chrome.debugger.sendCommand(alvo, 'Input.insertText', { text: resto })
+    log('debugger: terminou de digitar')
   } finally {
     try {
       await chrome.debugger.detach(alvo)
+      log('debugger: desanexado')
     } catch {
       // já pode ter se desanexado sozinho (ex: aba fechou) — ignora
     }
   }
+}
+
+// Nunca deixa o pedido do content script pendurado pra sempre — se o CDP
+// travar por qualquer motivo (visto ao vivo: ficou preso sem erro nem
+// resposta), desiste depois de alguns segundos em vez de travar o fluxo
+// inteiro da automação esperando uma resposta que nunca chega.
+function digitarComDebuggerComTimeout(tabId, prefixo, resto) {
+  return Promise.race([
+    digitarComDebugger(tabId, prefixo, resto),
+    new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 5000)),
+  ])
 }
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
@@ -314,7 +329,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg?.tipo === 'pp:digitarComDebugger') {
       try {
-        await digitarComDebugger(_sender.tab.id, msg.prefixo || '', msg.resto || '')
+        await digitarComDebuggerComTimeout(_sender.tab.id, msg.prefixo || '', msg.resto || '')
         sendResponse({ ok: true })
       } catch (err) {
         log('Falha ao digitar via debugger:', err.message)

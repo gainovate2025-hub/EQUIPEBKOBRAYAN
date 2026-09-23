@@ -81,16 +81,23 @@ class PortalAutomation {
     const prefixo = valor.startsWith('7.') ? '7.' : ''
     const resto = valor.slice(prefixo.length)
 
+    // Confirmado ao vivo: o pedido pro background (chrome.debugger) pode
+    // ficar pendurado sem NUNCA responder nem dar erro — e sem um limite
+    // de tempo aqui, isso travava a automação inteira esperando pra
+    // sempre. Corre contra um timeout: se não responder rápido, desiste
+    // do debugger e cai pro reforço mais simples em vez de travar.
     let resposta
     try {
-      resposta = await chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', prefixo, resto })
+      resposta = await Promise.race([
+        chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', prefixo, resto }),
+        new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 6000)),
+      ])
     } catch (err) {
       resposta = { ok: false, erro: err.message }
     }
 
     if (!resposta?.ok) {
-      // debugger indisponível (ex: DevTools já aberto nessa aba) — cai
-      // pro reforço mais simples que já tínhamos, como último recurso.
+      console.log('[PortalParcelamento] chrome.debugger não respondeu (' + (resposta?.erro || '?') + ') — usando reforço simples.')
       this.digitarDeVerdade(input, valor)
     }
 
