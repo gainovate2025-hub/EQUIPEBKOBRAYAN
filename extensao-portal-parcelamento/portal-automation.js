@@ -61,6 +61,11 @@ class PortalAutomation {
   // uma consulta prematura só com "7." digitado.
   async digitarCaractereACaractere(input, valor) {
     input.focus()
+    // dá tempo do foco "assentar" de verdade antes do primeiro
+    // caractere — confirmado ao vivo: sem essa pausa, o PRIMEIRO
+    // caractere digitado some (o resto entra certinho e na ordem
+    // certa), porque o foco ainda não tinha se estabelecido a tempo.
+    await dormir(200)
     input.select()
     document.execCommand('delete', false, null)
     for (const char of valor) {
