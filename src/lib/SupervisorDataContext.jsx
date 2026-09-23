@@ -1,9 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { fetchTeam, fetchTeamContestacoes } from './api'
+import { useAuth } from './AuthContext'
 
 const Ctx = createContext(null)
 
 export function SupervisorDataProvider({ children }) {
+  const { profile } = useAuth()
+  const teamId = profile?.team_id || null
   const [team, setTeam] = useState([])
   const [contestacoes, setContestacoes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -13,7 +16,7 @@ export function SupervisorDataProvider({ children }) {
     setLoading(true)
     setError('')
     try {
-      const [teamData, contestData] = await Promise.all([fetchTeam(), fetchTeamContestacoes()])
+      const [teamData, contestData] = await Promise.all([fetchTeam(teamId), fetchTeamContestacoes(teamId)])
       setTeam(teamData)
       setContestacoes(contestData)
     } catch (err) {
@@ -21,7 +24,7 @@ export function SupervisorDataProvider({ children }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [teamId])
 
   useEffect(() => {
     reload()

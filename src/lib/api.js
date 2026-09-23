@@ -2,12 +2,17 @@ import { supabase, usernameToEmail } from './supabaseClient'
 
 // ---------- leitura ----------
 
-export async function fetchTeam() {
-  const { data, error } = await supabase
+// teamId opcional: supervisor com equipe vinculada (ex: Brayan, na
+// "Equipe Brayan") vê só o próprio time; sem equipe vinculada (contas
+// de admin geral, como supervisao/will) continua vendo todo mundo.
+export async function fetchTeam(teamId) {
+  let query = supabase
     .from('profiles')
     .select('id, name, username, role, active, performance(*)')
     .eq('role', 'bko')
     .order('name', { ascending: true })
+  if (teamId) query = query.eq('team_id', teamId)
+  const { data, error } = await query
   if (error) throw error
   // performance.user_id é UNIQUE, então o PostgREST embute como objeto único
   // (não array) — não indexar com [0] aqui.
@@ -129,11 +134,15 @@ export async function fetchOwnContestacoes(userId) {
   return data
 }
 
-export async function fetchTeamContestacoes() {
-  const { data, error } = await supabase
+// Mesma regra de teamId do fetchTeam — precisa do !inner pro filtro na
+// tabela relacionada (profiles.team_id) funcionar.
+export async function fetchTeamContestacoes(teamId) {
+  let query = supabase
     .from('contestacoes')
-    .select('*, profiles!contestacoes_user_id_fkey(name)')
+    .select(`*, profiles!contestacoes_user_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
     .order('created_at', { ascending: false })
+  if (teamId) query = query.eq('profiles.team_id', teamId)
+  const { data, error } = await query
   if (error) throw error
   return data
 }
