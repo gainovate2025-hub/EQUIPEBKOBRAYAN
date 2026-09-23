@@ -250,11 +250,14 @@ class PortalAutomation {
       }
     }
 
-    // Confirmado ao vivo: colar o valor de uma vez (mesmo com
-    // execCommand) não é suficiente aqui — o campo só aceita de verdade
-    // quando "digitado" tecla por tecla.
+    // Confirmado ao vivo: o Custcode da planilha vem com um prefixo
+    // "7." na frente (ex: "7.2232569") que NÃO faz parte do código de
+    // verdade nesse campo — testando manualmente sem esse prefixo
+    // funcionou normal. Tira só esse "7." do início antes de digitar.
+    const custcodeFormatado = custcode.replace(/^7\./, '')
+
     const campo = this.campoCustcode()
-    await this.digitarCaractereACaractere(campo, custcode)
+    await this.digitarCaractereACaractere(campo, custcodeFormatado)
     await dormir(400)
 
     this.botaoBuscar().click()
