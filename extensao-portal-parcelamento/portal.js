@@ -26,6 +26,14 @@
 const PP_POLL_MS = 15000
 const PP_TIMEOUT_MS = 120000
 
+// Os passos depois da busca (selecionar fatura, impressão online,
+// confirmar, baixar PDF) usam seletores nunca vistos ao vivo — em vez de
+// continuar adivinhando e testando às cegas, PARA logo depois de buscar
+// com sucesso e deixa a aba parada na tela de resultado, esperando
+// alguém olhar e dizer o que ajustar. Muda pra false só depois que os
+// seletores dessas telas estiverem confirmados.
+const PARAR_APOS_BUSCAR = true
+
 // Mesmo projeto Supabase do resto do painel-bko — veja migration_025 pro
 // motivo de existir uma tabela pra isso (login em 2 etapas com token de
 // hardware, não dá pra guardar senha fixa).
@@ -215,6 +223,11 @@ async function rodarFluxo(job) {
             ppLog('Sem fatura em aberto para', job.custcode)
             await avisarBackground('pp:semFatura', { linha: job.linha })
           }
+          return
+        }
+
+        if (PARAR_APOS_BUSCAR) {
+          ppLog('PARAR_APOS_BUSCAR ligado — busca deu certo, parando aqui de propósito. Olha a tela e me diz o que tem.')
           return
         }
 
