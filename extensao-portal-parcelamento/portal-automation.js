@@ -54,30 +54,16 @@ class PortalAutomation {
   // Confirmado ao vivo pelo Brayan: copiar e colar (Ctrl+V) na mão
   // SEMPRE funciona nesse campo — só digitação simulada (JS puro, ou
   // até tecla-por-tecla via CDP) que o Portal às vezes recusa como
-  // inválido. Em vez de tentar imitar digitação, a extensão copia o
-  // valor pra área de transferência de verdade e manda o Chrome (via
-  // chrome.debugger) executar o comando de colar de verdade no campo —
-  // ou seja, faz EXATAMENTE o que o Brayan faz na mão, só que sozinha,
-  // sem precisar de nenhum clique (só aparece a faixa amarela do Chrome
-  // avisando "extensão depurando essa aba" no instante).
-  async copiarParaAreaDeTransferencia(texto) {
-    try {
-      await navigator.clipboard.writeText(texto)
-      return true
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = texto
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.focus()
-      textarea.select()
-      const copiou = document.execCommand('copy')
-      textarea.remove()
-      return copiou
-    }
-  }
-
+  // inválido. A tentativa de colar de verdade via CDP não funcionou
+  // porque copiar pra área de transferência por JavaScript sem um
+  // clique de verdade da pessoa é bloqueado pelo navegador (confirmado
+  // ao vivo pelo console: "copiou pra área de transferência? false").
+  // Em vez de depender do clipboard, pede pro background inserir o
+  // valor INTEIRO de uma vez via CDP (Input.insertText) — é o mesmo
+  // tipo de inserção "em bloco" que colar faz (não é tecla por tecla),
+  // só que sem precisar da área de transferência. Sem clique nenhum da
+  // pessoa (só aparece a faixa amarela do Chrome avisando "extensão
+  // depurando essa aba" no instante).
   async digitarViaDebugger(input, valor) {
     const log = (...args) => console.log('[PortalParcelamento]', ...args)
 
@@ -92,20 +78,16 @@ class PortalAutomation {
     await dormir(150)
     log('campo limpo, valor agora:', JSON.stringify(input.value))
 
-    const copiou = await this.copiarParaAreaDeTransferencia(valor)
-    log('copiou pra área de transferência?', copiou, '| valor:', JSON.stringify(valor))
-    await dormir(100)
-
     // Confirmado ao vivo: o pedido pro background (chrome.debugger) pode
     // ficar pendurado sem NUNCA responder nem dar erro — e sem um limite
     // de tempo aqui, isso travava a automação inteira esperando pra
     // sempre. Corre contra um timeout: se não responder rápido, desiste
     // do debugger e cai pro reforço mais simples em vez de travar.
-    log('mandando pedido de colar pro background...')
+    log('mandando pedido de inserir texto pro background...')
     let resposta
     try {
       resposta = await Promise.race([
-        chrome.runtime.sendMessage({ tipo: 'pp:colarComDebugger' }),
+        chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', texto: valor }),
         new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 9000)),
       ])
     } catch (err) {
