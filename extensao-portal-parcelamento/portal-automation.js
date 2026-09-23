@@ -79,6 +79,8 @@ class PortalAutomation {
   }
 
   async digitarViaDebugger(input, valor) {
+    const log = (...args) => console.log('[PortalParcelamento]', ...args)
+
     input.focus()
     await dormir(150)
 
@@ -88,8 +90,10 @@ class PortalAutomation {
     setter.call(input, '')
     input.dispatchEvent(new Event('input', { bubbles: true }))
     await dormir(150)
+    log('campo limpo, valor agora:', JSON.stringify(input.value))
 
-    await this.copiarParaAreaDeTransferencia(valor)
+    const copiou = await this.copiarParaAreaDeTransferencia(valor)
+    log('copiou pra área de transferência?', copiou, '| valor:', JSON.stringify(valor))
     await dormir(100)
 
     // Confirmado ao vivo: o pedido pro background (chrome.debugger) pode
@@ -97,6 +101,7 @@ class PortalAutomation {
     // de tempo aqui, isso travava a automação inteira esperando pra
     // sempre. Corre contra um timeout: se não responder rápido, desiste
     // do debugger e cai pro reforço mais simples em vez de travar.
+    log('mandando pedido de colar pro background...')
     let resposta
     try {
       resposta = await Promise.race([
@@ -106,10 +111,12 @@ class PortalAutomation {
     } catch (err) {
       resposta = { ok: false, erro: err.message }
     }
+    log('resposta do background:', JSON.stringify(resposta), '| valor do campo agora:', JSON.stringify(input.value))
 
     if (!resposta?.ok) {
-      console.log('[PortalParcelamento] chrome.debugger não respondeu (' + (resposta?.erro || '?') + ') — usando reforço simples.')
+      log('chrome.debugger não respondeu (' + (resposta?.erro || '?') + ') — usando reforço simples.')
       this.digitarDeVerdade(input, valor)
+      log('depois do reforço simples, valor do campo:', JSON.stringify(input.value))
     }
 
     // IMPORTANTE: não dispara blur/change aqui. O campo tem
