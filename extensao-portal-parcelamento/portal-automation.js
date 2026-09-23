@@ -54,18 +54,33 @@ class PortalAutomation {
   // Reforço maior ainda que digitarDeVerdade — confirmado ao vivo que o
   // campo de Custcode só aceita o valor quando é digitado tecla por
   // tecla (colar o texto inteiro de uma vez não bastou, mesmo com
-  // execCommand). Insere um caractere por vez com execCommand (que já
-  // dispara o evento "input" nativo do navegador sozinho) — SEM simular
-  // keydown/keypress/keyup: essa tela parece ter uma validação que
-  // reage a evento de tecla a cada letra, e keyup sintético disparava
-  // uma consulta prematura só com "7." digitado.
+  // execCommand).
+  //
+  // O timing pra isso funcionar de primeira se mostrou pouco confiável
+  // (às vezes falta o primeiro caractere, às vezes outro) — em vez de
+  // tentar acertar a pausa perfeita, CONFERE o resultado no final e
+  // tenta de novo do zero (até algumas vezes) se não bateu exatamente
+  // com o valor esperado.
   async digitarCaractereACaractere(input, valor) {
+    for (let tentativa = 0; tentativa < 4; tentativa++) {
+      await this._digitarUmaRodada(input, valor)
+      if (input.value === valor) break
+    }
+    // Só dispara change/blur (que aciona a validação de verdade no
+    // servidor, via onblur do campo) DEPOIS de confirmar o valor certo
+    // — nunca no meio de uma tentativa que pode ter saído errada, senão
+    // fica mais de uma validação "brigando" com valores diferentes.
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    input.dispatchEvent(new Event('blur', { bubbles: true }))
+    return input.value === valor
+  }
+
+  async _digitarUmaRodada(input, valor) {
     input.focus()
     // dá tempo do foco "assentar" de verdade antes do primeiro
-    // caractere — confirmado ao vivo: sem essa pausa, o PRIMEIRO
-    // caractere digitado some (o resto entra certinho e na ordem
-    // certa), porque o foco ainda não tinha se estabelecido a tempo.
-    await dormir(200)
+    // caractere — sem essa pausa, o PRIMEIRO caractere digitado às
+    // vezes some (o resto entra certinho e na ordem certa).
+    await dormir(250)
     input.select()
     document.execCommand('delete', false, null)
     for (const char of valor) {
@@ -73,15 +88,12 @@ class PortalAutomation {
       document.execCommand('insertText', false, char)
       // confirma que o campo realmente cresceu antes de ir pro próximo
       // caractere — sem isso, digitar rápido demais faz a tela/framework
-      // "comer" os primeiros caracteres (visto ao vivo: só sobraram os
-      // últimos 5 de 9 dígitos).
+      // "comer" caracteres.
       for (let espera = 0; espera < 6 && input.value.length <= tamanhoAntes; espera++) {
         await dormir(120)
       }
       await dormir(180)
     }
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-    input.dispatchEvent(new Event('blur', { bubbles: true }))
   }
 
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
@@ -262,10 +274,12 @@ class PortalAutomation {
     const custcodeFormatado = custcode.replace(/^7\./, '')
 
     const campo = this.campoCustcode()
-    await this.digitarCaractereACaractere(campo, custcodeFormatado)
-    await dormir(400)
+    const digitouCerto = await this.digitarCaractereACaractere(campo, custcodeFormatado)
+    if (!digitouCerto) return { ok: false, valorFinal: campo.value }
 
+    await dormir(400)
     this.botaoBuscar().click()
+    return { ok: true }
   }
 
   textoDaTela() {
