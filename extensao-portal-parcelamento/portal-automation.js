@@ -51,6 +51,27 @@ class PortalAutomation {
     }
   }
 
+  // Reforço maior ainda que digitarDeVerdade — confirmado ao vivo que o
+  // campo de Custcode só aceita o valor quando é digitado tecla por
+  // tecla (colar o texto inteiro de uma vez não bastou, mesmo com
+  // execCommand). Insere um caractere por vez, disparando keydown/
+  // keypress/keyup reais em cada um — o mais próximo possível de
+  // simular alguém digitando de verdade.
+  async digitarCaractereACaractere(input, valor) {
+    input.focus()
+    input.select()
+    document.execCommand('delete', false, null)
+    for (const char of valor) {
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }))
+      input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }))
+      document.execCommand('insertText', false, char)
+      input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }))
+      await dormir(60)
+    }
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    input.dispatchEvent(new Event('blur', { bubbles: true }))
+  }
+
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
   // (sem acento/maiúscula), dentro de um container qualquer. Fica com o
   // elemento de texto MAIS CURTO entre os que batem, pra não pegar um
@@ -222,19 +243,12 @@ class PortalAutomation {
       }
     }
 
+    // Confirmado ao vivo: colar o valor de uma vez (mesmo com
+    // execCommand) não é suficiente aqui — o campo só aceita de verdade
+    // quando "digitado" tecla por tecla.
     const campo = this.campoCustcode()
-    this.digitarDeVerdade(campo, custcode)
-
-    // Espera ATIVA (confirma o valor de verdade, não só um tempo fixo —
-    // 400ms sozinho não foi suficiente): tenta de novo se ainda não
-    // colou, até 8 rodadas de 300ms (~2,4s no total).
-    for (let tentativa = 0; tentativa < 8 && campo.value !== custcode; tentativa++) {
-      await dormir(300)
-      if (campo.value !== custcode) this.digitarDeVerdade(campo, custcode)
-    }
-    // mesmo confirmado, dá um tempo extra pro framework processar o
-    // evento antes de submeter o formulário.
-    await dormir(600)
+    await this.digitarCaractereACaractere(campo, custcode)
+    await dormir(400)
 
     this.botaoBuscar().click()
   }
