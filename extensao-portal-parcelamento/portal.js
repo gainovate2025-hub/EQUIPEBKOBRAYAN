@@ -19,8 +19,12 @@
 // .faturasProcessadas), pra pular as que já foram e mandar só a próxima.
 // -----------------------------------------------------------------------
 
-const PP_POLL_MS = 800
-const PP_TIMEOUT_MS = 30000
+// Deixado bem devagar de propósito enquanto ainda tamos ajustando os
+// seletores da lista de fatura (nunca vistos ao vivo) — dá tempo de ver
+// e printar cada tela antes do passo seguinte. Depois que tudo isso
+// estiver certo, pode voltar a acelerar.
+const PP_POLL_MS = 15000
+const PP_TIMEOUT_MS = 120000
 
 // Mesmo projeto Supabase do resto do painel-bko — veja migration_025 pro
 // motivo de existir uma tabela pra isso (login em 2 etapas com token de
@@ -226,17 +230,13 @@ async function rodarFluxo(job) {
         }
 
         // nem "sem fatura" nem lista de fatura visível ainda — pode estar
-        // no meio do AJAX de busca, OU o clique em Buscar não pegou. Se a
-        // tela de busca (campo + botão) continuar exatamente igual depois
-        // de alguns segundos, clica Buscar de novo — só até 2 vezes no
-        // total, pra não ficar clicando sem parar se o motivo for outro.
-        esperasSemMudanca++
-        if (tentativasClickBuscar < 2 && esperasSemMudanca >= 4 && automation.detectarTelaBusca()) {
-          ppLog('Buscar não pareceu mudar a tela — clicando de novo.')
-          automation.botaoBuscar()?.click()
-          tentativasClickBuscar++
-          esperasSemMudanca = 0
-        }
+        // no meio do AJAX de busca, OU os seletores da lista de fatura
+        // ainda não reconhecem a tela de resultado (são "melhor esforço",
+        // nunca vistos ao vivo). IMPORTANTE: desligado o reforço de
+        // "clicar Buscar de novo se não mudar" que tinha aqui — ele
+        // disparava bem na tela de resultado (achando que "não mudou
+        // nada" por não reconhecer a lista) e reiniciava a busca do zero
+        // antes de dar tempo de ver o que tinha na tela.
         await dormir(PP_POLL_MS)
         continue
       }
