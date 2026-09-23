@@ -191,18 +191,16 @@ async function reiniciarPortalComMesmoJob(job) {
 }
 
 // Confirmado ao vivo pelo Brayan: colar (Ctrl+V) na mão SEMPRE funciona
-// nesse campo — só digitação simulada (de qualquer jeito) que o Portal
-// às vezes recusa como inválido. A ideia de colar de verdade via CDP não
-// deu certo porque copiar pra área de transferência por JavaScript sem
-// um clique de verdade da pessoa é bloqueado pelo navegador (confirmado
-// ao vivo: "copiou pra área de transferência? false") — por isso colava
-// vazio. Em vez de depender da área de transferência, insere o valor
-// INTEIRO de uma vez com Input.insertText via CDP — é o mesmo tipo de
-// inserção "em bloco" que um paste faz (não é tecla por tecla), só que
-// sem precisar do clipboard. Sem clique nenhum da pessoa — só aparece a
-// faixa amarela do Chrome avisando "extensão depurando essa aba" no
-// instante.
-async function digitarComDebugger(tabId, texto) {
+// nesse campo — o campo tem uma máscara de validação que só reconhece um
+// "colar" de verdade (evento paste), não inserção de texto crua (mesmo
+// via CDP Input.insertText — já tentado e confirmado que ainda dá
+// "código inválido"). A tentativa anterior de colar via CDP falhou
+// porque copiar pra área de transferência por JavaScript sem um clique
+// de verdade da pessoa era bloqueado pelo navegador — corrigido agora
+// com a permissão "clipboardWrite" no manifest (permissão feita
+// exatamente pra isso: copiar sem precisar de gesto do usuário). Insere
+// o texto via CDP como reforço, se colar falhar por algum motivo.
+async function colarComDebugger(tabId) {
   const alvo = { tabId }
   log('debugger: anexando na aba', tabId)
   try {
@@ -210,10 +208,15 @@ async function digitarComDebugger(tabId, texto) {
   } catch (err) {
     if (!String(err.message || '').includes('already attach')) throw err
   }
-  log('debugger: anexado, inserindo texto:', texto)
+  log('debugger: anexado, colando')
   try {
-    await chrome.debugger.sendCommand(alvo, 'Input.insertText', { text: texto })
-    log('debugger: inseriu')
+    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      commands: ['Paste'],
+      key: 'v',
+    })
+    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'v' })
+    log('debugger: colou')
   } finally {
     try {
       await chrome.debugger.detach(alvo)
@@ -228,9 +231,9 @@ async function digitarComDebugger(tabId, texto) {
 // travar por qualquer motivo (visto ao vivo: ficou preso sem erro nem
 // resposta), desiste depois de alguns segundos em vez de travar o fluxo
 // inteiro da automação esperando uma resposta que nunca chega.
-function digitarComDebuggerComTimeout(tabId, texto) {
+function colarComDebuggerComTimeout(tabId) {
   return Promise.race([
-    digitarComDebugger(tabId, texto),
+    colarComDebugger(tabId),
     new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 8000)),
   ])
 }
@@ -308,12 +311,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return
     }
 
-    if (msg?.tipo === 'pp:digitarComDebugger') {
+    if (msg?.tipo === 'pp:colarComDebugger') {
       try {
-        await digitarComDebuggerComTimeout(_sender.tab.id, msg.texto || '')
+        await colarComDebuggerComTimeout(_sender.tab.id)
         sendResponse({ ok: true })
       } catch (err) {
-        log('Falha ao inserir texto via debugger:', err.message)
+        log('Falha ao colar via debugger:', err.message)
         sendResponse({ ok: false, erro: err.message })
       }
       return
