@@ -135,9 +135,10 @@ async function rodarFluxo(job) {
   let faseAtual = 'busca'
   let jaBuscou = false
   let jaTentouNavegarBusca = false
+  let inicioFase = inicio
 
   while (true) {
-    if (Date.now() - inicio > PP_TIMEOUT_MS && faseAtual !== 'aguardando_pdf_lento') {
+    if (Date.now() - inicioFase > PP_TIMEOUT_MS && faseAtual !== 'aguardando_pdf_lento') {
       await avisarBackground('pp:erroPortal', { mensagem: `travou na fase "${faseAtual}" — url: ${location.href}` })
       return
     }
@@ -158,15 +159,16 @@ async function rodarFluxo(job) {
 
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
-          ppLog('Preenchendo Custcode e buscando:', JSON.stringify(job.custcode))
+          ppLog('Pedindo pra colar o Custcode:', JSON.stringify(job.custcode))
           const resultado = await automation.preencherEBuscar(job.custcode)
           if (!resultado.ok) {
             await avisarBackground('pp:erroPortal', {
-              mensagem: `Não consegui digitar o Custcode direito depois de várias tentativas — ficou "${resultado.valorFinal}".`,
+              mensagem: `Ninguém colou o Custcode certo a tempo (2 min) — ficou "${resultado.valorFinal}".`,
             })
             return
           }
           jaBuscou = true
+          inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
         }
@@ -216,6 +218,7 @@ async function rodarFluxo(job) {
           automation.selecionarFatura(proxima)
           job._faturaAtualChave = proxima.chave
           faseAtual = 'confirmando_fatura'
+          inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
         }
@@ -229,6 +232,7 @@ async function rodarFluxo(job) {
       if (faseAtual === 'confirmando_fatura') {
         if (automation.clicarConfirmarFatura()) {
           faseAtual = 'impressao_online'
+          inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
         }
@@ -239,6 +243,7 @@ async function rodarFluxo(job) {
       if (faseAtual === 'impressao_online') {
         if (automation.selecionarImpressaoOnline()) {
           faseAtual = 'confirmando_impressao'
+          inicioFase = Date.now()
           await dormir(300)
           continue
         }
@@ -249,6 +254,7 @@ async function rodarFluxo(job) {
       if (faseAtual === 'confirmando_impressao') {
         if (automation.clicarConfirmarGenerico()) {
           faseAtual = 'confirmando_final'
+          inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
         }
@@ -259,6 +265,7 @@ async function rodarFluxo(job) {
       if (faseAtual === 'confirmando_final') {
         if (automation.ehTelaDePdf()) {
           faseAtual = 'baixando_pdf'
+          inicioFase = Date.now()
           continue
         }
         if (automation.clicarConfirmarGenerico()) {

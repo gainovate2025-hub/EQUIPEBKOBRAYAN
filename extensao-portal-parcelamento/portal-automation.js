@@ -51,49 +51,76 @@ class PortalAutomation {
     }
   }
 
-  // Reforço maior ainda que digitarDeVerdade — confirmado ao vivo que o
-  // campo de Custcode só aceita o valor quando é digitado tecla por
-  // tecla (colar o texto inteiro de uma vez não bastou, mesmo com
-  // execCommand).
-  //
-  // O timing pra isso funcionar de primeira se mostrou pouco confiável
-  // (às vezes falta o primeiro caractere, às vezes outro) — em vez de
-  // tentar acertar a pausa perfeita, CONFERE o resultado no final e
-  // tenta de novo do zero (até algumas vezes) se não bateu exatamente
-  // com o valor esperado.
-  async digitarCaractereACaractere(input, valor) {
-    for (let tentativa = 0; tentativa < 4; tentativa++) {
-      await this._digitarUmaRodada(input, valor)
-      if (input.value === valor) break
+  // Depois de MUITAS tentativas de fazer o robô digitar sozinho o Custcode
+  // (mesmo com re-tentativa e conferência), o campo continuava comendo
+  // caractere, ou o excesso de tentativas em sequência chegou a derrubar
+  // a sessão do Portal ("session expired"). Confirmado ao vivo: quando a
+  // PESSOA digita/cola na mão, sempre funciona de primeira. Em vez de
+  // insistir em simular digitação, a extensão copia o código certo pra
+  // área de transferência e pede pra colar (Ctrl+V) — bem mais simples e
+  // muito mais confiável. Assim que perceber que o valor bateu, segue
+  // sozinha de novo (clica Buscar).
+  async copiarParaAreaDeTransferencia(texto) {
+    try {
+      await navigator.clipboard.writeText(texto)
+      return true
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = texto
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.focus()
+      textarea.select()
+      const copiou = document.execCommand('copy')
+      textarea.remove()
+      return copiou
     }
-    // Só dispara change/blur (que aciona a validação de verdade no
-    // servidor, via onblur do campo) DEPOIS de confirmar o valor certo
-    // — nunca no meio de uma tentativa que pode ter saído errada, senão
-    // fica mais de uma validação "brigando" com valores diferentes.
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-    input.dispatchEvent(new Event('blur', { bubbles: true }))
-    return input.value === valor
   }
 
-  async _digitarUmaRodada(input, valor) {
+  mostrarAvisoColagem(mensagem) {
+    this.esconderAviso()
+    const aviso = document.createElement('div')
+    aviso.id = 'pp-aviso-colagem'
+    aviso.textContent = mensagem
+    Object.assign(aviso.style, {
+      position: 'fixed',
+      top: '16px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      zIndex: 2147483647,
+      background: '#111',
+      color: '#fff',
+      padding: '12px 20px',
+      borderRadius: '8px',
+      fontSize: '15px',
+      fontFamily: 'sans-serif',
+      boxShadow: '0 4px 16px rgba(0,0,0,.3)',
+      maxWidth: '90vw',
+      textAlign: 'center',
+    })
+    document.body.appendChild(aviso)
+  }
+
+  esconderAviso() {
+    document.getElementById('pp-aviso-colagem')?.remove()
+  }
+
+  // Espera até 2 minutos a pessoa colar o valor certo no campo.
+  async pedirColagemCustcode(input, valor) {
+    await this.copiarParaAreaDeTransferencia(valor)
+    this.mostrarAvisoColagem(`Cole o código do cliente aqui (já copiei "${valor}") — clica no campo e aperta Ctrl+V.`)
     input.focus()
-    // dá tempo do foco "assentar" de verdade antes do primeiro
-    // caractere — sem essa pausa, o PRIMEIRO caractere digitado às
-    // vezes some (o resto entra certinho e na ordem certa).
-    await dormir(250)
-    input.select()
-    document.execCommand('delete', false, null)
-    for (const char of valor) {
-      const tamanhoAntes = input.value.length
-      document.execCommand('insertText', false, char)
-      // confirma que o campo realmente cresceu antes de ir pro próximo
-      // caractere — sem isso, digitar rápido demais faz a tela/framework
-      // "comer" caracteres.
-      for (let espera = 0; espera < 6 && input.value.length <= tamanhoAntes; espera++) {
-        await dormir(120)
+    const inicio = Date.now()
+    while (Date.now() - inicio < 120000) {
+      if (input.value === valor) {
+        this.esconderAviso()
+        return true
       }
-      await dormir(180)
+      await dormir(400)
     }
+    this.esconderAviso()
+    return false
   }
 
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
@@ -274,9 +301,11 @@ class PortalAutomation {
     const custcodeFormatado = custcode.replace(/^7\./, '')
 
     const campo = this.campoCustcode()
-    const digitouCerto = await this.digitarCaractereACaractere(campo, custcodeFormatado)
-    if (!digitouCerto) return { ok: false, valorFinal: campo.value }
+    const colouCerto = await this.pedirColagemCustcode(campo, custcodeFormatado)
+    if (!colouCerto) return { ok: false, valorFinal: campo.value }
 
+    campo.dispatchEvent(new Event('change', { bubbles: true }))
+    campo.dispatchEvent(new Event('blur', { bubbles: true }))
     await dormir(400)
     this.botaoBuscar().click()
     return { ok: true }
