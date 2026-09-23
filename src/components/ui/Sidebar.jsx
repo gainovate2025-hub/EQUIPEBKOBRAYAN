@@ -1,5 +1,4 @@
 import { NavLink } from 'react-router-dom'
-import Logo from './Logo'
 import { useAuth } from '../../lib/AuthContext'
 
 export default function Sidebar({ title, items }) {
@@ -7,8 +6,8 @@ export default function Sidebar({ title, items }) {
 
   return (
     <aside className="sidebar">
-      <div className="flex items-center gap-2.5 px-4 py-4">
-        <Logo />
+      <div className="flex items-center gap-2 px-4 py-4">
+        <span className="h-2 w-2 rounded-sm bg-brand-500" />
         <span className="text-sm font-semibold text-white">{title}</span>
       </div>
 

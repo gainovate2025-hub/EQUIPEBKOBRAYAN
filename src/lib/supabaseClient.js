@@ -11,8 +11,27 @@ if (!supabaseConfigured) {
   )
 }
 
+// Guarda a sessão em localStorage (sobrevive fechar o navegador) só se a
+// pessoa marcou "Lembrar de mim" no login — senão usa sessionStorage, que
+// some quando o navegador é fechado de vez. A escolha fica na chave
+// "bko_lembrar" (gravada em Login.jsx antes de entrar).
+const authStorage = {
+  getItem: (key) => {
+    const lembrar = localStorage.getItem('bko_lembrar') !== '0'
+    return (lembrar ? localStorage : sessionStorage).getItem(key)
+  },
+  setItem: (key, value) => {
+    const lembrar = localStorage.getItem('bko_lembrar') !== '0'
+    ;(lembrar ? localStorage : sessionStorage).setItem(key, value)
+  },
+  removeItem: (key) => {
+    localStorage.removeItem(key)
+    sessionStorage.removeItem(key)
+  },
+}
+
 export const supabase = supabaseConfigured
-  ? createClient(url, anonKey)
+  ? createClient(url, anonKey, { auth: { storage: authStorage } })
   : null
 
 // Login é feito por "usuário", não e-mail. Internamente cada conta usa um

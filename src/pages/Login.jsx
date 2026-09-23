@@ -1,8 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { CalendarClock, Eye, EyeOff, Percent, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../lib/AuthContext'
 import { homeFor } from '../lib/ProtectedRoute'
 import { supabaseConfigured } from '../lib/supabaseClient'
+
+const DESTAQUES = [
+  { icon: ShieldCheck, label: 'Aprovação de contestações' },
+  { icon: CalendarClock, label: 'Reagendamentos em dia' },
+  { icon: Percent, label: 'Comissão acompanhada' },
+]
 
 export default function Login() {
   const { signIn, profile, loading } = useAuth()
@@ -10,64 +17,17 @@ export default function Login() {
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [mostrarSenha, setMostrarSenha] = useState(false)
+  const [lembrar, setLembrar] = useState(true)
+  const [ajudaSenha, setAjudaSenha] = useState(false)
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-
-  const eyeRef = useRef(null)
-  const pupilRef = useRef(null)
-  const lidRef = useRef(null)
-  const closedRef = useRef(false)
-
-  useEffect(() => {
-    function onMove(e) {
-      const eye = eyeRef.current
-      const pupil = pupilRef.current
-      if (!eye || !pupil || closedRef.current) return
-      const r = eye.getBoundingClientRect()
-      const cx = r.left + r.width / 2
-      const cy = r.top + r.height / 2
-      const dx = e.clientX - cx
-      const dy = e.clientY - cy
-      const d = Math.hypot(dx, dy) || 1
-      const maxX = 42
-      const maxY = 22
-      const k = Math.min(1, d / 420)
-      pupil.style.transform = `translate(${(dx / d) * maxX * k}px, ${(dy / d) * maxY * k}px)`
-    }
-    window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
-  }, [])
-
-  function closeEye() {
-    closedRef.current = true
-    const lid = lidRef.current
-    const pupil = pupilRef.current
-    if (pupil) pupil.style.transform = 'translate(0,0)'
-    if (lid) {
-      lid.style.animation = 'none'
-      lid.style.transition = 'transform .3s ease'
-      lid.style.transform = 'translateY(0)'
-    }
-  }
-
-  function openEye() {
-    closedRef.current = false
-    const lid = lidRef.current
-    if (lid) {
-      lid.style.transform = 'translateY(-110%)'
-      setTimeout(() => {
-        if (lidRef.current && !closedRef.current) {
-          lidRef.current.style.transition = ''
-          lidRef.current.style.animation = 'bkoBlink 5.5s ease-in-out infinite'
-        }
-      }, 320)
-    }
-  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setError('')
     setSubmitting(true)
+    localStorage.setItem('bko_lembrar', lembrar ? '1' : '0')
     const { error: signInError } = await signIn(username, password)
     setSubmitting(false)
     if (signInError) setError(signInError)
@@ -80,71 +40,49 @@ export default function Login() {
   if (!loading && profile) return <Navigate to={homeFor(profile.role)} replace />
 
   return (
-    <div className="grid min-h-screen font-sans text-ink" style={{ gridTemplateColumns: '1.05fr .95fr' }}>
-      {/* coluna vermelha — o olho */}
-      <div
-        className="relative flex flex-col items-center justify-center gap-8 overflow-hidden text-white"
-        style={{ padding: '52px 64px', background: 'linear-gradient(155deg,#b42318 0%,#8a1b12 55%,#5c120c 100%)' }}
-      >
-        <span
-          className="absolute rounded-full"
-          style={{ top: -90, left: -70, width: 340, height: 340, background: 'rgba(255,255,255,.08)', animation: 'bkoDrift 14s ease-in-out infinite' }}
-        />
-        <span
-          className="absolute rounded-full"
-          style={{ bottom: -120, right: -60, width: 280, height: 280, background: 'rgba(255,255,255,.06)', animation: 'bkoDrift 18s ease-in-out infinite reverse' }}
-        />
-
-        <div className="relative flex items-center gap-3.5 self-start" style={{ animation: 'bkoRise .5s ease both' }}>
-          <div className="flex h-[46px] w-[46px] items-center justify-center rounded-[13px] border border-white/35 bg-white/16 text-[15px] font-bold">BKO</div>
-          <span className="text-[15px] font-medium tracking-wide opacity-90">Painel operacional</span>
+    <div className="grid min-h-screen bg-paper font-sans text-ink lg:grid-cols-[45fr_55fr]">
+      {/* painel institucional — some em telas pequenas, vira um cabeçalho compacto */}
+      <div className="hidden flex-col justify-between bg-sidebar px-14 py-12 text-sidebar-text lg:flex">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-sm bg-brand-500" />
+          <span className="text-sm font-semibold tracking-wide text-white">BKO · Supervisão</span>
         </div>
 
-        <div className="relative flex flex-col items-center gap-6" style={{ animation: 'bkoRise .6s .1s ease both' }}>
-          <div
-            className="relative flex items-center justify-center"
-            style={{ width: 230, height: 230, animation: 'bkoFloatEye 6s ease-in-out infinite' }}
-          >
-            <span className="absolute inset-0 rounded-full" style={{ border: '2px solid rgba(255,255,255,.45)', animation: 'bkoRing 3.4s ease-out infinite' }} />
-            <span className="absolute inset-0 rounded-full" style={{ border: '2px solid rgba(255,255,255,.3)', animation: 'bkoRing 3.4s 1.7s ease-out infinite' }} />
-            <div
-              ref={eyeRef}
-              className="relative flex items-center justify-center overflow-hidden bg-white"
-              style={{ width: 210, height: 132, borderRadius: '50%/50%', boxShadow: 'inset 0 -10px 26px rgba(90,10,8,.22), 0 18px 40px rgba(50,5,5,.35)' }}
-            >
-              <div
-                ref={pupilRef}
-                className="flex items-center justify-center rounded-full"
-                style={{ width: 74, height: 74, background: 'radial-gradient(circle at 34% 30%, #5c626f 0%, #1d2029 60%, #0d0f14 100%)', transition: 'transform .16s ease-out' }}
-              >
-                <span className="rounded-full bg-white/90" style={{ width: 22, height: 22, transform: 'translate(-12px,-14px)' }} />
+        <div className="flex max-w-md flex-col gap-5" style={{ animation: 'bkoRise .5s ease both' }}>
+          <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-white">
+            Controle, acompanhe e faça a diferença.
+          </h1>
+          <p className="text-sm leading-relaxed text-sidebar-text">
+            O painel centraliza o acompanhamento da equipe: contestações, reagendamentos e comissão em um só lugar,
+            com autorização e histórico organizados.
+          </p>
+
+          <div className="mt-2 flex flex-col gap-3 border-t border-sidebar-border pt-5">
+            {DESTAQUES.map(({ icon: Icon, label }) => (
+              <div key={label} className="flex items-center gap-2.5 text-sm text-sidebar-textMuted">
+                <Icon size={15} strokeWidth={2} />
+                {label}
               </div>
-              <span
-                ref={lidRef}
-                className="absolute inset-0"
-                style={{ background: 'linear-gradient(180deg,#b42318,#5c120c)', transform: 'translateY(-110%)', animation: 'bkoBlink 5.5s ease-in-out infinite' }}
-              />
-            </div>
-          </div>
-          <div className="flex max-w-[420px] flex-col items-center gap-2.5 text-center">
-            <span className="text-[27px] font-semibold leading-tight tracking-tight">Alguém está de olho nos números</span>
-            <span className="text-sm leading-relaxed opacity-80">
-              Comissão, contestação e reagendamento em um só lugar. Entre para ver o resultado da equipe de hoje.
-            </span>
+            ))}
           </div>
         </div>
+
+        <span className="text-xs font-medium uppercase tracking-wide text-sidebar-textMuted">TIM · BKO Supervisão</span>
       </div>
 
-      {/* coluna do formulário */}
-      <div className="flex items-center justify-center bg-paper" style={{ padding: '64px 56px' }}>
-        <form
-          onSubmit={handleSubmit}
-          className="card flex w-full flex-col gap-5 p-8"
-          style={{ maxWidth: 380 }}
-        >
+      {/* formulário */}
+      <div className="flex flex-col items-center justify-center gap-8 px-6 py-12 sm:px-10">
+        <div className="flex items-center gap-2 lg:hidden">
+          <span className="h-2 w-2 rounded-sm bg-brand-500" />
+          <span className="text-sm font-semibold tracking-wide text-ink">BKO · Supervisão</span>
+        </div>
+
+        <form onSubmit={handleSubmit} className="card flex w-full max-w-[380px] flex-col gap-5 p-8">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Acesso restrito</span>
+
           <div className="flex flex-col gap-1">
-            <span className="text-xl font-semibold tracking-tight text-ink">Entrar</span>
-            <span className="text-sm text-muted">Use seu acesso corporativo</span>
+            <span className="text-xl font-semibold tracking-tight text-ink">Bem-vindo de volta</span>
+            <span className="text-sm text-muted">Acesse o painel de supervisão.</span>
           </div>
 
           {!supabaseConfigured && (
@@ -168,24 +106,53 @@ export default function Login() {
 
           <div>
             <label className="field-label" htmlFor="password">Senha</label>
-            <input
-              id="password"
-              type="password"
-              className="field-input"
-              placeholder="••••••••"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onFocus={closeEye}
-              onBlur={openEye}
-            />
-            <span className="mt-1.5 block text-xs text-subtle">O olho fecha enquanto você digita a senha.</span>
+            <div className="relative">
+              <input
+                id="password"
+                type={mostrarSenha ? 'text' : 'password'}
+                className="field-input pr-10"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={() => setMostrarSenha((v) => !v)}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-subtle hover:text-muted"
+                aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
           </div>
+
+          <div className="flex items-center justify-between text-sm">
+            <label className="flex items-center gap-2 text-muted">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 rounded border-line accent-brand-600"
+                checked={lembrar}
+                onChange={(e) => setLembrar(e.target.checked)}
+              />
+              Lembrar de mim
+            </label>
+            <button
+              type="button"
+              onClick={() => setAjudaSenha((v) => !v)}
+              className="text-muted underline-offset-2 hover:text-ink hover:underline"
+            >
+              Esqueci minha senha
+            </button>
+          </div>
+          {ajudaSenha && (
+            <p className="-mt-2 text-xs text-muted">Fale com seu supervisor ou líder pra redefinir sua senha.</p>
+          )}
 
           {error && <div className="text-sm font-medium text-bad-text">{error}</div>}
 
-          <button type="submit" className="btn-primary" style={{ animation: 'bkoGlowBtn 3.4s ease-in-out infinite' }} disabled={submitting}>
+          <button type="submit" className="btn-primary" disabled={submitting}>
             {submitting ? 'Entrando…' : 'Entrar no painel'}
           </button>
         </form>

@@ -34,31 +34,9 @@ input::placeholder {
   to { transform: scaleX(1); }
 }
 
-/* usadas só na tela de login — o olho que vigia */
 @keyframes bkoRise {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: none; }
-}
-@keyframes bkoGlowBtn {
-  0%, 100% { box-shadow: 0 8px 20px rgba(180, 35, 24, .28); }
-  50% { box-shadow: 0 12px 34px rgba(180, 35, 24, .5); }
-}
-@keyframes bkoFloatEye {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-6px); }
-}
-@keyframes bkoBlink {
-  0%, 92%, 100% { transform: translateY(-110%); }
-  95%, 97% { transform: translateY(0); }
-}
-@keyframes bkoRing {
-  0% { transform: scale(.75); opacity: .55; }
-  100% { transform: scale(1.5); opacity: 0; }
-}
-@keyframes bkoDrift {
-  0% { transform: translate(0, 0); }
-  50% { transform: translate(26px, -22px); }
-  100% { transform: translate(0, 0); }
 }
 
 @layer components {
