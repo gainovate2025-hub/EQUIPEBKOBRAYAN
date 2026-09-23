@@ -54,19 +54,18 @@ class PortalAutomation {
   // Reforço maior ainda que digitarDeVerdade — confirmado ao vivo que o
   // campo de Custcode só aceita o valor quando é digitado tecla por
   // tecla (colar o texto inteiro de uma vez não bastou, mesmo com
-  // execCommand). Insere um caractere por vez, disparando keydown/
-  // keypress/keyup reais em cada um — o mais próximo possível de
-  // simular alguém digitando de verdade.
+  // execCommand). Insere um caractere por vez com execCommand (que já
+  // dispara o evento "input" nativo do navegador sozinho) — SEM simular
+  // keydown/keypress/keyup: essa tela parece ter uma validação que
+  // reage a evento de tecla a cada letra, e keyup sintético disparava
+  // uma consulta prematura só com "7." digitado.
   async digitarCaractereACaractere(input, valor) {
     input.focus()
     input.select()
     document.execCommand('delete', false, null)
     for (const char of valor) {
       const tamanhoAntes = input.value.length
-      input.dispatchEvent(new KeyboardEvent('keydown', { key: char, bubbles: true, cancelable: true }))
-      input.dispatchEvent(new KeyboardEvent('keypress', { key: char, bubbles: true, cancelable: true }))
       document.execCommand('insertText', false, char)
-      input.dispatchEvent(new KeyboardEvent('keyup', { key: char, bubbles: true, cancelable: true }))
       // confirma que o campo realmente cresceu antes de ir pro próximo
       // caractere — sem isso, digitar rápido demais faz a tela/framework
       // "comer" os primeiros caracteres (visto ao vivo: só sobraram os
