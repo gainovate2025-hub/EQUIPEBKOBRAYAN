@@ -52,75 +52,46 @@ class PortalAutomation {
   }
 
   // Depois de MUITAS tentativas de fazer o robô digitar sozinho o Custcode
-  // (mesmo com re-tentativa e conferência), o campo continuava comendo
-  // caractere, ou o excesso de tentativas em sequência chegou a derrubar
-  // a sessão do Portal ("session expired"). Confirmado ao vivo: quando a
-  // PESSOA digita/cola na mão, sempre funciona de primeira. Em vez de
-  // insistir em simular digitação, a extensão copia o código certo pra
-  // área de transferência e pede pra colar (Ctrl+V) — bem mais simples e
-  // muito mais confiável. Assim que perceber que o valor bateu, segue
-  // sozinha de novo (clica Buscar).
-  async copiarParaAreaDeTransferencia(texto) {
-    try {
-      await navigator.clipboard.writeText(texto)
-      return true
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = texto
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.focus()
-      textarea.select()
-      const copiou = document.execCommand('copy')
-      textarea.remove()
-      return copiou
-    }
-  }
-
-  mostrarAvisoColagem(mensagem) {
-    this.esconderAviso()
-    const aviso = document.createElement('div')
-    aviso.id = 'pp-aviso-colagem'
-    aviso.textContent = mensagem
-    Object.assign(aviso.style, {
-      position: 'fixed',
-      top: '16px',
-      left: '50%',
-      transform: 'translateX(-50%)',
-      zIndex: 2147483647,
-      background: '#111',
-      color: '#fff',
-      padding: '12px 20px',
-      borderRadius: '8px',
-      fontSize: '15px',
-      fontFamily: 'sans-serif',
-      boxShadow: '0 4px 16px rgba(0,0,0,.3)',
-      maxWidth: '90vw',
-      textAlign: 'center',
-    })
-    document.body.appendChild(aviso)
-  }
-
-  esconderAviso() {
-    document.getElementById('pp-aviso-colagem')?.remove()
-  }
-
-  // Espera até 2 minutos a pessoa colar o valor certo no campo.
-  async pedirColagemCustcode(input, valor) {
-    await this.copiarParaAreaDeTransferencia(valor)
-    this.mostrarAvisoColagem(`Cole o código do cliente aqui (já copiei "${valor}") — clica no campo e aperta Ctrl+V.`)
+  // com truques de JavaScript (execCommand, re-tentativa, conferência), o
+  // campo continuava comendo caractere, ou o excesso de tentativas em
+  // sequência chegou a derrubar a sessão do Portal ("session expired").
+  // Confirmado ao vivo: quando a PESSOA digita na mão, sempre funciona de
+  // primeira — o problema nunca foi o valor em si, é o campo não
+  // "acreditar" numa digitação simulada por JS puro.
+  //
+  // Solução: pede pro background.js (via chrome.debugger, permissão nova
+  // no manifest) inserir o texto usando o protocolo de depuração do
+  // Chrome — o mesmo mecanismo que ferramentas como Puppeteer usam pra
+  // digitar "de verdade" em qualquer campo, sem precisar de clique da
+  // pessoa (só aparece uma faixa amarela do Chrome por um instante).
+  async digitarViaDebugger(input, valor) {
     input.focus()
-    const inicio = Date.now()
-    while (Date.now() - inicio < 120000) {
-      if (input.value === valor) {
-        this.esconderAviso()
-        return true
-      }
-      await dormir(400)
+    await dormir(150)
+
+    // limpa o campo antes por JS simples — o problema era só com o valor
+    // FINAL não sendo reconhecido, apagar não tem esse problema.
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+    setter.call(input, '')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    await dormir(150)
+
+    let resposta
+    try {
+      resposta = await chrome.runtime.sendMessage({ tipo: 'pp:digitarComDebugger', texto: valor })
+    } catch (err) {
+      resposta = { ok: false, erro: err.message }
     }
-    this.esconderAviso()
-    return false
+
+    if (!resposta?.ok) {
+      // debugger indisponível (ex: DevTools já aberto nessa aba) — cai
+      // pro reforço mais simples que já tínhamos, como último recurso.
+      this.digitarDeVerdade(input, valor)
+    }
+
+    await dormir(300)
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    input.dispatchEvent(new Event('blur', { bubbles: true }))
+    return input.value === valor
   }
 
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
@@ -301,11 +272,9 @@ class PortalAutomation {
     const custcodeFormatado = custcode.replace(/^7\./, '')
 
     const campo = this.campoCustcode()
-    const colouCerto = await this.pedirColagemCustcode(campo, custcodeFormatado)
-    if (!colouCerto) return { ok: false, valorFinal: campo.value }
+    const digitouCerto = await this.digitarViaDebugger(campo, custcodeFormatado)
+    if (!digitouCerto) return { ok: false, valorFinal: campo.value }
 
-    campo.dispatchEvent(new Event('change', { bubbles: true }))
-    campo.dispatchEvent(new Event('blur', { bubbles: true }))
     await dormir(400)
     this.botaoBuscar().click()
     return { ok: true }

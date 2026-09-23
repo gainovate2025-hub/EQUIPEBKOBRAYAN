@@ -159,11 +159,11 @@ async function rodarFluxo(job) {
 
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
-          ppLog('Pedindo pra colar o Custcode:', JSON.stringify(job.custcode))
+          ppLog('Preenchendo Custcode e buscando:', JSON.stringify(job.custcode))
           const resultado = await automation.preencherEBuscar(job.custcode)
           if (!resultado.ok) {
             await avisarBackground('pp:erroPortal', {
-              mensagem: `Ninguém colou o Custcode certo a tempo (2 min) — ficou "${resultado.valorFinal}".`,
+              mensagem: `Não consegui digitar o Custcode direito — ficou "${resultado.valorFinal}".`,
             })
             return
           }

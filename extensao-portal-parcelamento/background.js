@@ -190,6 +190,32 @@ async function reiniciarPortalComMesmoJob(job) {
   await abrirAbaPortal()
 }
 
+// Digita de verdade no campo focado da aba, usando o Chrome DevTools
+// Protocol (Input.insertText) em vez de truque de JavaScript na página —
+// o campo do Custcode ignora/perde caractere quando o valor é colocado
+// via JS puro. Via CDP, o navegador processa como se fosse digitação de
+// verdade (é o mesmo mecanismo que o Puppeteer/DevTools usa), sem
+// precisar de nenhum clique da pessoa. Mostra uma faixa amarela do
+// Chrome avisando "extensão depurando essa aba" só durante o instante da
+// digitação.
+async function digitarComDebugger(tabId, texto) {
+  const alvo = { tabId }
+  try {
+    await chrome.debugger.attach(alvo, '1.3')
+  } catch (err) {
+    if (!String(err.message || '').includes('already attach')) throw err
+  }
+  try {
+    await chrome.debugger.sendCommand(alvo, 'Input.insertText', { text: texto })
+  } finally {
+    try {
+      await chrome.debugger.detach(alvo)
+    } catch {
+      // já pode ter se desanexado sozinho (ex: aba fechou) — ignora
+    }
+  }
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   ;(async () => {
     const job = await pegarJob()
@@ -260,6 +286,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.tipo === 'pp:desligar') {
       await chrome.storage.local.set({ pp_ligado: false })
       sendResponse({ ok: true })
+      return
+    }
+
+    if (msg?.tipo === 'pp:digitarComDebugger') {
+      try {
+        await digitarComDebugger(_sender.tab.id, msg.texto)
+        sendResponse({ ok: true })
+      } catch (err) {
+        log('Falha ao digitar via debugger:', err.message)
+        sendResponse({ ok: false, erro: err.message })
+      }
       return
     }
 
