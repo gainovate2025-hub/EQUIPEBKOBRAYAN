@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Workflow, FileText } from 'lucide-react'
+import { Search, Workflow, FileText, MessageCircle } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { fetchParcelamentoConfig, updateParcelamentoConfig } from '../../lib/api'
 import SectionHeading from '../../components/ui/SectionHeading'
@@ -8,6 +8,7 @@ import Modal from '../../components/ui/Modal'
 import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
+import WhatsAppBotPanel from '../../components/automacoes/WhatsAppBotPanel'
 
 const AUTOMACOES = [
   {
@@ -33,6 +34,14 @@ const AUTOMACOES = [
     icon: FileText,
     to: null,
     status: 'Roda local',
+  },
+  {
+    key: 'whatsapp',
+    nome: 'Bot de Atendimento (WhatsApp)',
+    descricao: 'Liga o menu automático de atendimento num número — digita o número, escaneia o QR, pronto.',
+    icon: MessageCircle,
+    to: null,
+    status: 'Na nuvem',
   },
 ]
 
@@ -91,6 +100,16 @@ export default function Automacoes() {
             <p className="text-muted">Ela consulta cada Custcode pendente na planilha abaixo, envia a fatura e a cobrança por WhatsApp, e marca o resultado na coluna "DATA DA FATURA".</p>
           </div>
           <ParcelamentoConfigForm />
+        </Modal>
+      )}
+
+      {abrindo === 'whatsapp' && (
+        <Modal title="Bot de Atendimento no WhatsApp" onClose={() => setAbrindo(null)} width={480}>
+          <div className="flex flex-col gap-3 text-sm">
+            <p>Digita o número que vai atender (com DDI, ex: 55 11 99999-8888) e escaneia o QR pelo celular desse número — como conectar o WhatsApp Web.</p>
+            <p className="text-muted">Método não oficial: bom pra números de equipe/teste. Só desliga aqui se quiser tirar o número do ar.</p>
+          </div>
+          <WhatsAppBotPanel />
         </Modal>
       )}
     </div>

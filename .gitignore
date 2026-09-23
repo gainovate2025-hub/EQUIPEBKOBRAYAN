@@ -5,3 +5,6 @@ dist
 .claude
 scripts/seed.mjs
 supabase/.temp
+
+whatsapp-bot/sessao-qr
+whatsapp-bot/sessoes-qr
