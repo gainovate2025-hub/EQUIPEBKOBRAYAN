@@ -94,9 +94,15 @@ class PortalAutomation {
       this.digitarDeVerdade(input, valor)
     }
 
+    // IMPORTANTE: não dispara blur/change aqui. O campo tem
+    // onblur="PrimeFaces.ab(...)" (dispara uma consulta AJAX de
+    // verdade pro servidor) — se a gente disparasse isso e, pouco
+    // depois, clicasse em Buscar (outra consulta AJAX), as duas podiam
+    // brigar e derrubar o ViewState do JSF, travando a tela sem erro
+    // nenhum (já vimos isso ao vivo). O clique de verdade no botão
+    // Buscar já tira o foco do campo sozinho — deixa o blur acontecer
+    // só nesse momento, junto com o clique, como faria uma pessoa.
     await dormir(300)
-    input.dispatchEvent(new Event('change', { bubbles: true }))
-    input.dispatchEvent(new Event('blur', { bubbles: true }))
     return input.value === valor
   }
 
