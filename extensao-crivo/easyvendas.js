@@ -58,6 +58,20 @@ function tentativasFeitas(consultaId) {
   return Number(sessionStorage.getItem(chaveTentativas(consultaId)) || 0)
 }
 
+// Limite pro "tentar navegar de volta pro formulário" (sistema 1) — sem
+// isso, se clicar em Clientes/Adicionar nunca chegasse de verdade no
+// formulário (ex: depois de terminar uma consulta e a tela não voltar
+// limpa pra próxima), a extensão ficava tentando pra sempre, rodada
+// atrás de rodada, sem nunca desistir nem dar erro — travamento visto
+// ao vivo bem na 2ª consulta em diante (a 1ª sempre começa direto no
+// formulário, preparado manualmente antes de ligar).
+const MAX_TENTATIVAS_NAVEGAR = 5
+const chaveTentativasNavegar = (consultaId) => `crivo_nav_tentativas_${consultaId}`
+
+function tentativasNavegarFeitas(consultaId) {
+  return Number(sessionStorage.getItem(chaveTentativasNavegar(consultaId)) || 0)
+}
+
 // ID desta aba (guardado no sessionStorage — sobrevive a reload da MESMA
 // aba, mas cada aba/janela nova gera o seu). Usado pra "reivindicar" uma
 // consulta antes de processar (veja migration_022_crivo_trava.sql) — sem
@@ -240,9 +254,13 @@ async function tentarComecarNova(numeroSistema, automation) {
   if (estado.tipo !== 'formulario') {
     // no sistema 1, um reload pode cair em outra tela (não direto no
     // formulário) — tenta navegar de volta (Clientes > Adicionar) antes
-    // de considerar isso um erro de verdade.
-    if (numeroSistema === 1 && automation.navegarParaAdicionarClientes()) {
-      log(numeroSistema, consulta.id, 'Não achei o formulário — cliquei pra navegar de volta, espero a próxima rodada')
+    // de considerar isso um erro de verdade. Só até MAX_TENTATIVAS_NAVEGAR
+    // vezes — depois disso, desiste e trata como erro de verdade (senão
+    // fica tentando pra sempre sem nunca desistir).
+    const tentativasNavegar = tentativasNavegarFeitas(consulta.id)
+    if (numeroSistema === 1 && tentativasNavegar < MAX_TENTATIVAS_NAVEGAR && automation.navegarParaAdicionarClientes()) {
+      sessionStorage.setItem(chaveTentativasNavegar(consulta.id), String(tentativasNavegar + 1))
+      log(numeroSistema, consulta.id, `Não achei o formulário — cliquei pra navegar de volta (tentativa ${tentativasNavegar + 1}/${MAX_TENTATIVAS_NAVEGAR}), espero a próxima rodada`)
       return null
     }
     await finalizarComRetry(numeroSistema, consulta.id, {
