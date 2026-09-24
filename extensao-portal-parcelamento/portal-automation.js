@@ -269,17 +269,21 @@ class PortalAutomation {
   // uma da outra é o tipo de coisa que corrompe o ViewState e causa
   // erro/travamento sem motivo aparente. Só mexe no que realmente
   // precisa: o campo do Custcode e o botão Buscar.
+  //
+  // O Custcode NUNCA pode ir incompleto pro Buscar (ex: sem o "7."
+  // inicial) — em vez de só avisar e clicar assim mesmo, tenta de novo
+  // (até algumas vezes) até o campo bater EXATAMENTE com o valor da
+  // planilha antes de buscar.
   async preencherEBuscar(custcode) {
     const campo = this.campoCustcode()
-    const digitouCerto = await this.digitarViaDebugger(campo, custcode)
-    // Mesmo se a conferência não bater 100% (ex: alguma diferença boba
-    // de espaço), clica em Buscar de qualquer jeito — travar aqui sem
-    // nunca clicar deixa a automação sem tentar nada. Se o valor estiver
-    // mesmo errado, pareceErroValidacao() detecta isso no próximo passo
-    // de um jeito mais confiável.
-    if (!digitouCerto) {
-      console.log('[PortalParcelamento] valor não bateu 100%, mas vou clicar Buscar assim mesmo — valor no campo:', JSON.stringify(campo.value))
+    let digitouCerto = false
+    for (let tentativa = 1; tentativa <= 3 && !digitouCerto; tentativa++) {
+      digitouCerto = await this.digitarViaDebugger(campo, custcode)
+      if (!digitouCerto) {
+        console.log(`[PortalParcelamento] tentativa ${tentativa}/3: valor não bateu — campo ficou "${campo.value}", esperado "${custcode}". Tentando de novo.`)
+      }
     }
+    if (!digitouCerto) return { ok: false, valorFinal: campo.value }
 
     await dormir(400)
     this.botaoBuscar().click()
@@ -312,11 +316,10 @@ class PortalAutomation {
     if (!container) return []
     const bolinhas = [...container.querySelectorAll('.ui-radiobutton-box, input[type="radio"]')]
     return bolinhas
-      .map((el) => {
-        const clicavel = el.classList?.contains('ui-radiobutton-box') ? el : el
+      .map((el, i) => {
         const linha = el.closest('tr, li, div')
-        const chave = semAcento(linha?.textContent || '').trim().slice(0, 120) || `fatura-${bolinhas.indexOf(el)}`
-        return { elemento: clicavel, chave }
+        const chave = semAcento(linha?.textContent || '').trim().slice(0, 120) || `fatura-${i}`
+        return { elemento: el, linha, chave }
       })
       .filter((f) => f.chave)
   }
@@ -326,8 +329,29 @@ class PortalAutomation {
     return faturas.find((f) => !faturasProcessadas.includes(f.chave)) || null
   }
 
-  selecionarFatura(fatura) {
-    fatura.elemento.click()
+  // Confere se uma bolinha PrimeFaces está de verdade marcada — olha o
+  // <input type="radio"> real escondido dentro do componente (o jeito
+  // mais confiável, não depende de qual classe CSS o PrimeFaces usa pra
+  // desenhar o ícone marcado) e cai pra checar a classe do ícone
+  // (ui-icon-blank = não marcada) só se não achar o input real.
+  radioEstaMarcada(linhaOuElemento) {
+    const input = linhaOuElemento?.querySelector?.('input[type="radio"]')
+    if (input) return input.checked
+    const icone = linhaOuElemento?.querySelector?.('.ui-radiobutton-icon') || linhaOuElemento
+    return Boolean(icone) && !icone.className.includes('ui-icon-blank')
+  }
+
+  // Clica na bolinha da fatura e CONFERE que marcou de verdade antes de
+  // seguir (tenta de novo algumas vezes se não marcou de primeira) — sem
+  // isso corríamos o risco de clicar em "Confirmar" com nenhuma fatura
+  // selecionada de verdade.
+  async selecionarFatura(fatura) {
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      if (this.radioEstaMarcada(fatura.linha || fatura.elemento)) return true
+      fatura.elemento.click()
+      await dormir(300)
+    }
+    return this.radioEstaMarcada(fatura.linha || fatura.elemento)
   }
 
   botaoConfirmarFatura() {
@@ -340,15 +364,21 @@ class PortalAutomation {
     return false
   }
 
-  // Opção "IMPRESSÃO ONLINE" — acha o container com esse texto e clica na
-  // bolinha de rádio de dentro dele.
-  selecionarImpressaoOnline() {
+  // Opção "IMPRESSÃO ONLINE" — acha o container com esse texto, clica na
+  // bolinha de rádio de dentro dele e CONFERE que marcou de verdade
+  // antes de seguir (mesma lógica de selecionarFatura).
+  async selecionarImpressaoOnline() {
     const container = this.acharContainerPorTexto(this.selectors.textoImpressaoOnline)
     if (!container) return false
-    const bolinha = container.querySelector('.ui-radiobutton-box, input[type="radio"]') || container.closest('tr, li')?.querySelector('.ui-radiobutton-box, input[type="radio"]')
+    const linha = container.closest('tr, li') || container
+    const bolinha = linha.querySelector('.ui-radiobutton-box, input[type="radio"]')
     if (!bolinha) return false
-    bolinha.click()
-    return true
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      if (this.radioEstaMarcada(linha)) return true
+      bolinha.click()
+      await dormir(300)
+    }
+    return this.radioEstaMarcada(linha)
   }
 
   clicarConfirmarGenerico() {

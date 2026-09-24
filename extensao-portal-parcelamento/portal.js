@@ -26,13 +26,15 @@
 const PP_POLL_MS = 15000
 const PP_TIMEOUT_MS = 120000
 
-// Os passos depois da busca (selecionar fatura, impressão online,
-// confirmar, baixar PDF) usam seletores nunca vistos ao vivo — em vez de
-// continuar adivinhando e testando às cegas, PARA logo depois de buscar
-// com sucesso e deixa a aba parada na tela de resultado, esperando
-// alguém olhar e dizer o que ajustar. Muda pra false só depois que os
-// seletores dessas telas estiverem confirmados.
-const PARAR_APOS_BUSCAR = true
+// Agora que os seletores da lista de fatura/Impressão Online vieram
+// confirmados (com verificação de verdade se a bolinha marcou antes de
+// confirmar — veja radioEstaMarcada em portal-automation.js), deixa
+// rodar até a tela final do PDF. Só NÃO baixa/envia ainda — mandar um
+// PDF errado pro WhatsApp de um cliente de verdade é bem mais grave que
+// travar num clique interno do Portal, então esse pedaço continua
+// parando de propósito até ser validado ao vivo. Muda pra false só
+// depois de confirmar que chega certinho na tela do PDF.
+const PARAR_ANTES_DE_ENVIAR = true
 
 // Mesmo projeto Supabase do resto do painel-bko — veja migration_025 pro
 // motivo de existir uma tabela pra isso (login em 2 etapas com token de
@@ -209,7 +211,7 @@ async function rodarFluxo(job) {
       if (faseAtual === 'aguardando_resultado_busca') {
         if (automation.pareceErroValidacao()) {
           await avisarBackground('pp:erroPortal', {
-            mensagem: `Custcode "${job.custcode}" recusado como inválido pelo Portal — provavelmente o clique em Buscar disparou cedo demais.`,
+            mensagem: `CUST CODE NÃO ENCONTRADO — Portal recusou "${job.custcode}" como inválido.`,
           })
           return
         }
@@ -226,15 +228,14 @@ async function rodarFluxo(job) {
           return
         }
 
-        if (PARAR_APOS_BUSCAR) {
-          ppLog('PARAR_APOS_BUSCAR ligado — busca deu certo, parando aqui de propósito. Olha a tela e me diz o que tem.')
-          return
-        }
-
         const proxima = automation.proximaFaturaNaoProcessada(job.faturasProcessadas)
         if (proxima) {
           ppLog('Selecionando fatura:', proxima.chave.slice(0, 60))
-          automation.selecionarFatura(proxima)
+          const marcou = await automation.selecionarFatura(proxima)
+          if (!marcou) {
+            await avisarBackground('pp:erroPortal', { mensagem: 'FATURA NÃO ENCONTRADA — clicou na bolinha mas ela não marcou.' })
+            return
+          }
           job._faturaAtualChave = proxima.chave
           faseAtual = 'confirmando_fatura'
           inicioFase = Date.now()
@@ -266,7 +267,7 @@ async function rodarFluxo(job) {
       }
 
       if (faseAtual === 'impressao_online') {
-        if (automation.selecionarImpressaoOnline()) {
+        if (await automation.selecionarImpressaoOnline()) {
           faseAtual = 'confirmando_impressao'
           inicioFase = Date.now()
           await dormir(300)
@@ -289,6 +290,10 @@ async function rodarFluxo(job) {
 
       if (faseAtual === 'confirmando_final') {
         if (automation.ehTelaDePdf()) {
+          if (PARAR_ANTES_DE_ENVIAR) {
+            ppLog('PARAR_ANTES_DE_ENVIAR ligado — chegou na tela do PDF certinho. Parando aqui de propósito antes de baixar/mandar no WhatsApp.')
+            return
+          }
           faseAtual = 'baixando_pdf'
           inicioFase = Date.now()
           continue
