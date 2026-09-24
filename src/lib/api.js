@@ -39,11 +39,13 @@ export async function fetchOwnDailyReports(userId) {
   return data
 }
 
-export async function fetchTeamRanking() {
-  const { data, error } = await supabase
+export async function fetchTeamRanking(teamId) {
+  let query = supabase
     .from('profiles')
     .select('id, name, username, performance(commission, contestations_done, rescheduling_done)')
     .eq('role', 'bko')
+  if (teamId) query = query.eq('team_id', teamId)
+  const { data, error } = await query
   if (error) throw error
   return data
     .map((p) => ({ ...p, performance: p.performance ?? null }))

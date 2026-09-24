@@ -17,13 +17,13 @@ export default function Ranking() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    fetchTeamRanking()
+    fetchTeamRanking(profile?.team_id)
       .then((data) => { if (!cancelled) setRows(data) })
       .catch((err) => showToast(err.message || 'Falha ao carregar ranking.', 'error'))
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [profile?.team_id])
 
   const teamName = profile?.teams?.name || 'sua equipe'
 
