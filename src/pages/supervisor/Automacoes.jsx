@@ -92,10 +92,10 @@ export default function Automacoes() {
             <p>Essa automação roda direto no Chrome (extensão), um por vez — mas a planilha usada é definida AQUI, pra todo mundo que ligar a extensão usar a mesma.</p>
             <ol className="list-decimal space-y-1 pl-5">
               <li>Instala a extensão em <code className="rounded bg-paper px-1 py-0.5">chrome://extensions</code> a partir da pasta <code className="rounded bg-paper px-1 py-0.5">extensao-portal-parcelamento/</code> do repositório</li>
-              <li>Deixa uma aba do Portal Parcelamento e uma do WhatsApp Web abertas, e clica em Ligar no ícone da extensão</li>
+              <li>Deixa uma aba do Portal Parcelamento aberta e clica em Ligar no ícone da extensão</li>
               <li>Se a aba do Portal cair numa tela de login, usa o formulário "Login" mais abaixo — ela entra sozinha</li>
             </ol>
-            <p className="text-muted">Ela consulta cada Custcode pendente na planilha abaixo, envia a fatura e a cobrança por WhatsApp, e marca o resultado na coluna "DATA DA FATURA".</p>
+            <p className="text-muted">Ela consulta cada Custcode pendente na planilha abaixo, manda a fatura por e-mail e marca "FATURA ENVIADA POR EMAIL" na coluna de status.</p>
           </div>
           <ParcelamentoConfigForm />
           <ParcelamentoLoginForm />
@@ -122,6 +122,10 @@ function ParcelamentoConfigForm() {
   const [appsScriptUrl, setAppsScriptUrl] = useState('')
   const [sheetUrl, setSheetUrl] = useState('')
   const [abaNome, setAbaNome] = useState('')
+  const [colunaCustcode, setColunaCustcode] = useState('')
+  const [colunaEmail, setColunaEmail] = useState('')
+  const [colunaTelefone, setColunaTelefone] = useState('')
+  const [colunaStatus, setColunaStatus] = useState('')
 
   useEffect(() => {
     fetchParcelamentoConfig()
@@ -129,6 +133,10 @@ function ParcelamentoConfigForm() {
         setAppsScriptUrl(config.apps_script_url || '')
         setSheetUrl(config.sheet_url || '')
         setAbaNome(config.aba_nome || 'Custo Code')
+        setColunaCustcode(config.coluna_custcode || 'CUSTCODE')
+        setColunaEmail(config.coluna_email || 'EMAIL')
+        setColunaTelefone(config.coluna_telefone || 'TELEFONE')
+        setColunaStatus(config.coluna_status || 'DATA DA FATURA')
       })
       .catch((err) => showToast(err.message || 'Falha ao carregar configuração.', 'error'))
       .finally(() => setCarregando(false))
@@ -142,6 +150,10 @@ function ParcelamentoConfigForm() {
         apps_script_url: appsScriptUrl.trim(),
         sheet_url: sheetUrl.trim(),
         aba_nome: abaNome.trim() || 'Custo Code',
+        coluna_custcode: colunaCustcode.trim() || 'CUSTCODE',
+        coluna_email: colunaEmail.trim() || 'EMAIL',
+        coluna_telefone: colunaTelefone.trim() || 'TELEFONE',
+        coluna_status: colunaStatus.trim() || 'DATA DA FATURA',
       })
       showToast('Planilha atualizada — vale pra quem já tiver a extensão ligada.')
     } catch (err) {
@@ -179,6 +191,41 @@ function ParcelamentoConfigForm() {
           onChange={(e) => setAbaNome(e.target.value)}
         />
       </Field>
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <Field label="Nome da coluna do Custcode">
+          <input
+            className="field-input"
+            placeholder="CUSTCODE"
+            value={colunaCustcode}
+            onChange={(e) => setColunaCustcode(e.target.value)}
+          />
+        </Field>
+        <Field label="Nome da coluna do e-mail">
+          <input
+            className="field-input"
+            placeholder="EMAIL"
+            value={colunaEmail}
+            onChange={(e) => setColunaEmail(e.target.value)}
+          />
+        </Field>
+        <Field label="Nome da coluna do telefone">
+          <input
+            className="field-input"
+            placeholder="TELEFONE"
+            value={colunaTelefone}
+            onChange={(e) => setColunaTelefone(e.target.value)}
+          />
+        </Field>
+        <Field label="Nome da coluna de status">
+          <input
+            className="field-input"
+            placeholder="DATA DA FATURA"
+            value={colunaStatus}
+            onChange={(e) => setColunaStatus(e.target.value)}
+          />
+        </Field>
+      </div>
+      <p className="text-xs text-muted">É nessa coluna de status que a extensão escreve "FATURA ENVIADA POR EMAIL" depois de mandar com sucesso.</p>
       <button type="submit" className="btn-primary self-start" disabled={salvando}>
         {salvando ? 'Salvando…' : 'Salvar planilha'}
       </button>
