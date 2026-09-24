@@ -9,6 +9,7 @@ import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import WhatsAppBotPanel from '../../components/automacoes/WhatsAppBotPanel'
+import P2BPanel from '../../components/automacoes/P2BPanel'
 
 const AUTOMACOES = [
   {
@@ -25,7 +26,7 @@ const AUTOMACOES = [
     descricao: 'Automatiza a busca de CUST CODE no Phoenix2Business e joga na planilha.',
     icon: Workflow,
     to: null,
-    status: 'Roda local',
+    status: 'Ativo',
   },
   {
     key: 'parcelamento',
@@ -76,16 +77,12 @@ export default function Automacoes() {
       </div>
 
       {abrindo === 'p2b' && (
-        <Modal title="Como abrir o P2B" onClose={() => setAbrindo(null)}>
+        <Modal title="P2B — busca de CUST CODE" onClose={() => setAbrindo(null)} width={560}>
           <div className="flex flex-col gap-3 text-sm">
-            <p>O P2B ainda não tem versão web — ele roda direto no seu computador, um por vez, cada um com a própria conta Google.</p>
-            <ol className="list-decimal space-y-1 pl-5">
-              <li>Abre a pasta do projeto P2B no seu computador</li>
-              <li>Dá dois cliques no arquivo <code className="rounded bg-paper px-1 py-0.5">iniciar.command</code></li>
-              <li>Ele já busca a versão mais nova sozinho antes de abrir</li>
-            </ol>
-            <p className="text-muted">Se não achar o atalho ou der erro ao abrir, me chama que eu te ajudo a resolver.</p>
+            <p>Escolhe a planilha e clica em Iniciar — o trabalho de abrir o Phoenix2Business e consultar cada CUST CODE continua rodando na extensão do Chrome, instalada localmente; essa tela só liga, acompanha e para.</p>
+            <p className="text-muted">Se a extensão do P2B não estiver instalada/aberta nesse navegador ainda, a tela avisa.</p>
           </div>
+          <P2BPanel />
         </Modal>
       )}
 
