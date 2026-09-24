@@ -392,10 +392,22 @@ class PortalAutomation {
 
   // Tela de conferência final — mostra os dados da fatura de novo junto
   // com "Destino do Email". Clicar em Confirmar aqui manda o e-mail de
-  // verdade (confirmado pelo Brayan: não tem tela de "enviado com
-  // sucesso" separada).
+  // verdade.
   detectarTelaConfirmacaoFinal() {
     return semAcento(this.textoDaTela()).includes(this.selectors.textoDestinoDoEmail)
+  }
+
+  // CONFIRMADO por print — depois de confirmar, aparece "Sucesso! E-mail
+  // enviado com sucesso!" — essa é a confirmação de verdade de que o
+  // e-mail foi enviado (não basta o clique ter "funcionado").
+  pareceEmailEnviado() {
+    return semAcento(this.textoDaTela()).includes(this.selectors.textoSucessoEnvio)
+  }
+
+  clicarFechar() {
+    const botao = this.acharBotaoPorTexto([this.selectors.textoBotaoFechar])
+    if (botao) { botao.click(); return true }
+    return false
   }
 }
 

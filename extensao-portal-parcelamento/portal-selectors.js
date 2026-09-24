@@ -67,10 +67,16 @@ const PORTAL_SELECTORS = {
   textosBotaoConfirmar: ['confirmar'],
 
   // CONFIRMADO por print — título da tela de conferência final, mostra
-  // os dados da fatura de novo junto com o e-mail de destino. Não tem
-  // mensagem de "enviado com sucesso" separada — confirmado pelo Brayan
-  // que clicar em Confirmar aqui já manda, sem tela de sucesso própria.
+  // os dados da fatura de novo junto com o e-mail de destino.
   textoDestinoDoEmail: 'destino do email',
+
+  // CONFIRMADO por print — depois de confirmar na tela de conferência
+  // final, aparece um aviso "Sucesso! E-mail enviado com sucesso!" e a
+  // tela vira "Confirme os dados do recibo" com um botão Fechar. Essa
+  // mensagem é a confirmação de verdade de que o e-mail foi enviado —
+  // só marca a planilha depois de ver ela.
+  textoSucessoEnvio: 'email enviado com sucesso',
+  textoBotaoFechar: 'fechar',
 
   // LOGIN — SSO em 2 etapas (Okta-style username → RSA SecurID token).
   // A extensão lê usuário/token colados no site (Automações > Portal

@@ -271,6 +271,22 @@ async function rodarFluxo(job) {
           await avisarBackground('pp:erroPortal', { mensagem: 'Cheguei na tela final mas não achei o botão Confirmar.' })
           return
         }
+        faseAtual = 'aguardando_confirmacao_envio'
+        inicioFase = Date.now()
+        await dormir(PP_POLL_MS)
+        continue
+      }
+
+      // Só marca como enviado depois de ver a mensagem de verdade
+      // ("Sucesso! E-mail enviado com sucesso!") — não basta o clique em
+      // Confirmar ter "funcionado" sem erro aparente.
+      if (faseAtual === 'aguardando_confirmacao_envio') {
+        if (!automation.pareceEmailEnviado()) {
+          await dormir(PP_POLL_MS)
+          continue
+        }
+        ppLog('Confirmado: "E-mail enviado com sucesso!"')
+        automation.clicarFechar()
         await avisarBackground('pp:emailEnviado', { linha: job.linha, chaveFatura: job._faturaAtualChave })
         return
       }
