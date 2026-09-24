@@ -142,14 +142,9 @@ export default function Crivo() {
     const limpo = soCnpjDigitos(cnpj)
     if (limpo.length !== 14) return setMsg('Digita um CNPJ válido (14 números).')
 
-    // O EasyVendas recusa consultar o MESMO CNPJ duas vezes (cai na tela
-    // de Termos/Contrato em vez de mostrar um resultado novo) — por isso
-    // bloqueia repetir qualquer CNPJ já consultado antes, não só o
-    // último da lista (conferir só o último deixava passar um CNPJ
-    // repetido não-consecutivo, ex: A, B, A de novo).
-    const jaConsultado = consultas.find((c) => soCnpjDigitos(c.cnpj) === limpo)
-    if (jaConsultado) {
-      return setMsg('Esse CNPJ já foi consultado antes — o sistema não deixa consultar o mesmo CNPJ duas vezes.')
+    const ultima = consultas[consultas.length - 1]
+    if (ultima && soCnpjDigitos(ultima.cnpj) === limpo) {
+      return setMsg('Esse CNPJ já foi o último consultado — espera terminar antes de mandar de novo.')
     }
 
     const cepLimpo = soCepDigitos(cep)
