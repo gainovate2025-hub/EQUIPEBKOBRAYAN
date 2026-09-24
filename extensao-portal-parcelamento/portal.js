@@ -196,7 +196,7 @@ async function rodarFluxo(job) {
           ppLog('Selecionando fatura:', proxima.chave.slice(0, 60))
           const marcou = await automation.selecionarFatura(proxima)
           if (!marcou) {
-            await avisarBackground('pp:erroPortal', { mensagem: 'FATURA NÃO ENCONTRADA — clicou na bolinha mas ela não marcou.' })
+            await avisarBackground('pp:erroPortal', { mensagem: 'Cliquei na bolinha da fatura mas ela não marcou.' })
             return
           }
           job._faturaAtualChave = proxima.chave

@@ -231,7 +231,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg?.tipo === 'pp:semFatura') {
       log('Sem fatura para', job?.custcode)
-      await encerrarClienteAtual('FATURA NÃO ENCONTRADA')
+      await encerrarClienteAtual('SEM FATURA')
       return
     }
 
