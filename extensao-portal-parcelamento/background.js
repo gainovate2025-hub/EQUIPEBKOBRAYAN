@@ -105,8 +105,39 @@ async function buscarProximoPendente(config) {
   return resultado?.linha ? resultado : null
 }
 
+// O Apps Script às vezes devolve 404/erro passageiro — tenta até 5 vezes
+// com espera crescente antes de desistir.
 async function marcarResultado(config, linha, valor) {
-  await chamarAppsScript(config, { action: 'marcar', linha, valor })
+  let ultimoErro
+  for (let tentativa = 1; tentativa <= 5; tentativa++) {
+    try {
+      const r = await chamarAppsScript(config, { action: 'marcar', linha, valor })
+      if (r?.erro) throw new Error(r.erro)
+      return
+    } catch (err) {
+      ultimoErro = err
+      log(`Gravar na planilha falhou (tentativa ${tentativa}/5):`, String(err.message).slice(0, 120))
+      await esperar(3000 * tentativa)
+    }
+  }
+  throw ultimoErro
+}
+
+// Clientes já enviados cuja gravação na planilha não deu certo — guardados
+// localmente pra NUNCA mandar o e-mail de novo; a gravação é refeita depois.
+async function pegarFeitos() {
+  const { pp_feitos: f } = await chrome.storage.local.get('pp_feitos')
+  return f || {}
+}
+async function lembrarFeito(custcode, valor, linha) {
+  const f = await pegarFeitos()
+  f[custcode] = { valor, linha }
+  await chrome.storage.local.set({ pp_feitos: f })
+}
+async function esquecerFeito(custcode) {
+  const f = await pegarFeitos()
+  delete f[custcode]
+  await chrome.storage.local.set({ pp_feitos: f })
 }
 
 async function abrirOuNavegar(urlBase, urlCompleta) {
@@ -153,6 +184,20 @@ async function tentarProximoCiclo() {
     return
   }
 
+  const feitos = await pegarFeitos()
+  if (feitos[String(proximo.custcode)]) {
+    const f = feitos[String(proximo.custcode)]
+    log('Cliente já enviado antes, só faltava gravar na planilha — gravando:', proximo.custcode)
+    try {
+      await marcarResultado(config, proximo.linha, f.valor)
+      await esquecerFeito(String(proximo.custcode))
+      setTimeout(tentarProximoCiclo, 1500)
+    } catch (err) {
+      log('Ainda não consegui gravar na planilha:', err.message)
+    }
+    return
+  }
+
   log('Novo cliente:', proximo.custcode)
   await salvarJob({
     linha: proximo.linha,
@@ -173,7 +218,8 @@ async function encerrarClienteAtual(valorColuna) {
     const config = await pegarConfigPlanilha()
     if (config) await marcarResultado(config, job.linha, valorColuna)
   } catch (err) {
-    log('Erro ao gravar resultado na planilha:', err.message)
+    log('Erro ao gravar resultado na planilha (guardei pra tentar de novo):', err.message)
+    await lembrarFeito(job.custcode, valorColuna, job.linha)
   }
   await limparJob()
   setTimeout(tentarProximoCiclo, 2000)
