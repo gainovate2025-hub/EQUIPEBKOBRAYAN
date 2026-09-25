@@ -513,7 +513,28 @@ class PortalAutomation {
   // Campo "Destinatários" — só existe DEPOIS de marcar EMAIL (aparece
   // via AJAX no mesmo formulário).
   campoDestinatarios() {
-    return this.acharCampoPorRotulo(this.selectors.textoRotuloDestinatarios)
+    // Só considera campos de texto VISÍVEIS: a página tem inputs escondidos
+    // do JSF (ex: valor "formSelMetodoEnvio") que casavam com o rótulo e
+    // recebiam o e-mail em vez da caixinha de verdade.
+    const visiveis = [...document.querySelectorAll('input')].filter((i) => {
+      const tipo = (i.getAttribute('type') || 'text').toLowerCase()
+      if (!['text', 'email', ''].includes(tipo)) return false
+      const r = i.getBoundingClientRect()
+      return r.width > 40 && r.height > 8 && getComputedStyle(i).visibility !== 'hidden'
+    })
+    const rotulos = [...document.querySelectorAll('label, span, td, div')].filter(
+      (el) => el.children.length === 0 && semAcento(el.textContent || '').trim() === this.selectors.textoRotuloDestinatarios
+    )
+    for (const rotulo of rotulos) {
+      const r = rotulo.getBoundingClientRect()
+      const cy = r.top + r.height / 2
+      const daLinha = visiveis
+        .map((input) => ({ input, rc: input.getBoundingClientRect() }))
+        .filter(({ rc }) => Math.abs(rc.top + rc.height / 2 - cy) < 40 && rc.left >= r.left)
+        .sort((x, y) => x.rc.left - y.rc.left)
+      if (daLinha.length) return daLinha[0].input
+    }
+    return null
   }
 
   async preencherEmailDestinatario(email, modoInicial = 0) {
