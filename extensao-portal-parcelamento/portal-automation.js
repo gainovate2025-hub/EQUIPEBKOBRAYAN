@@ -462,20 +462,52 @@ class PortalAutomation {
     return temTitulo || opcaoEmail ? true : false
   }
 
+  // Acha a bolinha da opção EMAIL. As 3 opções (Impressão Online, SMS,
+  // Email) ficam lado a lado na MESMA linha — então nunca dá pra pegar
+  // "a primeira bolinha da linha" (é a Impressão Online). Acha o rótulo
+  // exatamente "EMAIL" e pega a bolinha mais próxima à ESQUERDA dele,
+  // na mesma altura.
+  acharBolinhaEmail() {
+    const alvo = this.selectors.textoOpcaoEmail
+    const rotulos = [...document.querySelectorAll('label, span, td, div')].filter(
+      (el) => el.children.length === 0 && semAcento(el.textContent || '').trim() === alvo
+    )
+    for (const rotulo of rotulos) {
+      const r = rotulo.getBoundingClientRect()
+      if (!r.width) continue
+      const cy = r.top + r.height / 2
+      const candidatas = [...document.querySelectorAll('.ui-radiobutton-box')]
+        .map((box) => ({ box, rc: box.getBoundingClientRect() }))
+        .filter(({ rc }) => rc.width && Math.abs(rc.top + rc.height / 2 - cy) < 25 && rc.left < r.left)
+        .sort((x, y) => y.rc.left - x.rc.left)
+      if (candidatas.length) return candidatas[0].box
+    }
+    return null
+  }
+
+  emailEstaMarcado(box) {
+    const wrapper = box?.closest('.ui-radiobutton') || box?.parentElement
+    const input = wrapper?.querySelector('input[type="radio"]')
+    if (input) return input.checked
+    return Boolean(box) && box.classList.contains('ui-state-active')
+  }
+
   // Seleciona a opção "EMAIL" (nunca Impressão Online nem SMS) e confere
   // que marcou de verdade.
   async selecionarEmail() {
-    const container = this.acharContainerPorTexto(this.selectors.textoOpcaoEmail, ['label', 'div', 'td'])
-    if (!container) return false
-    const linha = container.closest('tr, li') || container
-    const bolinha = linha.querySelector('.ui-radiobutton-box, input[type="radio"]')
-    if (!bolinha) return false
-    for (let tentativa = 1; tentativa <= 3; tentativa++) {
-      if (this.radioEstaMarcada(linha)) return true
-      await this.cliqueHumano(bolinha)
-      await pausaHumana(400, 800)
+    const box = this.acharBolinhaEmail()
+    if (!box) {
+      this.log('Bolinha do EMAIL não encontrada')
+      return false
     }
-    return this.radioEstaMarcada(linha)
+    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+      await this.cliqueHumano(box)
+      await pausaHumana(500, 900)
+      const marcado = this.emailEstaMarcado(box)
+      this.log(`EMAIL marcado depois do clique ${tentativa}?`, marcado)
+      if (marcado) return true
+    }
+    return false
   }
 
   // Campo "Destinatários" — só existe DEPOIS de marcar EMAIL (aparece
