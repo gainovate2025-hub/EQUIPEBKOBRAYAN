@@ -180,6 +180,7 @@ async function encerrarClienteAtual(valorColuna) {
 }
 
 async function reiniciarPortalComMesmoJob(job) {
+  if (!(await pegarLigado())) return
   await salvarJob(job)
   await abrirAbaPortal()
 }
@@ -393,6 +394,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg?.tipo === 'pp:desligar') {
       await chrome.storage.local.set({ pp_ligado: false })
+      await limparJob() // sem job, o content script da aba pára sozinho
+      log('Desligado pelo usuário — job descartado, a aba não continua rodando.')
       sendResponse({ ok: true })
       return
     }

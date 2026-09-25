@@ -56,6 +56,11 @@ function dormir(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+async function estaLigado() {
+  const { pp_ligado: ligado } = await chrome.storage.local.get('pp_ligado')
+  return Boolean(ligado)
+}
+
 async function pegarJob() {
   const { pp_job: job } = await chrome.storage.session.get('pp_job')
   return job || null
@@ -163,6 +168,12 @@ async function rodarFluxo(job) {
   let inicioFase = Date.now()
 
   while (true) {
+    // Desligou na extensão: o background apaga o job e/ou pp_ligado vira
+    // false — pára aqui, sem clicar mais nada.
+    if (!(await estaLigado()) || !(await pegarJob())) {
+      ppLog('Extensão desligada — parando o fluxo nessa aba.')
+      return
+    }
     if (faseAtual !== faseSalva) {
       faseSalva = faseAtual
       await salvarFase(job, faseAtual)
@@ -393,6 +404,7 @@ async function iniciar() {
     await dormir(PP_POLL_MS)
   }
 
+  if (!(await estaLigado())) return
   const job = await pegarJob()
   if (!job || !job.ativo) return
   ppLog('Job ativo, começando fluxo para', job.custcode)
