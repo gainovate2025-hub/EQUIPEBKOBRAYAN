@@ -402,7 +402,7 @@ class PortalAutomation {
     const bolinhas = [...container.querySelectorAll('.ui-radiobutton-box, input[type="radio"]')]
     return bolinhas
       .map((el, i) => {
-        const linha = el.closest('tr, li, div')
+        const linha = el.closest('tr') || el.closest('li') || el.closest('div')
         const chave = semAcento(linha?.textContent || '').trim().slice(0, 120) || `fatura-${i}`
         return { elemento: el, linha, chave }
       })
@@ -428,7 +428,12 @@ class PortalAutomation {
   // Clica na bolinha da fatura e CONFERE que marcou de verdade antes de
   // seguir (tenta de novo algumas vezes se não marcou de primeira).
   async selecionarFatura(fatura) {
-    for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    // SEMPRE clica (mesmo que já pareça marcada): o visual marcado pode
+    // ser só o padrão da tela, sem o clique registrado no formulário.
+    await this.cliqueHumano(fatura.elemento)
+    await pausaHumana(400, 800)
+    this.log('Radio da fatura marcada depois do clique?', this.radioEstaMarcada(fatura.linha || fatura.elemento))
+    for (let tentativa = 1; tentativa <= 2; tentativa++) {
       if (this.radioEstaMarcada(fatura.linha || fatura.elemento)) return true
       await this.cliqueHumano(fatura.elemento)
       await pausaHumana(400, 800)
