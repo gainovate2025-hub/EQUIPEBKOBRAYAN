@@ -293,6 +293,15 @@ async function rodarFluxo(job) {
           continue
         }
 
+        // Todas as faturas que aparecem na tela já foram enviadas antes:
+        // acabou esse cliente (o Portal continua listando a fatura em
+        // aberto mesmo depois de mandada por e-mail).
+        if (automation.listarFaturas().length > 0) {
+          ppLog('Todas as faturas desse cliente já foram enviadas — concluindo o cliente.')
+          await avisarBackground('pp:clienteConcluido', { linha: job.linha })
+          return
+        }
+
         // O botão Buscar do Portal às vezes "engole" o clique: se passou
         // 20 segundos e a tela continua igual (sem fatura, sem erro,
         // sem "sem fatura"), clica de novo — até 3 cliques no total.
