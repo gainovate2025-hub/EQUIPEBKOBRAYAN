@@ -250,11 +250,50 @@ async function cdpDigitar(tabId, modo, texto) {
         type: 'keyDown', text: ch, unmodifiedText: ch, key: t.key, code: t.code, windowsVirtualKeyCode: t.vk,
       })
       await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: t.key, code: t.code, windowsVirtualKeyCode: t.vk })
-      await esperar(aleatorio(60, 130))
+      await esperar(aleatorio(60, 130) + (Math.random() < 0.08 ? aleatorio(250, 550) : 0))
     }
   } finally {
     try { await chrome.debugger.detach(alvo) } catch { /* já desanexou */ }
   }
+}
+
+// Clique de mouse REAL (evento do navegador, não element.click()): o
+// ponteiro sai de um ponto qualquer e chega no alvo por uma curva com
+// velocidade variável, pára um instante, aperta e solta com um tempinho
+// entre os dois — como uma mão de verdade.
+const ultimoPonteiro = {}
+async function cdpClicar(tabId, x, y) {
+  const alvo = { tabId }
+  await anexarDebugger(alvo)
+  const cmd = (m, p) => chrome.debugger.sendCommand(alvo, m, p)
+  try {
+    const ini = ultimoPonteiro[tabId] || { x: aleatorio(50, 400), y: aleatorio(50, 300) }
+    const c1 = { x: ini.x + (x - ini.x) * 0.3 + aleatorio(-60, 60), y: ini.y + (y - ini.y) * 0.1 + aleatorio(-60, 60) }
+    const c2 = { x: ini.x + (x - ini.x) * 0.8 + aleatorio(-25, 25), y: ini.y + (y - ini.y) * 0.9 + aleatorio(-25, 25) }
+    const passos = Math.round(aleatorio(14, 26))
+    for (let i = 1; i <= passos; i++) {
+      const t = i / passos
+      const u = 1 - t
+      const px = u ** 3 * ini.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t ** 3 * x
+      const py = u ** 3 * ini.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t ** 3 * y
+      await cmd('Input.dispatchMouseEvent', { type: 'mouseMoved', x: px, y: py })
+      await esperar(aleatorio(8, 28))
+    }
+    ultimoPonteiro[tabId] = { x, y }
+    await esperar(aleatorio(90, 260))
+    await cmd('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 })
+    await esperar(aleatorio(45, 130))
+    await cmd('Input.dispatchMouseEvent', { type: 'mouseReleased', x, y, button: 'left', buttons: 0, clickCount: 1 })
+  } finally {
+    try { await chrome.debugger.detach(alvo) } catch { /* já desanexou */ }
+  }
+}
+
+function cdpClicarComTimeout(tabId, x, y) {
+  return Promise.race([
+    cdpClicar(tabId, x, y),
+    new Promise((_r, reject) => setTimeout(() => reject(new Error('timeout do CDP (clique)')), 15000)),
+  ])
 }
 
 function cdpDigitarComTimeout(tabId, modo, texto) {
@@ -307,6 +346,17 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         sendResponse({ ok: true })
       } catch (err) {
         log(`Falha no CDP (${msg.modo}):`, err.message)
+        sendResponse({ ok: false, erro: err.message })
+      }
+      return
+    }
+
+    if (msg?.tipo === 'pp:cdpClicar') {
+      try {
+        await cdpClicarComTimeout(_sender.tab.id, msg.x, msg.y)
+        sendResponse({ ok: true })
+      } catch (err) {
+        log('Falha no clique CDP:', err.message)
         sendResponse({ ok: false, erro: err.message })
       }
       return

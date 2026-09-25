@@ -37,6 +37,35 @@ class PortalAutomation {
     this.log = logger || ((...args) => console.log('[PortalParcelamento]', ...args))
   }
 
+  // Clique de mouse humano: rola o elemento pra dentro da tela, escolhe um
+  // ponto qualquer DENTRO dele (não sempre o centro) e manda o background
+  // mover o ponteiro por uma curva e clicar de verdade. Se o CDP falhar,
+  // cai pro click() comum.
+  async cliqueHumano(el) {
+    if (!el) return false
+    el.scrollIntoView({ block: 'center', behavior: 'auto' })
+    await pausaHumana(200, 500)
+    const r = el.getBoundingClientRect()
+    if (r.width < 2 || r.height < 2) { el.click(); return false }
+    const x = r.left + r.width * (0.25 + Math.random() * 0.5)
+    const y = r.top + r.height * (0.3 + Math.random() * 0.4)
+    let resposta
+    try {
+      resposta = await Promise.race([
+        chrome.runtime.sendMessage({ tipo: 'pp:cdpClicar', x, y }),
+        new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 16000)),
+      ])
+    } catch (err) {
+      resposta = { ok: false, erro: err.message }
+    }
+    if (!resposta?.ok) {
+      this.log('Clique humano falhou (', resposta?.erro, ') — usando click() comum.')
+      el.click()
+      return false
+    }
+    return true
+  }
+
   definirValorInput(input, valor) {
     const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
     setter.call(input, valor)
@@ -84,8 +113,9 @@ class PortalAutomation {
   // Loga também o foco (se o documento/campo estava com foco na hora) —
   // é a primeira coisa a checar quando o valor não entra.
   async preencherCampoComModo(input, valor, modo) {
+    await this.cliqueHumano(input)
     input.focus()
-    await pausaHumana(150, 350)
+    await pausaHumana(250, 600)
 
     if (modo === 'colar') {
       const copiou = await this.copiarParaAreaDeTransferencia(valor)
@@ -310,7 +340,7 @@ class PortalAutomation {
     if (!r.ok) return r
 
     await pausaHumana(900, 1600)
-    this.botaoBuscar().click()
+    await this.cliqueHumano(this.botaoBuscar())
     return r
   }
 
@@ -368,8 +398,8 @@ class PortalAutomation {
   async selecionarFatura(fatura) {
     for (let tentativa = 1; tentativa <= 3; tentativa++) {
       if (this.radioEstaMarcada(fatura.linha || fatura.elemento)) return true
-      fatura.elemento.click()
-      await dormir(400)
+      await this.cliqueHumano(fatura.elemento)
+      await pausaHumana(400, 800)
     }
     return this.radioEstaMarcada(fatura.linha || fatura.elemento)
   }
@@ -378,9 +408,9 @@ class PortalAutomation {
     return document.querySelector(this.selectors.botaoConfirmarFaturaSeletor)
   }
 
-  clicarConfirmarFatura() {
+  async clicarConfirmarFatura() {
     const botao = this.botaoConfirmarFatura()
-    if (botao) { botao.click(); return true }
+    if (botao) { await this.cliqueHumano(botao); return true }
     return false
   }
 
@@ -402,8 +432,8 @@ class PortalAutomation {
     if (!bolinha) return false
     for (let tentativa = 1; tentativa <= 3; tentativa++) {
       if (this.radioEstaMarcada(linha)) return true
-      bolinha.click()
-      await dormir(400)
+      await this.cliqueHumano(bolinha)
+      await pausaHumana(400, 800)
     }
     return this.radioEstaMarcada(linha)
   }
@@ -420,9 +450,9 @@ class PortalAutomation {
     return this.preencherComFallback(campo, email, modoInicial)
   }
 
-  clicarConfirmarGenerico() {
+  async clicarConfirmarGenerico() {
     const botao = this.acharBotaoPorTexto(this.selectors.textosBotaoConfirmar)
-    if (botao) { botao.click(); return true }
+    if (botao) { await this.cliqueHumano(botao); return true }
     return false
   }
 
@@ -440,9 +470,9 @@ class PortalAutomation {
     return semAcento(this.textoDaTela()).includes(this.selectors.textoSucessoEnvio)
   }
 
-  clicarFechar() {
+  async clicarFechar() {
     const botao = this.acharBotaoPorTexto([this.selectors.textoBotaoFechar])
-    if (botao) { botao.click(); return true }
+    if (botao) { await this.cliqueHumano(botao); return true }
     return false
   }
 }

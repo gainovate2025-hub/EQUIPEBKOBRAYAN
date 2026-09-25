@@ -41,7 +41,7 @@ async function modoInicial(job) {
   if (typeof job.modoIdx === 'number') return job.modoIdx
   const { pp_modo_ok: ok } = await chrome.storage.local.get('pp_modo_ok')
   const i = MODOS.indexOf(ok)
-  return i >= 0 ? i : 0
+  return i >= 0 ? i : 1 // começa por 'teclas' (o mais parecido com pessoa)
 }
 
 async function lembrarModo(modo) {
@@ -155,8 +155,8 @@ async function rodarFluxo(job) {
         if (telaContexto) {
           ppLog('Tela de contexto (TIM/INTELIG) — selecionando TIM.')
           automation.selecionarContextoTim()
-          await dormir(300)
-          telaContexto.botao.click()
+          await pausaHumana(500, 1100)
+          await automation.cliqueHumano(telaContexto.botao)
           await dormir(PP_POLL_MS)
           continue
         }
@@ -237,7 +237,7 @@ async function rodarFluxo(job) {
 
       if (faseAtual === 'confirmando_fatura') {
         await pausaHumana(500, 1200)
-        if (automation.clicarConfirmarFatura()) {
+        if (await automation.clicarConfirmarFatura()) {
           faseAtual = 'metodo_envio'
           inicioFase = Date.now()
           await dormir(PP_POLL_MS)
@@ -277,7 +277,7 @@ async function rodarFluxo(job) {
           return
         }
         await pausaHumana(700, 1400)
-        if (!automation.clicarConfirmarGenerico()) {
+        if (!(await automation.clicarConfirmarGenerico())) {
           await avisarBackground('pp:erroPortal', { mensagem: 'Preenchi o e-mail mas não achei o botão Confirmar.' })
           return
         }
@@ -293,7 +293,7 @@ async function rodarFluxo(job) {
           continue
         }
         ppLog('Tela de conferência final (Destino do Email) — confirmando o envio.')
-        if (!automation.clicarConfirmarGenerico()) {
+        if (!(await automation.clicarConfirmarGenerico())) {
           await avisarBackground('pp:erroPortal', { mensagem: 'Cheguei na tela final mas não achei o botão Confirmar.' })
           return
         }
@@ -312,7 +312,7 @@ async function rodarFluxo(job) {
           continue
         }
         ppLog('Confirmado: "E-mail enviado com sucesso!"')
-        automation.clicarFechar()
+        await automation.clicarFechar()
         await avisarBackground('pp:emailEnviado', { linha: job.linha, chaveFatura: job._faturaAtualChave })
         return
       }
