@@ -204,6 +204,23 @@ function infoTecla(ch) {
   return { key: ch, code: '', vk: ch.toUpperCase().charCodeAt(0) }
 }
 
+// Uma operação de CDP por vez — duas ao mesmo tempo se atropelam (uma
+// desanexa o debugger enquanto a outra ainda está usando).
+let filaCdp = Promise.resolve()
+function naFila(fn) {
+  const rodar = filaCdp.then(fn, fn)
+  filaCdp = rodar.catch(() => {})
+  return rodar
+}
+
+// Cada comando do CDP tem prazo próprio: se travar, diz QUAL travou.
+function comandoCdp(alvo, metodo, params, prazoMs = 5000) {
+  return Promise.race([
+    chrome.debugger.sendCommand(alvo, metodo, params),
+    new Promise((_r, reject) => setTimeout(() => reject(new Error(`CDP travou em ${metodo} ${params?.type || ''}`)), prazoMs)),
+  ])
+}
+
 async function anexarDebugger(alvo) {
   // Limpa um anexo antigo NOSSO que tenha ficado preso.
   try { await chrome.debugger.detach(alvo) } catch { /* não estava anexado */ }
@@ -221,7 +238,7 @@ async function anexarDebugger(alvo) {
 async function cdpDigitar(tabId, modo, texto) {
   const alvo = { tabId }
   await anexarDebugger(alvo)
-  const cmd = (m, p) => chrome.debugger.sendCommand(alvo, m, p)
+  const cmd = (m, p) => comandoCdp(alvo, m, p)
   try {
     await cmd('Input.dispatchKeyEvent', { type: 'keyDown', commands: ['SelectAll'], key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65 })
     await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65 })
@@ -265,12 +282,12 @@ const ultimoPonteiro = {}
 async function cdpClicar(tabId, x, y) {
   const alvo = { tabId }
   await anexarDebugger(alvo)
-  const cmd = (m, p) => chrome.debugger.sendCommand(alvo, m, p)
+  const cmd = (m, p) => comandoCdp(alvo, m, p)
   try {
     const ini = ultimoPonteiro[tabId] || { x: aleatorio(50, 400), y: aleatorio(50, 300) }
     const c1 = { x: ini.x + (x - ini.x) * 0.3 + aleatorio(-60, 60), y: ini.y + (y - ini.y) * 0.1 + aleatorio(-60, 60) }
     const c2 = { x: ini.x + (x - ini.x) * 0.8 + aleatorio(-25, 25), y: ini.y + (y - ini.y) * 0.9 + aleatorio(-25, 25) }
-    const passos = Math.round(aleatorio(14, 26))
+    const passos = Math.round(aleatorio(10, 16))
     for (let i = 1; i <= passos; i++) {
       const t = i / passos
       const u = 1 - t
@@ -291,14 +308,14 @@ async function cdpClicar(tabId, x, y) {
 
 function cdpClicarComTimeout(tabId, x, y) {
   return Promise.race([
-    cdpClicar(tabId, x, y),
-    new Promise((_r, reject) => setTimeout(() => reject(new Error('timeout do CDP (clique)')), 15000)),
+    naFila(() => cdpClicar(tabId, x, y)),
+    new Promise((_r, reject) => setTimeout(() => reject(new Error('timeout do CDP (clique)')), 25000)),
   ])
 }
 
 function cdpDigitarComTimeout(tabId, modo, texto) {
   return Promise.race([
-    cdpDigitar(tabId, modo, texto),
+    naFila(() => cdpDigitar(tabId, modo, texto)),
     new Promise((_r, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 30000)),
   ])
 }
@@ -327,7 +344,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await encerrarClienteAtual(`ERRO: ${msg.mensagem}`)
       } else {
         const modoIdx = msg.trocarModo ? (Math.max(0, ['colar', 'teclas', 'inserir'].indexOf(msg.modoUsado)) + 1) % 3 : job.modoIdx
-        await reiniciarPortalComMesmoJob({ ...job, tentativas, modoIdx })
+        await reiniciarPortalComMesmoJob({ ...job, tentativas, modoIdx, fase: null })
       }
       return
     }
@@ -336,7 +353,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!job) return
       log('E-mail enviado para', job.custcode, '— conferindo se há mais faturas')
       const faturasProcessadas = [...job.faturasProcessadas, msg.chaveFatura]
-      await reiniciarPortalComMesmoJob({ ...job, faturasProcessadas, tentativas: 0 })
+      await reiniciarPortalComMesmoJob({ ...job, faturasProcessadas, tentativas: 0, fase: null })
       return
     }
 

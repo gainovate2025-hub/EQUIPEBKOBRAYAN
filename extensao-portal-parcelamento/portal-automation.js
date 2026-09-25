@@ -332,7 +332,7 @@ class PortalAutomation {
   // O Custcode NUNCA pode ir incompleto pro Buscar (ex: sem o "7."
   // inicial) — só clica Buscar depois de confirmar que o campo tem
   // EXATAMENTE o valor da planilha.
-  async preencherEBuscar(custcode, modoInicial = 0) {
+  async preencherEBuscar(custcode, modoInicial = 0, antesDeBuscar = null) {
     await this.garantirMotivo()
 
     const campo = this.campoCustcode()
@@ -340,6 +340,7 @@ class PortalAutomation {
     if (!r.ok) return r
 
     await pausaHumana(900, 1600)
+    if (antesDeBuscar) await antesDeBuscar()
     await this.cliqueHumano(this.botaoBuscar())
     return r
   }

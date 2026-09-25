@@ -134,18 +134,35 @@ async function avisarBackground(tipo, dados = {}) {
   }
 }
 
+// A fase fica gravada no job: várias telas do Portal são páginas NOVAS
+// (o content script recomeça do zero a cada uma). Sem isso, ao chegar na
+// tela de selecionar fatura ele achava que ainda não tinha buscado e
+// voltava pra tela do Custcode.
+async function salvarFase(job, fase) {
+  job.fase = fase
+  const atual = await pegarJob()
+  if (!atual) return
+  await chrome.storage.session.set({ pp_job: { ...atual, fase, _faturaAtualChave: job._faturaAtualChave ?? atual._faturaAtualChave } })
+}
+
 async function rodarFluxo(job) {
   const automation = new PortalAutomation(PORTAL_SELECTORS, ppLog)
   const modoIni = await modoInicial(job)
   let modoUsado = null
-  let faseAtual = 'busca'
-  let jaBuscou = false
+  let faseAtual = job.fase || 'busca'
+  let faseSalva = faseAtual
+  if (faseAtual !== 'busca') ppLog('Retomando na fase salva:', faseAtual)
+  let jaBuscou = faseAtual !== 'busca'
   let jaTentouNavegarBusca = false
   let cliquesBuscar = 0
   let ultimoCliqueBuscar = 0
   let inicioFase = Date.now()
 
   while (true) {
+    if (faseAtual !== faseSalva) {
+      faseSalva = faseAtual
+      await salvarFase(job, faseAtual)
+    }
     if (Date.now() - inicioFase > PP_TIMEOUT_MS) {
       await avisarBackground('pp:erroPortal', { mensagem: `travou na fase "${faseAtual}" — url: ${location.href}` })
       return
@@ -166,7 +183,7 @@ async function rodarFluxo(job) {
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
           ppLog('Preenchendo Custcode e buscando:', JSON.stringify(job.custcode))
-          const resultado = await automation.preencherEBuscar(job.custcode, modoIni)
+          const resultado = await automation.preencherEBuscar(job.custcode, modoIni, () => salvarFase(job, 'aguardando_resultado_busca'))
           if (!resultado.ok) {
             await avisarBackground('pp:erroPortal', {
               mensagem: `CUST CODE NÃO ENCONTRADO — não consegui colar direito, ficou "${resultado.valorFinal}".`,
@@ -176,6 +193,9 @@ async function rodarFluxo(job) {
           jaBuscou = true
           modoUsado = resultado.modo
           cliquesBuscar = 1
+          faseAtual = 'aguardando_resultado_busca'
+          faseSalva = faseAtual
+          await salvarFase(job, faseAtual)
           ultimoCliqueBuscar = Date.now()
           inicioFase = Date.now()
           await dormir(PP_POLL_MS)
@@ -239,7 +259,7 @@ async function rodarFluxo(job) {
         // 20 segundos e a tela continua igual (sem fatura, sem erro,
         // sem "sem fatura"), clica de novo — até 3 cliques no total.
         const aindaNaBusca = automation.detectarTelaBusca()
-        if (aindaNaBusca && cliquesBuscar < 3 && Date.now() - ultimoCliqueBuscar > 20000) {
+        if (aindaNaBusca && aindaNaBusca.campo.value && cliquesBuscar < 3 && Date.now() - ultimoCliqueBuscar > 20000) {
           cliquesBuscar += 1
           ppLog(`Tela não mudou depois do Buscar — clicando de novo (clique ${cliquesBuscar}).`)
           await pausaHumana(500, 1100)
@@ -352,4 +372,7 @@ async function iniciar() {
   await rodarFluxo(job)
 }
 
-iniciar()
+if (!window.__ppIniciado) {
+  window.__ppIniciado = true
+  iniciar()
+}
