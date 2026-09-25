@@ -39,7 +39,7 @@ const PORTAL_SELECTORS = {
   padraoErroValidacaoCustcode: /codigo do cliente invalido/,
 
   // MELHOR ESFORÇO — mensagem de "não tem fatura em aberto".
-  padraoSemFatura: /nao\s+(foram\s+encontrad\w*|ha|existe\w*)\s+fatur\w*|nenhuma\s+fatur\w*\s+em\s+aberto/,
+  padraoSemFatura: /nao\s+(foram\s+encontrad\w*|ha|existe\w*)\s+fatur\w*|nenhuma\s+fatur\w*\s+em\s+aberto|no\s+records\s+found|nenhum\s+registro\s+encontrado/,
 
   // CONFIRMADO por print — título da seção com a lista de faturas em
   // aberto pra escolher (cada uma com uma bolinha de rádio).

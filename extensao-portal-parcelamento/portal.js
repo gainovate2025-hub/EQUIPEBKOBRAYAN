@@ -265,6 +265,13 @@ async function rodarFluxo(job) {
           return
         }
 
+        // "No records found" na tabela pode aparecer um instante antes da
+        // lista carregar — confere de novo depois de 1,5s antes de decidir.
+        if (automation.pareceSemFatura()) {
+          await dormir(1500)
+          if (!automation.pareceSemFatura() || automation.listarFaturas().length > 0) continue
+        }
+
         if (automation.pareceSemFatura()) {
           await lembrarModo(modoUsado)
           if (job.faturasProcessadas.length > 0) {
