@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Portal Parcelamento — Envio de Faturas por E-mail",
-  "version": "2.3.12",
+  "version": "2.3.13",
   "description": "Consulta fatura no Portal Parcelamento TIM por Custcode e envia por e-mail (opção nativa do próprio Portal), atualizando a planilha.",
   "permissions": ["storage", "alarms", "debugger", "clipboardWrite"],
   "host_permissions": [

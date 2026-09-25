@@ -95,7 +95,9 @@ async function chamarAppsScript(config, params, metodo = 'GET') {
   url.searchParams.set('colStatus', config.colunaStatus)
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v))
 
-  const resposta = await fetch(url.toString(), { method: metodo, redirect: 'follow' })
+  // credentials:'omit' — sem cookies do Google: com várias contas logadas no
+  // navegador o Apps Script redireciona pra outra conta e devolve 404.
+  const resposta = await fetch(url.toString(), { method: metodo, redirect: 'follow', credentials: 'omit' })
   if (!resposta.ok) throw new Error(`Apps Script ${resposta.status}: ${await resposta.text()}`)
   return resposta.json()
 }
