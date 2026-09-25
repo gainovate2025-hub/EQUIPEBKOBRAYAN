@@ -21,7 +21,7 @@
 // -----------------------------------------------------------------------
 
 const PP_POLL_MS = 1000
-const PP_TIMEOUT_MS = 40000
+const PP_TIMEOUT_MS = 70000
 
 const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
 const ANON_KEY =
@@ -236,10 +236,10 @@ async function rodarFluxo(job) {
         }
 
         // O botão Buscar do Portal às vezes "engole" o clique: se passou
-        // uns segundos e a tela continua igual (sem fatura, sem erro,
+        // 20 segundos e a tela continua igual (sem fatura, sem erro,
         // sem "sem fatura"), clica de novo — até 3 cliques no total.
         const aindaNaBusca = automation.detectarTelaBusca()
-        if (aindaNaBusca && cliquesBuscar < 3 && Date.now() - ultimoCliqueBuscar > 4500) {
+        if (aindaNaBusca && cliquesBuscar < 3 && Date.now() - ultimoCliqueBuscar > 20000) {
           cliquesBuscar += 1
           ppLog(`Tela não mudou depois do Buscar — clicando de novo (clique ${cliquesBuscar}).`)
           await pausaHumana(500, 1100)
