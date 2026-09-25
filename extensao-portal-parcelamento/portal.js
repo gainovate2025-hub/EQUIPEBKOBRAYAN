@@ -277,7 +277,9 @@ async function rodarFluxo(job) {
 
       if (faseAtual === 'confirmando_fatura') {
         await pausaHumana(500, 1200)
+        ppLog('Procurando botão Confirmar da fatura…')
         if (await automation.clicarConfirmarFatura()) {
+          ppLog('Cliquei em Confirmar da fatura.')
           faseAtual = 'metodo_envio'
           inicioFase = Date.now()
           await dormir(PP_POLL_MS)

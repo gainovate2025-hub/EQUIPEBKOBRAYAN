@@ -29,6 +29,10 @@ function semAcento(txt) {
 // navegador (via chrome.debugger no background.js) — mas qual dos jeitos
 // o Portal aceita de verdade varia, então tenta um, CONFERE se o valor
 // entrou, e passa pro próximo se não entrou.
+// O clique real via CDP (Input.dispatchMouseEvent) trava nesse Portal —
+// fica desligado; o clique usa eventos de mouse do DOM.
+const USAR_MOUSE_CDP = false
+
 const MODOS_PREENCHIMENTO = ['colar', 'teclas', 'inserir']
 
 class PortalAutomation {
@@ -41,6 +45,29 @@ class PortalAutomation {
   // ponto qualquer DENTRO dele (não sempre o centro) e manda o background
   // mover o ponteiro por uma curva e clicar de verdade. Se o CDP falhar,
   // cai pro click() comum.
+  // Sequência de eventos de mouse como o navegador dispara num clique de
+  // verdade: o ponteiro entra, anda um pouco, aperta, solta, clica.
+  async cliqueSintetico(el, x, y) {
+    const base = { bubbles: true, cancelable: true, view: window, clientX: x, clientY: y, button: 0 }
+    const alvo = document.elementFromPoint(x, y) || el
+    for (const tipo of ['pointerover', 'mouseover', 'pointerenter', 'mouseenter']) {
+      alvo.dispatchEvent(new MouseEvent(tipo, base))
+    }
+    for (let i = 0; i < 3; i++) {
+      alvo.dispatchEvent(new MouseEvent('mousemove', { ...base, clientX: x + i, clientY: y }))
+      await pausaHumana(30, 90)
+    }
+    await pausaHumana(80, 220)
+    alvo.dispatchEvent(new MouseEvent('pointerdown', { ...base, buttons: 1 }))
+    alvo.dispatchEvent(new MouseEvent('mousedown', { ...base, buttons: 1 }))
+    if (typeof el.focus === 'function') el.focus()
+    await pausaHumana(50, 140)
+    alvo.dispatchEvent(new MouseEvent('pointerup', base))
+    alvo.dispatchEvent(new MouseEvent('mouseup', base))
+    // click() do próprio elemento — garante que o handler do PrimeFaces roda
+    ;(el.click ? el : alvo).click()
+  }
+
   async cliqueHumano(el) {
     if (!el) return false
     el.scrollIntoView({ block: 'center', behavior: 'auto' })
@@ -49,6 +76,10 @@ class PortalAutomation {
     if (r.width < 2 || r.height < 2) { el.click(); return false }
     const x = r.left + r.width * (0.25 + Math.random() * 0.5)
     const y = r.top + r.height * (0.3 + Math.random() * 0.4)
+    if (!USAR_MOUSE_CDP) {
+      await this.cliqueSintetico(el, x, y)
+      return true
+    }
     let resposta
     try {
       resposta = await Promise.race([
@@ -406,7 +437,10 @@ class PortalAutomation {
   }
 
   botaoConfirmarFatura() {
-    return document.querySelector(this.selectors.botaoConfirmarFaturaSeletor)
+    return (
+      document.querySelector(this.selectors.botaoConfirmarFaturaSeletor) ||
+      this.acharBotaoPorTexto(this.selectors.textosBotaoConfirmar)
+    )
   }
 
   async clicarConfirmarFatura() {
