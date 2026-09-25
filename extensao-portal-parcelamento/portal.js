@@ -173,6 +173,13 @@ async function rodarFluxo(job) {
     }
 
     try {
+      // Cada clique em Confirmar troca de página: se retomou numa fase que
+      // já ficou pra trás, pula direto pra fase que a tela mostra.
+      if (['confirmando_fatura', 'metodo_envio', 'preenchendo_email'].includes(faseAtual)) {
+        if (automation.pareceEmailEnviado()) faseAtual = 'aguardando_confirmacao_envio'
+        else if (automation.detectarTelaConfirmacaoFinal()) faseAtual = 'confirmando_final'
+        if (faseAtual !== faseSalva) continue
+      }
       if (faseAtual === 'busca') {
         const telaContexto = automation.detectarTelaContexto()
         if (telaContexto) {
@@ -330,6 +337,7 @@ async function rodarFluxo(job) {
           return
         }
         await pausaHumana(700, 1400)
+        await salvarFase(job, 'confirmando_final')
         if (!(await automation.clicarConfirmarGenerico())) {
           await avisarBackground('pp:erroPortal', { mensagem: 'Preenchi o e-mail mas não achei o botão Confirmar.' })
           return
@@ -346,6 +354,8 @@ async function rodarFluxo(job) {
           continue
         }
         ppLog('Tela de conferência final (Destino do Email) — confirmando o envio.')
+        await pausaHumana(900, 1800)
+        await salvarFase(job, 'aguardando_confirmacao_envio')
         if (!(await automation.clicarConfirmarGenerico())) {
           await avisarBackground('pp:erroPortal', { mensagem: 'Cheguei na tela final mas não achei o botão Confirmar.' })
           return
