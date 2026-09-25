@@ -141,6 +141,8 @@ async function rodarFluxo(job) {
   let faseAtual = 'busca'
   let jaBuscou = false
   let jaTentouNavegarBusca = false
+  let cliquesBuscar = 0
+  let ultimoCliqueBuscar = 0
   let inicioFase = Date.now()
 
   while (true) {
@@ -173,6 +175,8 @@ async function rodarFluxo(job) {
           }
           jaBuscou = true
           modoUsado = resultado.modo
+          cliquesBuscar = 1
+          ultimoCliqueBuscar = Date.now()
           inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
@@ -229,6 +233,18 @@ async function rodarFluxo(job) {
           inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
+        }
+
+        // O botão Buscar do Portal às vezes "engole" o clique: se passou
+        // uns segundos e a tela continua igual (sem fatura, sem erro,
+        // sem "sem fatura"), clica de novo — até 3 cliques no total.
+        const aindaNaBusca = automation.detectarTelaBusca()
+        if (aindaNaBusca && cliquesBuscar < 3 && Date.now() - ultimoCliqueBuscar > 4500) {
+          cliquesBuscar += 1
+          ppLog(`Tela não mudou depois do Buscar — clicando de novo (clique ${cliquesBuscar}).`)
+          await pausaHumana(500, 1100)
+          await automation.cliqueHumano(aindaNaBusca.botao)
+          ultimoCliqueBuscar = Date.now()
         }
 
         await dormir(PP_POLL_MS)
