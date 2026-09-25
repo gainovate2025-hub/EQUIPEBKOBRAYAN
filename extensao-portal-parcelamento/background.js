@@ -11,7 +11,7 @@
 // -----------------------------------------------------------------------
 
 const PORTAL_URL = 'https://portalparcelamento.timbrasil.com.br/pparcelamentos/appSgr/home/selecaoContexto.xhtml'
-const MAX_TENTATIVAS_PORTAL = 2
+const MAX_TENTATIVAS_PORTAL = 4
 const INTERVALO_CICLO_MINUTOS = 1
 
 // Mesmo projeto Supabase do resto do painel-bko.
@@ -21,8 +21,19 @@ const ANON_KEY =
 
 chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
 
+// Log também no banco (tabela parcelamento_logs) — dá pra diagnosticar
+// sem abrir o Console (que atrapalha o chrome.debugger).
+function dbLog(origem, custcode, mensagem) {
+  fetch(`${SUPABASE_URL}/rest/v1/parcelamento_logs`, {
+    method: 'POST',
+    headers: { apikey: ANON_KEY, Authorization: `Bearer ${ANON_KEY}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+    body: JSON.stringify({ origem, custcode: custcode || null, mensagem: String(mensagem).slice(0, 2000) }),
+  }).catch(() => {})
+}
+
 function log(...args) {
   console.log('[PortalParcelamento/bg]', ...args)
+  pegarJob().then((j) => dbLog('background', j?.custcode, args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' '))).catch(() => {})
 }
 
 function extrairSheetId(urlOuId) {
@@ -173,55 +184,83 @@ async function reiniciarPortalComMesmoJob(job) {
   await abrirAbaPortal()
 }
 
-// Confirmado ao vivo pelo Brayan: colar (Ctrl+V) na mão SEMPRE funciona
-// nos campos desse Portal — digitação simulada dá "Código do cliente
-// inválido" de vez em quando. Em vez de simular digitação, manda o
-// Chrome executar o comando de colar de VERDADE (o mesmo que roda
-// quando alguém aperta Ctrl+V) no elemento focado, via CDP — o
-// content-script já deixou o valor certo na área de transferência antes
-// de chamar isso. Sem clique nenhum da pessoa — só aparece a faixa
-// amarela do Chrome avisando "extensão depurando essa aba" no instante.
-async function colarComDebugger(tabId) {
-  const alvo = { tabId }
-  log('debugger: anexando na aba', tabId)
+// Preenchimento de campo via CDP (chrome.debugger): eventos de teclado/
+// colar REAIS do navegador, sem clique de ninguém. O Portal às vezes
+// recusa o valor conforme o jeito que ele entra, então há 3 modos —
+// 'colar' (comando Paste, valor já na área de transferência), 'teclas'
+// (tecla por tecla com intervalo variável, igual pessoa digitando) e
+// 'inserir' (Input.insertText). O content script tenta um, confere o
+// campo e, se não bateu, pede o próximo.
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms))
+const aleatorio = (min, max) => min + Math.random() * (max - min)
+
+function infoTecla(ch) {
+  if (/[0-9]/.test(ch)) return { key: ch, code: `Digit${ch}`, vk: 48 + Number(ch) }
+  if (/[a-zA-Z]/.test(ch)) return { key: ch, code: `Key${ch.toUpperCase()}`, vk: ch.toUpperCase().charCodeAt(0) }
+  if (ch === '.') return { key: '.', code: 'Period', vk: 190 }
+  if (ch === '@') return { key: '@', code: 'Digit2', vk: 50 }
+  if (ch === '-') return { key: '-', code: 'Minus', vk: 189 }
+  if (ch === '_') return { key: '_', code: 'Minus', vk: 189 }
+  return { key: ch, code: '', vk: ch.toUpperCase().charCodeAt(0) }
+}
+
+async function anexarDebugger(alvo) {
+  // Limpa um anexo antigo NOSSO que tenha ficado preso.
+  try { await chrome.debugger.detach(alvo) } catch { /* não estava anexado */ }
   try {
     await chrome.debugger.attach(alvo, '1.3')
   } catch (err) {
-    if (!String(err.message || '').includes('already attach')) throw err
-  }
-  log('debugger: anexado, colando')
-  try {
-    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      commands: ['SelectAll'],
-      key: 'a',
-    })
-    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'a' })
-    await new Promise((r) => setTimeout(r, 150))
-    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', {
-      type: 'keyDown',
-      commands: ['Paste'],
-      key: 'v',
-    })
-    await chrome.debugger.sendCommand(alvo, 'Input.dispatchKeyEvent', { type: 'keyUp', key: 'v' })
-    log('debugger: colou')
-  } finally {
-    try {
-      await chrome.debugger.detach(alvo)
-      log('debugger: desanexado')
-    } catch {
-      // já pode ter se desanexado sozinho (ex: aba fechou) — ignora
+    const m = String(err.message || '')
+    if (m.includes('already attached') || m.includes('Another debugger')) {
+      throw new Error('outra ferramenta de depuração está aberta nessa aba (feche o DevTools/F12)')
     }
+    throw err
   }
 }
 
-// Nunca deixa o pedido do content script pendurado pra sempre — se o CDP
-// travar por qualquer motivo, desiste depois de alguns segundos em vez
-// de travar o fluxo inteiro esperando uma resposta que nunca chega.
-function colarComDebuggerComTimeout(tabId) {
+async function cdpDigitar(tabId, modo, texto) {
+  const alvo = { tabId }
+  await anexarDebugger(alvo)
+  const cmd = (m, p) => chrome.debugger.sendCommand(alvo, m, p)
+  try {
+    await cmd('Input.dispatchKeyEvent', { type: 'keyDown', commands: ['SelectAll'], key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65 })
+    await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65 })
+    await esperar(aleatorio(120, 260))
+
+    if (modo === 'colar') {
+      await cmd('Input.dispatchKeyEvent', { type: 'keyDown', commands: ['Paste'], key: 'v', code: 'KeyV', windowsVirtualKeyCode: 86 })
+      await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'v', code: 'KeyV', windowsVirtualKeyCode: 86 })
+      return
+    }
+
+    // Apaga a seleção antes de escrever por cima.
+    await cmd('Input.dispatchKeyEvent', { type: 'rawKeyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 })
+    await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 })
+    await esperar(aleatorio(120, 260))
+
+    if (modo === 'inserir') {
+      await cmd('Input.insertText', { text: texto })
+      return
+    }
+
+    // modo 'teclas'
+    for (const ch of texto) {
+      const t = infoTecla(ch)
+      await cmd('Input.dispatchKeyEvent', {
+        type: 'keyDown', text: ch, unmodifiedText: ch, key: t.key, code: t.code, windowsVirtualKeyCode: t.vk,
+      })
+      await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: t.key, code: t.code, windowsVirtualKeyCode: t.vk })
+      await esperar(aleatorio(60, 130))
+    }
+  } finally {
+    try { await chrome.debugger.detach(alvo) } catch { /* já desanexou */ }
+  }
+}
+
+function cdpDigitarComTimeout(tabId, modo, texto) {
   return Promise.race([
-    colarComDebugger(tabId),
-    new Promise((_resolve, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 8000)),
+    cdpDigitar(tabId, modo, texto),
+    new Promise((_r, reject) => setTimeout(() => reject(new Error('timeout do CDP')), 30000)),
   ])
 }
 
@@ -248,7 +287,8 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (tentativas >= MAX_TENTATIVAS_PORTAL) {
         await encerrarClienteAtual(`ERRO: ${msg.mensagem}`)
       } else {
-        await reiniciarPortalComMesmoJob({ ...job, tentativas })
+        const modoIdx = msg.trocarModo ? (Math.max(0, ['colar', 'teclas', 'inserir'].indexOf(msg.modoUsado)) + 1) % 3 : job.modoIdx
+        await reiniciarPortalComMesmoJob({ ...job, tentativas, modoIdx })
       }
       return
     }
@@ -261,14 +301,19 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return
     }
 
-    if (msg?.tipo === 'pp:colarComDebugger') {
+    if (msg?.tipo === 'pp:cdpDigitar') {
       try {
-        await colarComDebuggerComTimeout(_sender.tab.id)
+        await cdpDigitarComTimeout(_sender.tab.id, msg.modo, msg.texto)
         sendResponse({ ok: true })
       } catch (err) {
-        log('Falha ao colar via debugger:', err.message)
+        log(`Falha no CDP (${msg.modo}):`, err.message)
         sendResponse({ ok: false, erro: err.message })
       }
+      return
+    }
+
+    if (msg?.tipo === 'pp:log') {
+      dbLog('pagina', msg.custcode, msg.mensagem)
       return
     }
 

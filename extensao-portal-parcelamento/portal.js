@@ -29,6 +29,23 @@ const ANON_KEY =
 
 function ppLog(...args) {
   console.log('[PortalParcelamento]', ...args)
+  const texto = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
+  chrome.storage.session.get('pp_job').then(({ pp_job: j }) => {
+    chrome.runtime.sendMessage({ tipo: 'pp:log', custcode: j?.custcode, mensagem: texto }).catch(() => {})
+  }).catch(() => {})
+}
+
+const MODOS = ['colar', 'teclas', 'inserir']
+
+async function modoInicial(job) {
+  if (typeof job.modoIdx === 'number') return job.modoIdx
+  const { pp_modo_ok: ok } = await chrome.storage.local.get('pp_modo_ok')
+  const i = MODOS.indexOf(ok)
+  return i >= 0 ? i : 0
+}
+
+async function lembrarModo(modo) {
+  if (MODOS.includes(modo)) await chrome.storage.local.set({ pp_modo_ok: modo })
 }
 
 function dormir(ms) {
@@ -118,7 +135,9 @@ async function avisarBackground(tipo, dados = {}) {
 }
 
 async function rodarFluxo(job) {
-  const automation = new PortalAutomation(PORTAL_SELECTORS)
+  const automation = new PortalAutomation(PORTAL_SELECTORS, ppLog)
+  const modoIni = await modoInicial(job)
+  let modoUsado = null
   let faseAtual = 'busca'
   let jaBuscou = false
   let jaTentouNavegarBusca = false
@@ -145,7 +164,7 @@ async function rodarFluxo(job) {
         const telaBusca = automation.detectarTelaBusca()
         if (telaBusca && !jaBuscou) {
           ppLog('Preenchendo Custcode e buscando:', JSON.stringify(job.custcode))
-          const resultado = await automation.preencherEBuscar(job.custcode)
+          const resultado = await automation.preencherEBuscar(job.custcode, modoIni)
           if (!resultado.ok) {
             await avisarBackground('pp:erroPortal', {
               mensagem: `CUST CODE NÃO ENCONTRADO — não consegui colar direito, ficou "${resultado.valorFinal}".`,
@@ -153,6 +172,7 @@ async function rodarFluxo(job) {
             return
           }
           jaBuscou = true
+          modoUsado = resultado.modo
           inicioFase = Date.now()
           await dormir(PP_POLL_MS)
           continue
@@ -177,11 +197,14 @@ async function rodarFluxo(job) {
         if (automation.pareceErroValidacao()) {
           await avisarBackground('pp:erroPortal', {
             mensagem: `CUST CODE NÃO ENCONTRADO — Portal recusou "${job.custcode}" como inválido.`,
+            trocarModo: true,
+            modoUsado,
           })
           return
         }
 
         if (automation.pareceSemFatura()) {
+          await lembrarModo(modoUsado)
           if (job.faturasProcessadas.length > 0) {
             await avisarBackground('pp:clienteConcluido', { linha: job.linha })
           } else {
@@ -193,6 +216,8 @@ async function rodarFluxo(job) {
 
         const proxima = automation.proximaFaturaNaoProcessada(job.faturasProcessadas)
         if (proxima) {
+          await lembrarModo(modoUsado)
+          await pausaHumana(600, 1400)
           ppLog('Selecionando fatura:', proxima.chave.slice(0, 60))
           const marcou = await automation.selecionarFatura(proxima)
           if (!marcou) {
@@ -211,6 +236,7 @@ async function rodarFluxo(job) {
       }
 
       if (faseAtual === 'confirmando_fatura') {
+        await pausaHumana(500, 1200)
         if (automation.clicarConfirmarFatura()) {
           faseAtual = 'metodo_envio'
           inicioFase = Date.now()
@@ -243,14 +269,14 @@ async function rodarFluxo(job) {
           await dormir(PP_POLL_MS)
           continue
         }
-        const resultado = await automation.preencherEmailDestinatario(job.email)
+        const resultado = await automation.preencherEmailDestinatario(job.email, modoIni)
         if (!resultado.ok) {
           await avisarBackground('pp:erroPortal', {
             mensagem: `Não consegui colar o e-mail direito — ficou "${resultado.valorFinal}".`,
           })
           return
         }
-        await dormir(400)
+        await pausaHumana(700, 1400)
         if (!automation.clicarConfirmarGenerico()) {
           await avisarBackground('pp:erroPortal', { mensagem: 'Preenchi o e-mail mas não achei o botão Confirmar.' })
           return
@@ -298,7 +324,7 @@ async function rodarFluxo(job) {
 }
 
 async function iniciar() {
-  const automation = new PortalAutomation(PORTAL_SELECTORS)
+  const automation = new PortalAutomation(PORTAL_SELECTORS, ppLog)
 
   while (await tentarResolverLogin(automation)) {
     await dormir(PP_POLL_MS)

@@ -10,6 +10,12 @@ function dormir(ms) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
+// Pausa com tempo aleatório entre min e max — pessoa de verdade nunca
+// clica com o mesmo intervalo exato toda vez.
+function pausaHumana(min = 400, max = 1100) {
+  return dormir(min + Math.random() * (max - min))
+}
+
 function semAcento(txt) {
   return (txt || '')
     .normalize('NFD')
@@ -17,9 +23,18 @@ function semAcento(txt) {
     .toLowerCase()
 }
 
+// Jeitos de colocar um valor num campo do Portal, do mais parecido com
+// uma pessoa colando ao mais "técnico". O campo do Custcode/e-mail só
+// aceita bem valor que entra por evento REAL de teclado/colar do
+// navegador (via chrome.debugger no background.js) — mas qual dos jeitos
+// o Portal aceita de verdade varia, então tenta um, CONFERE se o valor
+// entrou, e passa pro próximo se não entrou.
+const MODOS_PREENCHIMENTO = ['colar', 'teclas', 'inserir']
+
 class PortalAutomation {
-  constructor(selectors) {
+  constructor(selectors, logger) {
     this.selectors = selectors
+    this.log = logger || ((...args) => console.log('[PortalParcelamento]', ...args))
   }
 
   definirValorInput(input, valor) {
@@ -31,8 +46,9 @@ class PortalAutomation {
     input.dispatchEvent(new Event('blur', { bubbles: true }))
   }
 
-  // Reforço simples (execCommand) pros campos de login SSO — mais leve
-  // que o CDP, e esses campos nunca deram o mesmo problema do Custcode.
+  // Reforço simples (execCommand) — usado nos campos de login SSO (nunca
+  // deram o problema do Custcode) e como ÚLTIMO recurso se nenhum modo
+  // do chrome.debugger funcionar.
   digitarDeVerdade(input, valor) {
     input.focus()
     input.select()
@@ -49,7 +65,8 @@ class PortalAutomation {
     try {
       await navigator.clipboard.writeText(texto)
       return true
-    } catch {
+    } catch (err) {
+      this.log('clipboard.writeText falhou:', err.message, '— tentando execCommand("copy")')
       const textarea = document.createElement('textarea')
       textarea.value = texto
       textarea.style.position = 'fixed'
@@ -63,43 +80,58 @@ class PortalAutomation {
     }
   }
 
-  // Confirmado ao vivo: colar de verdade (Ctrl+V) sempre funciona nos
-  // campos desse Portal — digitação simulada por JS às vezes não. Copia
-  // o valor pra área de transferência e pede pro background (via
-  // chrome.debugger) selecionar tudo + colar de verdade — mesma técnica
-  // usada tanto pro Custcode quanto pro campo de e-mail.
-  async colarViaDebugger(input, valor) {
-    const log = (...args) => console.log('[PortalParcelamento]', ...args)
-
+  // Tenta UM modo de preenchimento e confere o resultado no campo.
+  // Loga também o foco (se o documento/campo estava com foco na hora) —
+  // é a primeira coisa a checar quando o valor não entra.
+  async preencherCampoComModo(input, valor, modo) {
     input.focus()
-    await dormir(200)
+    await pausaHumana(150, 350)
 
-    const copiou = await this.copiarParaAreaDeTransferencia(valor)
-    log('copiou pra área de transferência?', copiou, '| valor:', JSON.stringify(valor))
-    await dormir(150)
+    if (modo === 'colar') {
+      const copiou = await this.copiarParaAreaDeTransferencia(valor)
+      this.log(`[${modo}] copiou pra área de transferência?`, copiou)
+      await dormir(150)
+    }
 
-    // O pedido pro background pode ficar pendurado sem nunca responder
-    // — corre contra um timeout pra nunca travar a automação esperando.
     let resposta
     try {
       resposta = await Promise.race([
-        chrome.runtime.sendMessage({ tipo: 'pp:colarComDebugger' }),
-        new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout' }), 9000)),
+        chrome.runtime.sendMessage({ tipo: 'pp:cdpDigitar', modo, texto: valor }),
+        new Promise((resolve) => setTimeout(() => resolve({ ok: false, erro: 'timeout esperando o background' }), 30000)),
       ])
     } catch (err) {
       resposta = { ok: false, erro: err.message }
     }
-    log('resposta do background:', JSON.stringify(resposta), '| valor do campo agora:', JSON.stringify(input.value))
 
-    if (!resposta?.ok) {
-      log('chrome.debugger não respondeu (' + (resposta?.erro || '?') + ') — usando reforço simples.')
-      this.digitarDeVerdade(input, valor)
+    await dormir(350)
+    const bateu = input.value === valor
+    this.log(
+      `[${modo}] resposta do background:`, JSON.stringify(resposta),
+      '| campo:', JSON.stringify(input.value),
+      '| esperado:', JSON.stringify(valor),
+      '| bateu?', bateu,
+      '| campo com foco?', document.activeElement === input,
+      '| documento com foco?', document.hasFocus()
+    )
+    return { ok: bateu, valorFinal: input.value }
+  }
+
+  // Tenta os modos em ordem (começando pelo que já funcionou antes, se
+  // souber), até um deles fazer o valor entrar certinho no campo.
+  async preencherComFallback(input, valor, modoInicial = 0) {
+    for (let i = 0; i < MODOS_PREENCHIMENTO.length; i++) {
+      const modo = MODOS_PREENCHIMENTO[(modoInicial + i) % MODOS_PREENCHIMENTO.length]
+      const r = await this.preencherCampoComModo(input, valor, modo)
+      if (r.ok) return { ok: true, modo, valorFinal: r.valorFinal }
+      this.log(`Modo "${modo}" não fez o valor entrar — tentando o próximo.`)
+      await pausaHumana(400, 800)
     }
 
+    this.digitarDeVerdade(input, valor)
     await dormir(300)
-    const bateu = input.value === valor
-    log('colou certo?', bateu, '| valor final:', JSON.stringify(input.value), '| esperado:', JSON.stringify(valor))
-    return bateu
+    const ok = input.value === valor
+    this.log('[execCommand] último recurso — bateu?', ok, '| campo:', JSON.stringify(input.value))
+    return { ok, modo: ok ? 'execCommand' : null, valorFinal: input.value }
   }
 
   // Acha um botão/link cujo texto OU aria-label contenha um dos alvos
@@ -128,10 +160,9 @@ class PortalAutomation {
   // usado pras telas de login (USERNAME, TOKEN) e pro campo de
   // Destinatários do e-mail, que não têm id fixo conhecido.
   //
-  // IMPORTANTE: quando dois campos ficam perto um do outro, subir níveis
-  // demais a partir de UM input só pode achar um container-pai que
-  // engloba os DOIS rótulos por engano. Por isso sobe nível por nível
-  // testando TODOS os inputs em cada nível antes de subir mais um.
+  // Sobe nível por nível testando TODOS os inputs em cada nível antes de
+  // subir mais um — assim o container mais PRÓXIMO de algum input sempre
+  // ganha de um container genérico compartilhado entre vários campos.
   acharCampoPorRotulo(rotulo) {
     const alvo = semAcento(rotulo)
     const inputs = [...document.querySelectorAll('input')]
@@ -164,7 +195,7 @@ class PortalAutomation {
 
   async preencherUsuarioEAvancar(etapa, usuario) {
     this.digitarDeVerdade(etapa.campo, usuario)
-    await dormir(400)
+    await pausaHumana(500, 1000)
     etapa.botao.click()
   }
 
@@ -178,7 +209,7 @@ class PortalAutomation {
 
   async preencherTokenEEntrar(etapa, token) {
     this.digitarDeVerdade(etapa.campo, token)
-    await dormir(400)
+    await pausaHumana(500, 1000)
     etapa.botao.click()
   }
 
@@ -239,39 +270,48 @@ class PortalAutomation {
     return campo && botao ? { campo, botao } : null
   }
 
+  // Texto que o combo Motivo mostra na tela agora (o rótulo visível do
+  // componente PrimeFaces, não o <select> escondido) — pra log.
+  textoMotivoVisivel() {
+    const rotulo = document.querySelector('[id="form1:motivoGSM_label"]')
+    return rotulo ? (rotulo.textContent || '').trim() : '(rótulo não achado)'
+  }
+
   // Garante que o Motivo está em "Segunda Via de Conta" — confirmado ao
   // vivo que NEM SEMPRE vem assim por padrão (às vezes começa em
   // "Selecione"), então checa e só mexe se precisar.
   async garantirMotivo() {
     const combo = this.comboMotivo()
-    if (!combo) return false
+    if (!combo) {
+      this.log('Motivo: combo não encontrado na tela')
+      return false
+    }
     const opcaoAtual = combo.options[combo.selectedIndex]
+    this.log('Motivo antes — select:', opcaoAtual?.textContent?.trim(), '| visível:', this.textoMotivoVisivel())
     if (opcaoAtual && semAcento(opcaoAtual.textContent).includes(this.selectors.motivoAlvoTexto)) return true
 
     const alvo = [...combo.options].find((o) => semAcento(o.textContent).includes(this.selectors.motivoAlvoTexto))
     if (!alvo) return false
     combo.value = alvo.value
     combo.dispatchEvent(new Event('change', { bubbles: true }))
-    await dormir(300)
+    await dormir(500)
+    this.log('Motivo depois — visível:', this.textoMotivoVisivel())
     return true
   }
 
-  async preencherEBuscar(custcode) {
+  // O Custcode NUNCA pode ir incompleto pro Buscar (ex: sem o "7."
+  // inicial) — só clica Buscar depois de confirmar que o campo tem
+  // EXATAMENTE o valor da planilha.
+  async preencherEBuscar(custcode, modoInicial = 0) {
     await this.garantirMotivo()
 
     const campo = this.campoCustcode()
-    let colouCerto = false
-    for (let tentativa = 1; tentativa <= 3 && !colouCerto; tentativa++) {
-      colouCerto = await this.colarViaDebugger(campo, custcode)
-      if (!colouCerto) {
-        console.log(`[PortalParcelamento] tentativa ${tentativa}/3: Custcode não bateu — campo ficou "${campo.value}", esperado "${custcode}". Tentando de novo.`)
-      }
-    }
-    if (!colouCerto) return { ok: false, valorFinal: campo.value }
+    const r = await this.preencherComFallback(campo, custcode, modoInicial)
+    if (!r.ok) return r
 
-    await dormir(400)
+    await pausaHumana(900, 1600)
     this.botaoBuscar().click()
-    return { ok: true }
+    return r
   }
 
   textoDaTela() {
@@ -329,7 +369,7 @@ class PortalAutomation {
     for (let tentativa = 1; tentativa <= 3; tentativa++) {
       if (this.radioEstaMarcada(fatura.linha || fatura.elemento)) return true
       fatura.elemento.click()
-      await dormir(300)
+      await dormir(400)
     }
     return this.radioEstaMarcada(fatura.linha || fatura.elemento)
   }
@@ -363,7 +403,7 @@ class PortalAutomation {
     for (let tentativa = 1; tentativa <= 3; tentativa++) {
       if (this.radioEstaMarcada(linha)) return true
       bolinha.click()
-      await dormir(300)
+      await dormir(400)
     }
     return this.radioEstaMarcada(linha)
   }
@@ -374,14 +414,10 @@ class PortalAutomation {
     return this.acharCampoPorRotulo(this.selectors.textoRotuloDestinatarios)
   }
 
-  async preencherEmailDestinatario(email) {
+  async preencherEmailDestinatario(email, modoInicial = 0) {
     const campo = this.campoDestinatarios()
-    if (!campo) return { ok: false }
-    let colouCerto = false
-    for (let tentativa = 1; tentativa <= 3 && !colouCerto; tentativa++) {
-      colouCerto = await this.colarViaDebugger(campo, email)
-    }
-    return { ok: colouCerto, valorFinal: campo.value }
+    if (!campo) return { ok: false, valorFinal: '' }
+    return this.preencherComFallback(campo, email, modoInicial)
   }
 
   clicarConfirmarGenerico() {
