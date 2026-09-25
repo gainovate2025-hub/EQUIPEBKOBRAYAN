@@ -179,7 +179,12 @@ async function rodarFluxo(job) {
       await salvarFase(job, faseAtual)
     }
     if (Date.now() - inicioFase > PP_TIMEOUT_MS) {
-      await avisarBackground('pp:erroPortal', { mensagem: `travou na fase "${faseAtual}" — url: ${location.href}` })
+      // Se travou DEPOIS de clicar no Confirmar final, o e-mail pode ter
+      // sido enviado mesmo assim — não repete (evita mandar 2x).
+      await avisarBackground('pp:erroPortal', {
+        mensagem: `travou na fase "${faseAtual}" — url: ${location.href}`,
+        naoRepetir: faseAtual === 'aguardando_confirmacao_envio',
+      })
       return
     }
 

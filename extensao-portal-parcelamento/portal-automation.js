@@ -560,7 +560,9 @@ class PortalAutomation {
   // enviado com sucesso!" — essa é a confirmação de verdade de que o
   // e-mail foi enviado (não basta o clique ter "funcionado").
   pareceEmailEnviado() {
-    return semAcento(this.textoDaTela()).includes(this.selectors.textoSucessoEnvio)
+    // A tela escreve "E-mail" com hífen — tira o hífen antes de comparar.
+    const texto = semAcento(this.textoDaTela()).replace(/-/g, '')
+    return texto.includes(this.selectors.textoSucessoEnvio) || texto.includes('enviado com sucesso')
   }
 
   async clicarFechar() {

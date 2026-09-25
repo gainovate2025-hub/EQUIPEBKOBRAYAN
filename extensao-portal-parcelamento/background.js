@@ -333,7 +333,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
 
     if (msg?.tipo === 'pp:clienteConcluido') {
       log('Cliente concluído:', job?.custcode)
-      await encerrarClienteAtual('FATURA ENVIADA POR EMAIL')
+      await encerrarClienteAtual('FATURA ENVIADA')
       return
     }
 
@@ -341,7 +341,9 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!job) return
       const tentativas = (job.tentativas || 0) + 1
       log(`Erro no Portal (tentativa ${tentativas}):`, msg.mensagem)
-      if (tentativas >= MAX_TENTATIVAS_PORTAL) {
+      if (msg.naoRepetir) {
+        await encerrarClienteAtual(`ERRO: não vi a confirmação do envio — conferir manualmente (${msg.mensagem.slice(0, 80)})`)
+      } else if (tentativas >= MAX_TENTATIVAS_PORTAL) {
         await encerrarClienteAtual(`ERRO: ${msg.mensagem}`)
       } else {
         const modoIdx = msg.trocarModo ? (Math.max(0, ['colar', 'teclas', 'inserir'].indexOf(msg.modoUsado)) + 1) % 3 : job.modoIdx
