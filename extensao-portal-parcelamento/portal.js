@@ -30,9 +30,13 @@ const ANON_KEY =
 function ppLog(...args) {
   console.log('[PortalParcelamento]', ...args)
   const texto = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
-  chrome.storage.session.get('pp_job').then(({ pp_job: j }) => {
-    chrome.runtime.sendMessage({ tipo: 'pp:log', custcode: j?.custcode, mensagem: texto }).catch(() => {})
-  }).catch(() => {})
+  try {
+    chrome.storage.session.get('pp_job').then(({ pp_job: j }) => {
+      chrome.runtime.sendMessage({ tipo: 'pp:log', custcode: j?.custcode, mensagem: texto }).catch(() => {})
+    }).catch(() => {})
+  } catch {
+    // extensão foi recarregada com essa aba aberta — dê F5 na aba
+  }
 }
 
 const MODOS = ['colar', 'teclas', 'inserir']
