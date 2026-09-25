@@ -377,6 +377,12 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       return
     }
 
+    if (msg?.tipo === 'pp:dadoErrado') {
+      log('E-mail inválido para', job?.custcode, '— DADO ERRADO')
+      await encerrarClienteAtual('DADO ERRADO')
+      return
+    }
+
     if (msg?.tipo === 'pp:clienteConcluido') {
       log('Cliente concluído:', job?.custcode)
       await encerrarClienteAtual('FATURA ENVIADA')

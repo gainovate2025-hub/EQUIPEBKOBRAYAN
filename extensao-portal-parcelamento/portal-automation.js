@@ -565,6 +565,15 @@ class PortalAutomation {
     return texto.includes(this.selectors.textoSucessoEnvio) || texto.includes('enviado com sucesso')
   }
 
+  // Banner vermelho do Portal quando o e-mail da planilha é inválido.
+  pareceEmailInvalido() {
+    return /informe\s+emails?\s+validos?|emails?\s+invalido/.test(semAcento(this.textoDaTela()))
+  }
+
+  emailComFormatoValido(email) {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((email || '').trim())
+  }
+
   async clicarFechar() {
     const botao = this.acharBotaoPorTexto([this.selectors.textoBotaoFechar])
     if (botao) { await this.cliqueHumano(botao); return true }

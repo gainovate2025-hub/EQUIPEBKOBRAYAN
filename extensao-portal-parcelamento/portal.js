@@ -189,6 +189,14 @@ async function rodarFluxo(job) {
     }
 
     try {
+      // E-mail da planilha recusado pelo Portal ("Por favor, informe emails
+      // válidos"): marca DADO ERRADO e passa pro próximo cliente.
+      if (['preenchendo_email', 'confirmando_final', 'aguardando_confirmacao_envio'].includes(faseAtual) && automation.pareceEmailInvalido()) {
+        ppLog('Portal recusou o e-mail — marcando DADO ERRADO.')
+        await avisarBackground('pp:dadoErrado', { linha: job.linha })
+        return
+      }
+
       // Cada clique em Confirmar troca de página: se retomou numa fase que
       // já ficou pra trás, pula direto pra fase que a tela mostra.
       if (['confirmando_fatura', 'metodo_envio', 'preenchendo_email'].includes(faseAtual)) {
@@ -361,7 +369,12 @@ async function rodarFluxo(job) {
           await dormir(PP_POLL_MS)
           continue
         }
-        const resultado = await automation.preencherEmailDestinatario(job.email, modoIni)
+        if (!automation.emailComFormatoValido(job.email)) {
+          ppLog('E-mail da planilha com formato inválido:', JSON.stringify(job.email))
+          await avisarBackground('pp:dadoErrado', { linha: job.linha })
+          return
+        }
+        const resultado = await automation.preencherEmailDestinatario((job.email || '').trim(), modoIni)
         if (!resultado.ok) {
           await avisarBackground('pp:erroPortal', {
             mensagem: `Não consegui colar o e-mail direito — ficou "${resultado.valorFinal}".`,
