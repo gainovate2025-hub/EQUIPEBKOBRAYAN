@@ -344,7 +344,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
         await encerrarClienteAtual(`ERRO: ${msg.mensagem}`)
       } else {
         const modoIdx = msg.trocarModo ? (Math.max(0, ['colar', 'teclas', 'inserir'].indexOf(msg.modoUsado)) + 1) % 3 : job.modoIdx
-        await reiniciarPortalComMesmoJob({ ...job, tentativas, modoIdx, fase: null })
+        await reiniciarPortalComMesmoJob({ ...job, tentativas, modoIdx, fase: null, navBusca: 0 })
       }
       return
     }
@@ -353,7 +353,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (!job) return
       log('E-mail enviado para', job.custcode, '— conferindo se há mais faturas')
       const faturasProcessadas = [...job.faturasProcessadas, msg.chaveFatura]
-      await reiniciarPortalComMesmoJob({ ...job, faturasProcessadas, tentativas: 0, fase: null })
+      await reiniciarPortalComMesmoJob({ ...job, faturasProcessadas, tentativas: 0, fase: null, navBusca: 0 })
       return
     }
 

@@ -207,10 +207,21 @@ async function rodarFluxo(job) {
         }
         if (!telaBusca && !jaBuscou) {
           if (!jaTentouNavegarBusca) {
-            ppLog('Tela sem campo de busca nem de contexto — indo direto pra tela de busca.')
             jaTentouNavegarBusca = true
-            location.href = PORTAL_SELECTORS.urlTelaBusca
-            return
+            const atual = await pegarJob()
+            const navegadas = atual?.navBusca || 0
+            const naAppDoPortal = location.hostname.includes('portalparcelamento') && location.pathname.includes('appSgr')
+            const paginaDeErro = /sessionexpired|login|erro|error/i.test(location.pathname)
+            ppLog('Sem campo de busca nem de contexto — url:', location.href, '| já naveguei:', navegadas)
+            // Limite de 2 idas pra tela de busca por cliente: sem isso, se a
+            // tela de destino também não tiver o campo (sessão caída, outro
+            // navegador sem login), a página recarrega sem parar.
+            if (naAppDoPortal && !paginaDeErro && navegadas < 2) {
+              await chrome.storage.session.set({ pp_job: { ...atual, navBusca: navegadas + 1 } })
+              location.href = PORTAL_SELECTORS.urlTelaBusca
+              return
+            }
+            ppLog('Não vou navegar de novo — aguardando a tela certa (faça o login no Portal se estiver deslogado).')
           }
           await dormir(PP_POLL_MS)
           continue
