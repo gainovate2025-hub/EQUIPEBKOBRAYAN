@@ -16,7 +16,7 @@ export default function BkoLayout() {
     { to: '/bko', label: 'Meu Dashboard', end: true, icon: LayoutDashboard },
     { to: '/bko/contestacoes', label: contestacaoLabel, icon: FileText },
     { to: '/bko/reagendamentos', label: 'Meus Reagendamentos', icon: CalendarClock },
-    { to: '/bko/registro-diario', label: 'Registro diário', icon: ClipboardList },
+    { to: '/bko/registro-diario', label: 'Relatório', icon: ClipboardList },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
   ]

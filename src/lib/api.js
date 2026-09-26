@@ -107,6 +107,29 @@ export async function submitDailyReport(reagendamentos) {
   if (error) throw new Error(error.message || 'Falha ao enviar registro diário.')
 }
 
+// Relatório do BKO (aba única): reagendamentos, contestações e faturas —
+// basta um dos três. Só reagendamento soma na meta/comissão.
+export async function submitRelatorio({ reagendamentos = 0, contestacoes = 0, faturas = 0 }) {
+  const { error } = await supabase.rpc('submit_relatorio_diario', {
+    p_reagendamentos: reagendamentos,
+    p_contestacoes: contestacoes,
+    p_faturas: faturas,
+  })
+  if (error) throw new Error(error.message || 'Falha ao enviar o relatório.')
+}
+
+export async function fetchTeamRelatorios(teamId) {
+  let query = supabase
+    .from('daily_reports')
+    .select(`*, profiles!daily_reports_user_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
+    .order('created_at', { ascending: false })
+    .limit(200)
+  if (teamId) query = query.eq('profiles.team_id', teamId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
 // ---------- contestações (fluxo de aprovação) ----------
 
 export async function submitContestacao(custCode, observacao) {

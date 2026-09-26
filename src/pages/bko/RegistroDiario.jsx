@@ -4,32 +4,41 @@ import SectionHeading from '../../components/ui/SectionHeading'
 import DataTable from '../../components/ui/DataTable'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
-import { submitDailyReport } from '../../lib/api'
+import { submitRelatorio } from '../../lib/api'
 import { fmtDateTime } from '../../lib/helpers'
 
 const COLUMNS = [
   { key: 'date', label: 'Quando', width: '1.5fr' },
   { key: 'reagendamentos', label: 'Reagendamentos', width: '1fr', align: 'right' },
+  { key: 'contestacoes', label: 'Contestações', width: '1fr', align: 'right' },
+  { key: 'faturas', label: 'Faturas', width: '1fr', align: 'right' },
+]
+
+const CAMPOS = [
+  { key: 'reagendamentos', label: 'Reagendamentos feitos' },
+  { key: 'contestacoes', label: 'Contestações feitas' },
+  { key: 'faturas', label: 'Faturas' },
 ]
 
 export default function RegistroDiario() {
   const { dailyReports, loading, reload } = useBkoData()
   const { toast, showToast } = useToast()
-  const [reagendamentos, setReagendamentos] = useState('')
+  const [valores, setValores] = useState({ reagendamentos: '', contestacoes: '', faturas: '' })
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const r = parseInt(reagendamentos, 10) || 0
-    if (r <= 0) {
-      showToast('Informe uma quantidade.', 'error')
+    const n = (k) => Math.max(parseInt(valores[k], 10) || 0, 0)
+    const dados = { reagendamentos: n('reagendamentos'), contestacoes: n('contestacoes'), faturas: n('faturas') }
+    if (dados.reagendamentos + dados.contestacoes + dados.faturas <= 0) {
+      showToast('Preencha pelo menos um dos campos.', 'error')
       return
     }
     setSaving(true)
     try {
-      await submitDailyReport(r)
-      setReagendamentos('')
-      showToast('Registro enviado — seus totais já foram atualizados.')
+      await submitRelatorio(dados)
+      setValores({ reagendamentos: '', contestacoes: '', faturas: '' })
+      showToast('Relatório enviado.')
       reload()
     } catch (err) {
       showToast(err.message, 'error')
@@ -38,28 +47,39 @@ export default function RegistroDiario() {
     }
   }
 
-  const rows = dailyReports
-    .filter((r) => r.reagendamentos > 0)
-    .map((r) => ({ key: r.id, date: fmtDateTime(r.created_at), reagendamentos: r.reagendamentos }))
+  const rows = dailyReports.map((r) => ({
+    key: r.id,
+    date: fmtDateTime(r.created_at),
+    reagendamentos: r.reagendamentos || '—',
+    contestacoes: r.contestacoes || '—',
+    faturas: r.faturas || '—',
+  }))
 
   return (
     <div className="flex flex-col gap-6">
-      <SectionHeading title="Registro diário" hint="Some ao seu total de reagendamentos — não apaga nem substitui nada" />
+      <SectionHeading
+        title="Relatório"
+        hint="Preencha só o que você fez — não precisa preencher os três. Reagendamentos somam na sua meta."
+      />
 
-      <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-end">
-        <div className="flex-1">
-          <label className="field-label">Reagendamentos feitos hoje</label>
-          <input
-            type="number"
-            min="0"
-            className="field-input"
-            placeholder="0"
-            value={reagendamentos}
-            onChange={(e) => setReagendamentos(e.target.value)}
-          />
+      <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          {CAMPOS.map((c) => (
+            <div key={c.key}>
+              <label className="field-label">{c.label}</label>
+              <input
+                type="number"
+                min="0"
+                className="field-input"
+                placeholder="0"
+                value={valores[c.key]}
+                onChange={(e) => setValores((v) => ({ ...v, [c.key]: e.target.value }))}
+              />
+            </div>
+          ))}
         </div>
-        <button type="submit" className="btn-primary" disabled={saving}>
-          {saving ? 'Enviando…' : 'Enviar registro'}
+        <button type="submit" className="btn-primary self-start" disabled={saving}>
+          {saving ? 'Enviando…' : 'Enviar relatório'}
         </button>
       </form>
 
