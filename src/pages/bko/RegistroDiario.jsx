@@ -59,7 +59,7 @@ export default function RegistroDiario() {
     <div className="flex flex-col gap-6">
       <SectionHeading
         title="Relatório"
-        hint="Preencha só o que você fez — não precisa preencher os três. Reagendamentos somam na sua meta."
+        hint="Preencha só o que você fez — não precisa preencher os três. Reagendamentos e faturas contam na hora."
       />
 
       <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5">

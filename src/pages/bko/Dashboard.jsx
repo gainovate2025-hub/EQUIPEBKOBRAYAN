@@ -28,7 +28,7 @@ export default function BkoDashboard() {
         <HeroCardWhite label="Comissão" value={fmtMoney(performance.commission)} sub="Comissão atual" />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
         <StatCard label="Comissão" value={fmtMoney(performance.commission)} />
         <StatCard
           label={contestacaoLabel}
@@ -44,6 +44,7 @@ export default function BkoDashboard() {
           pct={pctResched}
           showStatus
         />
+        <StatCard label="Faturas" value={performance.faturas_done ?? 0} sub="Contam na hora" />
       </div>
 
     </div>
