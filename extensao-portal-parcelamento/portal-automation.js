@@ -12,7 +12,12 @@ function dormir(ms) {
 
 // Pausa com tempo aleatório entre min e max — pessoa de verdade nunca
 // clica com o mesmo intervalo exato toda vez.
+// Fator de velocidade: 1 = ritmo original; menor = mais rápido (ainda com variação aleatória).
+const FATOR_VELOCIDADE = 0.5
+
 function pausaHumana(min = 400, max = 1100) {
+  min *= FATOR_VELOCIDADE
+  max *= FATOR_VELOCIDADE
   return dormir(min + Math.random() * (max - min))
 }
 

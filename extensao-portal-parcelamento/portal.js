@@ -20,7 +20,7 @@
 // próxima.
 // -----------------------------------------------------------------------
 
-const PP_POLL_MS = 1000
+const PP_POLL_MS = 500
 const PP_TIMEOUT_MS = 70000
 
 const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'

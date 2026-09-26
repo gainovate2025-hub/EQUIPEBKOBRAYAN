@@ -224,7 +224,7 @@ async function encerrarClienteAtual(valorColuna) {
     await lembrarFeito(job.custcode, valorColuna, job.linha)
   }
   await limparJob()
-  setTimeout(tentarProximoCiclo, 2000)
+  setTimeout(tentarProximoCiclo, 800)
 }
 
 async function reiniciarPortalComMesmoJob(job) {
@@ -316,7 +316,7 @@ async function cdpDigitar(tabId, modo, texto) {
         type: 'keyDown', text: ch, unmodifiedText: ch, key: t.key, code: t.code, windowsVirtualKeyCode: t.vk,
       })
       await cmd('Input.dispatchKeyEvent', { type: 'keyUp', key: t.key, code: t.code, windowsVirtualKeyCode: t.vk })
-      await esperar(aleatorio(60, 130) + (Math.random() < 0.08 ? aleatorio(250, 550) : 0))
+      await esperar(aleatorio(35, 80) + (Math.random() < 0.06 ? aleatorio(150, 300) : 0))
     }
   } finally {
     try { await chrome.debugger.detach(alvo) } catch { /* já desanexou */ }
