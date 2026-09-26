@@ -44,7 +44,7 @@ export default function BkoDashboard() {
           pct={pctResched}
           showStatus
         />
-        <StatCard label="Faturas" value={performance.faturas_done ?? 0} sub="Contam na hora" />
+        <StatCard label="Faturas" value={performance.faturas_done ?? 0} sub="Contam na hora · R$ 2 cada" />
       </div>
 
     </div>

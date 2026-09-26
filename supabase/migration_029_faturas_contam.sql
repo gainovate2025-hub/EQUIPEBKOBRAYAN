@@ -1,5 +1,6 @@
 -- Faturas do relatório passam a CONTAR NA HORA (sem aprovação), igual aos
--- reagendamentos: somam no total de faturas do BKO e na comissão (+1 cada).
+-- reagendamentos: somam no total de faturas do BKO e na comissão (fatura = +R$ 2,00 cada;
+-- reagendamento continua +R$ 1,00).
 -- Contestações do relatório continuam só registradas (a contestação de
 -- verdade conta pela tela de Aprovação).
 -- Rode no SQL Editor do Supabase (depois da 028). Seguro rodar mais de uma vez.
@@ -42,7 +43,7 @@ begin
     set
       rescheduling_done = rescheduling_done + v_r,
       faturas_done = faturas_done + v_f,
-      commission = commission + v_r + v_f,
+      commission = commission + v_r + (v_f * 2), -- reagendamento +R$1, fatura +R$2
       updated_at = now()
     where user_id = auth.uid();
   end if;
