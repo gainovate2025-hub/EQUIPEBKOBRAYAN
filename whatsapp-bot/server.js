@@ -16,6 +16,7 @@
 import http from 'node:http'
 import crypto from 'node:crypto'
 import { responder } from './menu.js'
+import { gravarCasoWhatsapp } from './encaminhar.js'
 
 const {
   WHATSAPP_TOKEN,
@@ -44,8 +45,9 @@ async function tratarMensagem(msg) {
 
   // Áudio, foto etc. contam como "mensagem qualquer": sem texto, cai no menu/fica quieto igual.
   const texto = msg.type === 'text' ? msg.text?.body : ''
-  const { respostas, conversa } = responder(conversas.get(msg.from), texto)
+  const { respostas, conversa, encaminhar } = responder(conversas.get(msg.from), texto)
   conversas.set(msg.from, conversa)
+  if (encaminhar) await gravarCasoWhatsapp({ telefone: msg.from, ...encaminhar })
   for (const resposta of respostas) await enviarTexto(msg.from, resposta)
 }
 

@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, FileText, CalendarClock, Receipt,
-  Trophy, Percent,
+  Trophy, Percent, MessageCircle,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -17,6 +17,7 @@ export default function BkoLayout() {
     { to: '/bko/contestacoes', label: contestacaoLabel, icon: FileText },
     { to: '/bko/reagendamentos', label: 'Meus Reagendamentos', icon: CalendarClock },
     { to: '/bko/faturas', label: 'Faturas', icon: Receipt },
+    { to: '/bko/casos-whatsapp', label: 'Casos do WhatsApp', icon: MessageCircle },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
   ]

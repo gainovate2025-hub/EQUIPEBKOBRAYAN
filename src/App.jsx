@@ -22,6 +22,7 @@ import BkoContestacoes from './pages/bko/Contestacoes'
 import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoComissao from './pages/bko/Comissao'
 import BkoFaturas from './pages/bko/Faturas'
+import CasosWhatsapp from './pages/CasosWhatsapp'
 import Ranking from './pages/Ranking'
 
 import OperacaoLayout from './pages/operacao/Layout'
@@ -47,6 +48,7 @@ export default function App() {
         <Route path="contestacoes" element={<SupervisorContestacoes />} />
         <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
         <Route path="faturas" element={<SupervisorFaturas />} />
+        <Route path="casos-whatsapp" element={<CasosWhatsapp />} />
         <Route path="relatorios" element={<SupervisorRelatorios />} />
         <Route path="equipe" element={<SupervisorEquipe />} />
         <Route path="ranking" element={<Ranking />} />
@@ -67,6 +69,7 @@ export default function App() {
         <Route path="contestacoes" element={<BkoContestacoes />} />
         <Route path="reagendamentos" element={<BkoReagendamentos />} />
         <Route path="faturas" element={<BkoFaturas />} />
+        <Route path="casos-whatsapp" element={<CasosWhatsapp />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="comissao" element={<BkoComissao />} />
       </Route>

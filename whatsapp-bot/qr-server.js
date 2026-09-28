@@ -24,6 +24,7 @@ import makeWASocket, { useMultiFileAuthState, DisconnectReason, fetchLatestBaile
 import pino from 'pino'
 import QRCode from 'qrcode'
 import { responder } from './menu.js'
+import { gravarCasoWhatsapp } from './encaminhar.js'
 
 const { APP_SECRET, ALLOWED_ORIGIN = '*', PORT = 4300 } = process.env
 if (!APP_SECRET) console.warn('Aviso: sem APP_SECRET — qualquer um na internet pode ligar um número neste servidor.')
@@ -88,8 +89,9 @@ async function conectar(numero) {
       if (jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@newsletter')) continue
 
       const texto = msg.message?.conversation || msg.message?.extendedTextMessage?.text || ''
-      const { respostas, conversa } = responder(sessao.conversas.get(jid), texto)
+      const { respostas, conversa, encaminhar } = responder(sessao.conversas.get(jid), texto)
       sessao.conversas.set(jid, conversa)
+      if (encaminhar) await gravarCasoWhatsapp({ telefone: jid.split('@')[0], ...encaminhar })
 
       for (const resposta of respostas) {
         await sock.sendPresenceUpdate('composing', jid)

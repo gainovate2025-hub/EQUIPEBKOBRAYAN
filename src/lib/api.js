@@ -208,4 +208,21 @@ export async function enviarParcelamentoLogin(userId, { usuario, token }) {
   if (error) throw error
 }
 
+// ---------- casos do WhatsApp (fila do bot) ----------
+
+export async function fetchCasosWhatsapp() {
+  const { data, error } = await supabase
+    .from('whatsapp_casos')
+    .select('*, profiles!whatsapp_casos_pego_por_fkey(name)')
+    .order('criado_em', { ascending: false })
+  if (error) throw error
+  return data
+}
+
+export async function pegarCasoWhatsapp(id) {
+  const { data, error } = await supabase.rpc('whatsapp_pegar_caso', { p_id: id })
+  if (error) throw new Error(error.message || 'Esse caso já foi pego por outra pessoa.')
+  return data
+}
+
 export { usernameToEmail }
