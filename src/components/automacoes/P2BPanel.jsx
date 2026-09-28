@@ -37,6 +37,12 @@ export default function P2BPanel() {
   const [planilhaId, setPlanilhaId] = useState('')
   const [abas, setAbas] = useState(null)
   const [abaNome, setAbaNome] = useState('')
+  // Modo novo (28/09/2026): em vez de buscar por CUSTCODE e trazer a
+  // fatura, busca por CNPJ e só grava o CUSTCODE encontrado de volta na
+  // planilha. Mesma extensão, mesma conta — só muda o que é lido/escrito.
+  const [modo, setModo] = useState('custcode')
+  const [colunaCnpj, setColunaCnpj] = useState('CNPJ')
+  const [colunaCustcodeSaida, setColunaCustcodeSaida] = useState('CUSTCODE')
 
   const [estado, setEstado] = useState(null)
   const [extensaoLigada, setExtensaoLigada] = useState(null)
@@ -139,9 +145,17 @@ export default function P2BPanel() {
     setErro('')
     setAcaoEmAndamento(true)
     try {
+      // Busca o mapeamento de colunas já salvo e só troca os campos do modo
+      // escolhido — nunca manda o objeto parcial (isso apagaria as colunas
+      // do outro modo, porque o backend substitui o mapeamento inteiro).
+      const mapeamentoAtual = await chamar('/api/sheets/mapping')
+      const columnMapping =
+        modo === 'cnpj'
+          ? { ...mapeamentoAtual, cnpj: colunaCnpj, custcodeOutput: colunaCustcodeSaida }
+          : mapeamentoAtual
       await chamar('/api/sheets/connect', {
         method: 'POST',
-        body: JSON.stringify({ spreadsheetId: planilhaId, sheetName: abaNome }),
+        body: JSON.stringify({ spreadsheetId: planilhaId, sheetName: abaNome, columnMapping, mode: modo }),
       })
       await chamar('/api/automation/command', { method: 'POST', body: JSON.stringify({ action: 'start' }) })
       await carregarEstado()
@@ -212,6 +226,14 @@ export default function P2BPanel() {
         </div>
       )}
 
+      <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+        O que a automação vai fazer
+        <select className="field-input" value={modo} onChange={(e) => setModo(e.target.value)} disabled={rodando}>
+          <option value="custcode">Buscar por CUSTCODE → trazer a fatura</option>
+          <option value="cnpj">Buscar por CNPJ → só descobrir o CUSTCODE</option>
+        </select>
+      </label>
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1 text-xs font-medium text-muted">
           Planilha
@@ -242,6 +264,24 @@ export default function P2BPanel() {
           </select>
         </label>
       </div>
+
+      {modo === 'cnpj' && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Coluna do CNPJ (entrada)
+            <input className="field-input" value={colunaCnpj} onChange={(e) => setColunaCnpj(e.target.value)} disabled={rodando} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Coluna do CUSTCODE (saída)
+            <input
+              className="field-input"
+              value={colunaCustcodeSaida}
+              onChange={(e) => setColunaCustcodeSaida(e.target.value)}
+              disabled={rodando}
+            />
+          </label>
+        </div>
+      )}
 
       {estado && estado.total > 0 && (
         <div className="rounded-lg bg-paper p-3 text-xs text-muted">
