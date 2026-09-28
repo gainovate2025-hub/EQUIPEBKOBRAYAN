@@ -61,17 +61,31 @@ export default function WhatsAppBotPanel() {
     intervaloRef.current = null
   }
 
+  // Some com a sessão e volta pro formulário — usado tanto quando a sessão
+  // cai (status "desconectado") quanto quando o pedido de status falha.
+  function resetarPraFormulario(mensagemErro) {
+    pararChecagem()
+    localStorage.removeItem(CHAVE_NUMERO)
+    setNumeroAtivo('')
+    setStatus('sem_sessao')
+    setQr(null)
+    if (mensagemErro) setErro(mensagemErro)
+  }
+
   function comecarChecagem(numeroLigado) {
     pararChecagem()
     intervaloRef.current = setInterval(async () => {
       try {
         const resp = await chamar(`/status?numero=${numeroLigado}`)
+        if (resp.status === 'desconectado' || resp.status === 'sem_sessao') {
+          resetarPraFormulario('A conexão caiu — tenta ligar de novo.')
+          return
+        }
         setStatus(resp.status)
         setQr(resp.qr || null)
-        if (resp.status === 'conectado' || resp.status === 'desconectado') pararChecagem()
+        if (resp.status === 'conectado') pararChecagem()
       } catch (err) {
-        setErro(err.message)
-        pararChecagem()
+        resetarPraFormulario(err.message)
       }
     }, 2500)
   }
@@ -154,6 +168,10 @@ export default function WhatsAppBotPanel() {
             {carregando ? 'Desligando…' : 'Desligar'}
           </button>
         </div>
+      )}
+
+      {!['sem_sessao', 'conectando', 'aguardando_qr', 'conectado'].includes(status) && (
+        <p className="text-xs text-muted">Algo travou aqui — feche e abra essa janela de novo.</p>
       )}
 
       {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
