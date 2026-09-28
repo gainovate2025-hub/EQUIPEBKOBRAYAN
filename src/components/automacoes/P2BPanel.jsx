@@ -41,9 +41,14 @@ export default function P2BPanel() {
   const [estado, setEstado] = useState(null)
   const [extensaoLigada, setExtensaoLigada] = useState(null)
   const [acaoEmAndamento, setAcaoEmAndamento] = useState(false)
+  const [codigoPareamento, setCodigoPareamento] = useState(null)
+  const [segundosRestantes, setSegundosRestantes] = useState(0)
+  const [gerandoCodigo, setGerandoCodigo] = useState(false)
   const intervaloRef = useRef(null)
+  const cronometroRef = useRef(null)
 
   useEffect(() => () => clearInterval(intervaloRef.current), [])
+  useEffect(() => () => clearInterval(cronometroRef.current), [])
 
   // Depois de voltar do login do Google (?google=conectado na URL), limpa
   // esse pedaço da URL e recarrega o status.
@@ -88,6 +93,33 @@ export default function P2BPanel() {
       if (s.sheetName) setAbaNome((atual) => atual || s.sheetName)
     } catch {
       // silencioso — o polling tenta de novo sozinho
+    }
+  }
+
+  // Gera o código de 6 dígitos pra colar na extensão "Conector P2B" (o
+  // mesmo código de pareamento que o painel próprio do P2B mostra) — assim
+  // não precisa sair do site do BKO pra parear.
+  async function gerarCodigoPareamento() {
+    setErro('')
+    setGerandoCodigo(true)
+    try {
+      const { code, expiresAt } = await chamar('/api/settings/pairing-code', { method: 'POST' })
+      setCodigoPareamento(code)
+      clearInterval(cronometroRef.current)
+      const tick = () => {
+        const restante = Math.max(0, Math.round((new Date(expiresAt).getTime() - Date.now()) / 1000))
+        setSegundosRestantes(restante)
+        if (restante <= 0) {
+          clearInterval(cronometroRef.current)
+          setCodigoPareamento(null)
+        }
+      }
+      tick()
+      cronometroRef.current = setInterval(tick, 1000)
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setGerandoCodigo(false)
     }
   }
 
@@ -154,10 +186,30 @@ export default function P2BPanel() {
       <p className="text-xs text-muted">Conectado como {googleEmail}.</p>
 
       {extensaoLigada === false && (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
-          A extensão do P2B não está pareada nesse navegador ainda — precisa dela aberta pra automação rodar de
-          verdade, mesmo escolhendo a planilha aqui.
-        </p>
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
+          <p>
+            A extensão do P2B não está pareada nesse navegador ainda — precisa dela aberta pra automação rodar de
+            verdade, mesmo escolhendo a planilha aqui.
+          </p>
+          <div className="mt-2">
+            {codigoPareamento ? (
+              <div className="flex items-center gap-3">
+                <span className="rounded-lg border border-amber-300 bg-white px-3 py-1.5 font-mono text-xl font-bold tracking-[0.3em] text-amber-800">
+                  {codigoPareamento}
+                </span>
+                <span className="text-[11px] text-amber-600">Expira em {segundosRestantes}s</span>
+              </div>
+            ) : (
+              <button type="button" className="btn-ghost btn-sm" onClick={gerarCodigoPareamento} disabled={gerandoCodigo}>
+                {gerandoCodigo ? 'Gerando…' : 'Gerar código de conexão'}
+              </button>
+            )}
+            <p className="mt-2 text-[11px] text-amber-600">
+              Clica no ícone da extensão "Conector P2B" (peça de quebra-cabeça, na barra do Chrome), cola esse
+              código e clica em Conectar.
+            </p>
+          </div>
+        </div>
       )}
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
