@@ -36,6 +36,8 @@ const PORTABILIDADE = `Você selecionou Portabilidade. Para dar andamento à por
 📌 Para confirmar, basta responder SIM a essa mensagem.
 ⏰ O prazo para seu número ser portado estará disponível no SMS do número 4196
 
+Ou acesse o link para ser enviado diretamente ao SMS de portabilidade: https://www.portabilidade.online
+
 Se não recebeu o SMS, teve problema com o código ou com a titularidade da linha, digite 3 para falar com um atendente.
 
 ${RODAPE}`
