@@ -44,6 +44,7 @@ export default function P2BPanel() {
   const [colunaCnpj, setColunaCnpj] = useState('CNPJ')
   const [colunaCustcodeSaida, setColunaCustcodeSaida] = useState('CUSTCODE')
 
+  const [logs, setLogs] = useState([])
   const [estado, setEstado] = useState(null)
   const [extensaoLigada, setExtensaoLigada] = useState(null)
   const [acaoEmAndamento, setAcaoEmAndamento] = useState(false)
@@ -81,7 +82,8 @@ export default function P2BPanel() {
     chamar('/api/sheets/spreadsheets').then(setPlanilhas).catch((err) => setErro(err.message))
     chamar('/api/automation/extension-status').then((r) => setExtensaoLigada(r.connected)).catch(() => {})
     carregarEstado()
-    intervaloRef.current = setInterval(carregarEstado, 4000)
+    carregarLogs()
+    intervaloRef.current = setInterval(() => { carregarEstado(); carregarLogs() }, 4000)
     return () => clearInterval(intervaloRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleConectado])
@@ -97,6 +99,17 @@ export default function P2BPanel() {
       setEstado(s)
       if (s.spreadsheetId) setPlanilhaId((atual) => atual || s.spreadsheetId)
       if (s.sheetName) setAbaNome((atual) => atual || s.sheetName)
+    } catch {
+      // silencioso — o polling tenta de novo sozinho
+    }
+  }
+
+  // Log passo a passo da automação (o mesmo que o painel próprio do P2B
+  // mostraria) — ajuda a ver exatamente o que a extensão fez, sem precisar
+  // comparar prints.
+  async function carregarLogs() {
+    try {
+      setLogs(await chamar('/api/automation/logs?limit=25'))
     } catch {
       // silencioso — o polling tenta de novo sozinho
     }
@@ -317,6 +330,21 @@ export default function P2BPanel() {
       </div>
 
       {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
+
+      {logs.length > 0 && (
+        <div className="max-h-48 overflow-y-auto rounded-lg bg-ink p-2 font-mono text-[11px] leading-relaxed text-line">
+          {logs.map((l, i) => (
+            <div
+              key={i}
+              className={
+                l.level === 'error' ? 'text-red-400' : l.level === 'success' ? 'text-green-400' : l.level === 'warn' ? 'text-amber-400' : 'text-gray-300'
+              }
+            >
+              [{l.timestamp}] {l.message}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
