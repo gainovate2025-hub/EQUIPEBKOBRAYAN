@@ -1,21 +1,18 @@
 import { useState } from 'react'
 import { useBkoData } from '../../lib/BkoDataContext'
 import { HeroCardWhite } from '../../components/ui/HeroCard'
-import ProgressBar from '../../components/ui/ProgressBar'
-import StatusBadge from '../../components/ui/StatusBadge'
 import DataTable from '../../components/ui/DataTable'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { submitRelatorio } from '../../lib/api'
-import { pct } from '../../lib/helpers'
-import { fmtDateTime } from '../../lib/helpers'
+import { fmtDateTime, fmtMoney } from '../../lib/helpers'
 
 const COLUMNS = [
   { key: 'date', label: 'Quando', width: '1.5fr' },
-  { key: 'valor', label: 'Reagendamentos', width: '1fr', align: 'right' },
+  { key: 'valor', label: 'Faturas', width: '1fr', align: 'right' },
 ]
 
-export default function BkoReagendamentos() {
+export default function BkoFaturas() {
   const { performance, dailyReports, loading, reload } = useBkoData()
   const { toast, showToast } = useToast()
   const [valor, setValor] = useState('')
@@ -30,9 +27,9 @@ export default function BkoReagendamentos() {
     }
     setSaving(true)
     try {
-      await submitRelatorio({ reagendamentos: n })
+      await submitRelatorio({ faturas: n })
       setValor('')
-      showToast('Reagendamentos enviados — seus totais já foram atualizados.')
+      showToast('Faturas enviadas — contam na hora.')
       reload()
     } catch (err) {
       showToast(err.message, 'error')
@@ -43,32 +40,17 @@ export default function BkoReagendamentos() {
 
   if (loading || !performance) return <p className="text-sm text-muted">Carregando…</p>
 
-  const p = pct(performance.rescheduling_done, performance.rescheduling_goal)
   const rows = dailyReports
-    .filter((r) => r.reagendamentos > 0)
-    .map((r) => ({ key: r.id, date: fmtDateTime(r.created_at), valor: r.reagendamentos }))
+    .filter((r) => r.faturas > 0)
+    .map((r) => ({ key: r.id, date: fmtDateTime(r.created_at), valor: r.faturas }))
 
   return (
     <div className="flex flex-col gap-6">
-      <HeroCardWhite
-        label="Reagendamentos"
-        value={`${performance.rescheduling_done} / ${performance.rescheduling_goal}`}
-        sub={`${p}% da meta atingida`}
-        minWidth={300}
-      />
-
-      <div className="card flex flex-col gap-4 p-6">
-        <div className="flex items-center justify-between">
-          <span className="stat-label">Progresso</span>
-          <StatusBadge pct={p} />
-        </div>
-        <ProgressBar pct={p} />
-        <span className="text-sm text-muted">{performance.rescheduling_done} de {performance.rescheduling_goal} reagendamentos realizados no período.</span>
-      </div>
+      <HeroCardWhite label="Faturas" value={performance.faturas_done ?? 0} sub="Contam na hora · R$ 2 cada" minWidth={300} />
 
       <form onSubmit={handleSubmit} className="card flex flex-col gap-4 p-5 sm:flex-row sm:items-end">
         <div className="flex-1">
-          <label className="field-label">Reagendamentos feitos agora</label>
+          <label className="field-label">Faturas agora</label>
           <input
             type="number"
             min="0"
@@ -82,6 +64,10 @@ export default function BkoReagendamentos() {
           {saving ? 'Enviando…' : 'Enviar'}
         </button>
       </form>
+
+      <div className="card p-5 text-sm text-muted">
+        Cada fatura soma <strong>R$ 2,00</strong> na sua comissão. Total atual: {fmtMoney(performance.commission)}.
+      </div>
 
       <div className="flex flex-col gap-3">
         <span className="text-sm font-semibold text-ink">Meus envios</span>

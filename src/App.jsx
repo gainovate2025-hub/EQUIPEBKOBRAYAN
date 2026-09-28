@@ -20,7 +20,7 @@ import BkoDashboard from './pages/bko/Dashboard'
 import BkoContestacoes from './pages/bko/Contestacoes'
 import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoComissao from './pages/bko/Comissao'
-import BkoRegistroDiario from './pages/bko/RegistroDiario'
+import BkoFaturas from './pages/bko/Faturas'
 import Ranking from './pages/Ranking'
 
 import OperacaoLayout from './pages/operacao/Layout'
@@ -64,7 +64,7 @@ export default function App() {
         <Route index element={<BkoDashboard />} />
         <Route path="contestacoes" element={<BkoContestacoes />} />
         <Route path="reagendamentos" element={<BkoReagendamentos />} />
-        <Route path="registro-diario" element={<BkoRegistroDiario />} />
+        <Route path="faturas" element={<BkoFaturas />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="comissao" element={<BkoComissao />} />
       </Route>
