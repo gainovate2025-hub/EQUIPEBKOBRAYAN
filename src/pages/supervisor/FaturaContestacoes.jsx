@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
 import SectionHeading from '../../components/ui/SectionHeading'
-import FaturaContestacaoList from '../../components/faturas/FaturaContestacaoList'
+import PlanilhaLista from '../../components/planilha/PlanilhaLista'
 
 export default function FaturaContestacoes() {
   const { team } = useSupervisorData()
@@ -9,8 +9,8 @@ export default function FaturaContestacoes() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Contestação (Faturas)" hint="Clientes marcados como contestação na planilha Controle de fatura" />
-      <FaturaContestacaoList filtroNomes={filtroNomes} />
+      <SectionHeading title="Contestação (Faturas)" hint="Clientes em contestação — planilha Controle de fatura" />
+      <PlanilhaLista modulo="contestacao" filtroNomes={filtroNomes} mostrarWhatsapp mostrarProtocolo />
     </div>
   )
 }

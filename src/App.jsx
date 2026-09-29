@@ -24,6 +24,7 @@ import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoComissao from './pages/bko/Comissao'
 import BkoFaturas from './pages/bko/Faturas'
 import BkoFaturaContestacoes from './pages/bko/FaturaContestacoes'
+import BkoRelatorioDiario from './pages/bko/RelatorioDiario'
 import CasosWhatsapp from './pages/CasosWhatsapp'
 import Ranking from './pages/Ranking'
 
@@ -73,6 +74,7 @@ export default function App() {
         <Route path="reagendamentos" element={<BkoReagendamentos />} />
         <Route path="faturas" element={<BkoFaturas />} />
         <Route path="fatura-contestacoes" element={<BkoFaturaContestacoes />} />
+        <Route path="relatorio-diario" element={<BkoRelatorioDiario />} />
         <Route path="casos-whatsapp" element={<CasosWhatsapp />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="comissao" element={<BkoComissao />} />

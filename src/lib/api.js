@@ -202,21 +202,24 @@ export async function fetchTeamContestacoes(teamId) {
   return data
 }
 
-export async function fetchFaturasConfig() {
+// Configuração por módulo (fatura / contestacao / reagendamento) — os 3
+// são abas da MESMA planilha "Controle de fatura", cada um com sua
+// própria aba e mapeamento de coluna.
+export async function fetchModuloConfig(modulo) {
   const { data, error } = await supabase
-    .from('faturas_config')
+    .from('planilha_modulos_config')
     .select('*')
-    .eq('id', 1)
+    .eq('modulo', modulo)
     .single()
   if (error) throw error
   return data
 }
 
-export async function updateFaturasConfig(userId, patch) {
+export async function updateModuloConfig(modulo, userId, patch) {
   const { error } = await supabase
-    .from('faturas_config')
+    .from('planilha_modulos_config')
     .update({ ...patch, atualizado_por: userId, atualizado_em: new Date().toISOString() })
-    .eq('id', 1)
+    .eq('modulo', modulo)
   if (error) throw error
 }
 
@@ -262,8 +265,8 @@ function indiceParaColuna(indice) {
 // pelo NOME (cabeçalho, linha 1) e devolve cada linha já como objeto —
 // guarda os índices junto (usados depois pra escrever de volta sem
 // precisar reler o cabeçalho a cada vez).
-export async function fetchFaturasLinhas() {
-  const config = await fetchFaturasConfig()
+export async function fetchPlanilhaLinhas(modulo) {
+  const config = await fetchModuloConfig(modulo)
   if (!config.aba_nome) {
     return { config, colunas: null, linhas: [] }
   }
@@ -311,7 +314,7 @@ export async function fetchFaturasLinhas() {
 // Escreve um campo (status ou protocolo) de volta na planilha, numa
 // linha específica — usa o índice de coluna já resolvido por
 // fetchFaturasLinhas (colunas.status / colunas.protocolo).
-export async function escreverFaturaCampo(config, colunas, linhaPlanilha, campo, valor) {
+export async function escreverPlanilhaCampo(config, colunas, linhaPlanilha, campo, valor) {
   const indice = colunas[campo]
   if (indice == null || indice < 0) {
     throw new Error(`Coluna de "${campo}" não encontrada na planilha — confere a configuração em Automações.`)

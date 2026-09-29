@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Search, Workflow, FileText, MessageCircle, Receipt } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
-import { fetchParcelamentoConfig, updateParcelamentoConfig, fetchParcelamentoLogin, enviarParcelamentoLogin, fetchFaturasConfig, updateFaturasConfig } from '../../lib/api'
+import { fetchParcelamentoConfig, updateParcelamentoConfig, fetchParcelamentoLogin, enviarParcelamentoLogin, fetchModuloConfig, updateModuloConfig } from '../../lib/api'
 import SectionHeading from '../../components/ui/SectionHeading'
 import Modal from '../../components/ui/Modal'
 import Field from '../../components/ui/Field'
@@ -37,10 +37,26 @@ const AUTOMACOES = [
     status: 'Roda local',
   },
   {
-    key: 'faturas_config',
+    key: 'config_fatura',
     nome: 'Faturas (Controle de fatura)',
     descricao: 'Configura qual aba e quais colunas da planilha "Controle de fatura" a tela de Faturas usa.',
     icon: Receipt,
+    to: null,
+    status: 'Configuração',
+  },
+  {
+    key: 'config_contestacao',
+    nome: 'Contestação (Faturas)',
+    descricao: 'Configura qual aba e quais colunas usar pra tela de Contestação (planilha).',
+    icon: FileText,
+    to: null,
+    status: 'Configuração',
+  },
+  {
+    key: 'config_reagendamento',
+    nome: 'Reagendamento (Faturas)',
+    descricao: 'Configura qual aba e quais colunas usar pra tela de Reagendamento (planilha).',
+    icon: FileText,
     to: null,
     status: 'Configuração',
   },
@@ -110,12 +126,30 @@ export default function Automacoes() {
         </Modal>
       )}
 
-      {abrindo === 'faturas_config' && (
+      {abrindo === 'config_fatura' && (
         <Modal title="Faturas — configuração da planilha" onClose={() => setAbrindo(null)} width={560}>
           <div className="flex flex-col gap-3 text-sm">
             <p>A tela de Faturas lê essa planilha ao vivo (Google Sheets) — como as abas trocam de mês em mês e os nomes das colunas variam, configura aqui qual usar agora.</p>
           </div>
-          <FaturasConfigForm />
+          <ModuloConfigForm modulo="fatura" />
+        </Modal>
+      )}
+
+      {abrindo === 'config_contestacao' && (
+        <Modal title="Contestação (Faturas) — configuração da planilha" onClose={() => setAbrindo(null)} width={560}>
+          <div className="flex flex-col gap-3 text-sm">
+            <p>Mesma planilha "Controle de fatura", só que numa aba/mapeamento próprio pra tela de Contestação.</p>
+          </div>
+          <ModuloConfigForm modulo="contestacao" />
+        </Modal>
+      )}
+
+      {abrindo === 'config_reagendamento' && (
+        <Modal title="Reagendamento (Faturas) — configuração da planilha" onClose={() => setAbrindo(null)} width={560}>
+          <div className="flex flex-col gap-3 text-sm">
+            <p>Mesma planilha "Controle de fatura", só que numa aba/mapeamento próprio pra tela de Reagendamento.</p>
+          </div>
+          <ModuloConfigForm modulo="reagendamento" />
         </Modal>
       )}
 
@@ -131,7 +165,7 @@ export default function Automacoes() {
   )
 }
 
-function FaturasConfigForm() {
+function ModuloConfigForm({ modulo }) {
   const { profile } = useAuth()
   const { toast, showToast } = useToast()
   const [carregando, setCarregando] = useState(true)
@@ -146,7 +180,7 @@ function FaturasConfigForm() {
   const [colunaVendedor, setColunaVendedor] = useState('')
 
   useEffect(() => {
-    fetchFaturasConfig()
+    fetchModuloConfig(modulo)
       .then((config) => {
         setAbaNome(config.aba_nome || '')
         setColunaNome(config.coluna_nome || 'CLIENTE')
@@ -159,14 +193,14 @@ function FaturasConfigForm() {
       })
       .catch((err) => showToast(err.message || 'Falha ao carregar configuração.', 'error'))
       .finally(() => setCarregando(false))
-  }, [])
+  }, [modulo])
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!abaNome.trim()) return showToast('Preenche o nome da aba.', 'error')
     setSalvando(true)
     try {
-      await updateFaturasConfig(profile.id, {
+      await updateModuloConfig(modulo, profile.id, {
         aba_nome: abaNome.trim(),
         coluna_nome: colunaNome.trim() || 'CLIENTE',
         coluna_cnpj: colunaCnpj.trim() || 'CNPJ',
@@ -176,7 +210,7 @@ function FaturasConfigForm() {
         coluna_protocolo: colunaProtocolo.trim() || 'OBS',
         coluna_vendedor: colunaVendedor.trim() || 'VENDEDOR',
       })
-      showToast('Configuração de Faturas atualizada.')
+      showToast('Configuração atualizada.')
     } catch (err) {
       showToast(err.message || 'Falha ao salvar.', 'error')
     } finally {
