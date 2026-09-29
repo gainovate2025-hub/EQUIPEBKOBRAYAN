@@ -143,6 +143,7 @@ function FaturasConfigForm() {
   const [colunaTelefone, setColunaTelefone] = useState('')
   const [colunaStatus, setColunaStatus] = useState('')
   const [colunaProtocolo, setColunaProtocolo] = useState('')
+  const [colunaVendedor, setColunaVendedor] = useState('')
 
   useEffect(() => {
     fetchFaturasConfig()
@@ -154,6 +155,7 @@ function FaturasConfigForm() {
         setColunaTelefone(config.coluna_telefone || 'TEL.PRINCIPAL')
         setColunaStatus(config.coluna_status || 'STATUS LINHA')
         setColunaProtocolo(config.coluna_protocolo || 'OBS')
+        setColunaVendedor(config.coluna_vendedor || 'VENDEDOR')
       })
       .catch((err) => showToast(err.message || 'Falha ao carregar configuração.', 'error'))
       .finally(() => setCarregando(false))
@@ -172,6 +174,7 @@ function FaturasConfigForm() {
         coluna_telefone: colunaTelefone.trim() || 'TEL.PRINCIPAL',
         coluna_status: colunaStatus.trim() || 'STATUS LINHA',
         coluna_protocolo: colunaProtocolo.trim() || 'OBS',
+        coluna_vendedor: colunaVendedor.trim() || 'VENDEDOR',
       })
       showToast('Configuração de Faturas atualizada.')
     } catch (err) {
@@ -212,8 +215,11 @@ function FaturasConfigForm() {
         <Field label="Coluna do protocolo (contestação)">
           <input className="field-input" placeholder="OBS" value={colunaProtocolo} onChange={(e) => setColunaProtocolo(e.target.value)} />
         </Field>
+        <Field label="Coluna do vendedor/responsável">
+          <input className="field-input" placeholder="VENDEDOR" value={colunaVendedor} onChange={(e) => setColunaVendedor(e.target.value)} />
+        </Field>
       </div>
-      <p className="text-xs text-muted">Os nomes precisam bater exatamente com o cabeçalho (linha 1) da aba escolhida.</p>
+      <p className="text-xs text-muted">Os nomes precisam bater exatamente com o cabeçalho (linha 1) da aba escolhida. A coluna do vendedor decide o que cada BKO vê — o nome na planilha precisa bater com o nome cadastrado no perfil dele.</p>
       <button type="submit" className="btn-primary self-start" disabled={salvando}>
         {salvando ? 'Salvando…' : 'Salvar configuração'}
       </button>
