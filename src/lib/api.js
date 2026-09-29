@@ -118,6 +118,36 @@ export async function submitRelatorio({ reagendamentos = 0, contestacoes = 0, fa
   if (error) throw new Error(error.message || 'Falha ao enviar o relatório.')
 }
 
+// ---------- reagendamento: fila de casos (CNPJ + Razão Social) ----------
+// Substitui o antigo "digita quantos fez hoje" — agora o supervisor/
+// líder manda o caso pro BKO, que marca como feito quando resolve (só aí
+// conta na meta/comissão).
+
+export async function fetchReagendamentoCasos({ bkoId } = {}) {
+  let query = supabase
+    .from('reagendamento_casos')
+    .select('*, profiles!reagendamento_casos_bko_id_fkey(name)')
+    .order('criado_em', { ascending: false })
+  if (bkoId) query = query.eq('bko_id', bkoId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+export async function adicionarReagendamentoCaso(bkoId, cnpj, razaoSocial) {
+  const { error } = await supabase.rpc('adicionar_reagendamento_caso', {
+    p_bko_id: bkoId,
+    p_cnpj: cnpj,
+    p_razao_social: razaoSocial,
+  })
+  if (error) throw new Error(error.message || 'Falha ao adicionar caso.')
+}
+
+export async function concluirReagendamentoCaso(id) {
+  const { error } = await supabase.rpc('concluir_reagendamento_caso', { p_id: id })
+  if (error) throw new Error(error.message || 'Falha ao concluir caso.')
+}
+
 export async function fetchTeamRelatorios(teamId) {
   let query = supabase
     .from('daily_reports')

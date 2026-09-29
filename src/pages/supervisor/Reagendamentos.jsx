@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
 import { HeroCardWhite } from '../../components/ui/HeroCard'
 import SectionHeading from '../../components/ui/SectionHeading'
@@ -6,9 +6,10 @@ import DataTable from '../../components/ui/DataTable'
 import InlineEditableNumber from '../../components/ui/InlineEditableNumber'
 import ProgressBar from '../../components/ui/ProgressBar'
 import StatusBadge from '../../components/ui/StatusBadge'
+import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
-import { updatePerformance } from '../../lib/api'
+import { updatePerformance, fetchReagendamentoCasos, adicionarReagendamentoCaso, concluirReagendamentoCaso } from '../../lib/api'
 import { pct } from '../../lib/helpers'
 
 const COLUMNS = [
@@ -21,6 +22,7 @@ const COLUMNS = [
 export default function Reagendamentos() {
   const { team, loading, reload } = useSupervisorData()
   const { toast, showToast } = useToast()
+  const [reloadCasos, setReloadCasos] = useState(0)
 
   const rows = useMemo(
     () => team.map((b) => ({
@@ -78,7 +80,114 @@ export default function Reagendamentos() {
           />
         )}
       </div>
+
+      <div className="mt-9 flex flex-col gap-4">
+        <SectionHeading title="Casos de reagendamento" hint="Manda um caso novo pro BKO — ele marca como feito quando resolver" />
+        <NovoCasoForm team={team} onCriado={() => setReloadCasos((n) => n + 1)} />
+        <ListaCasos team={team} reloadKey={reloadCasos} onChanged={() => setReloadCasos((n) => n + 1)} />
+      </div>
+
       <Toast toast={toast} />
     </>
+  )
+}
+
+function NovoCasoForm({ team, onCriado }) {
+  const { toast, showToast } = useToast()
+  const [bkoId, setBkoId] = useState('')
+  const [cnpj, setCnpj] = useState('')
+  const [razaoSocial, setRazaoSocial] = useState('')
+  const [enviando, setEnviando] = useState(false)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!bkoId || !cnpj.trim() || !razaoSocial.trim()) {
+      return showToast('Preenche o BKO, o CNPJ e a Razão Social.', 'error')
+    }
+    setEnviando(true)
+    try {
+      await adicionarReagendamentoCaso(bkoId, cnpj.trim(), razaoSocial.trim())
+      setCnpj('')
+      setRazaoSocial('')
+      showToast('Caso enviado.')
+      onCriado()
+    } catch (err) {
+      showToast(err.message || 'Falha ao enviar.', 'error')
+    } finally {
+      setEnviando(false)
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="card flex flex-wrap items-end gap-3 p-4">
+      <Field label="BKO">
+        <select className="field-input" value={bkoId} onChange={(e) => setBkoId(e.target.value)}>
+          <option value="">Selecione…</option>
+          {team.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+        </select>
+      </Field>
+      <Field label="CNPJ">
+        <input className="field-input" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
+      </Field>
+      <Field label="Razão Social">
+        <input className="field-input" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Nome da empresa" />
+      </Field>
+      <button type="submit" className="btn-primary" disabled={enviando}>
+        {enviando ? 'Enviando…' : 'Enviar caso'}
+      </button>
+      <Toast toast={toast} />
+    </form>
+  )
+}
+
+function ListaCasos({ team, reloadKey, onChanged }) {
+  const { toast, showToast } = useToast()
+  const [casos, setCasos] = useState([])
+  const [carregando, setCarregando] = useState(true)
+  const [concluindoId, setConcluindoId] = useState(null)
+
+  useEffect(() => {
+    setCarregando(true)
+    fetchReagendamentoCasos()
+      .then(setCasos)
+      .catch((err) => showToast(err.message || 'Falha ao carregar casos.', 'error'))
+      .finally(() => setCarregando(false))
+  }, [reloadKey])
+
+  async function concluir(id) {
+    setConcluindoId(id)
+    try {
+      await concluirReagendamentoCaso(id)
+      showToast('Caso concluído.')
+      onChanged()
+    } catch (err) {
+      showToast(err.message || 'Falha ao concluir.', 'error')
+    } finally {
+      setConcluindoId(null)
+    }
+  }
+
+  const idsDoTime = useMemo(() => new Set(team.map((b) => b.id)), [team])
+  const casosDoTime = casos.filter((c) => idsDoTime.has(c.bko_id))
+  const pendentes = casosDoTime.filter((c) => c.status === 'pendente')
+
+  if (carregando) return <p className="text-sm text-muted">Carregando casos…</p>
+
+  return (
+    <div className="flex flex-col gap-2">
+      {pendentes.length === 0 && <p className="text-sm text-muted">Nenhum caso pendente.</p>}
+      {pendentes.map((c) => (
+        <div key={c.id} className="card flex flex-wrap items-center justify-between gap-2 p-3">
+          <div>
+            <div className="text-sm font-semibold">{c.razao_social} <span className="font-normal text-muted">· {c.profiles?.name}</span></div>
+            <div className="text-xs text-muted">CNPJ: {c.cnpj}</div>
+          </div>
+          <button type="button" className="btn-ghost btn-sm" disabled={concluindoId === c.id} onClick={() => concluir(c.id)}>
+            {concluindoId === c.id ? 'Salvando…' : 'Marcar feito'}
+          </button>
+        </div>
+      ))}
+      <Toast toast={toast} />
+    </div>
   )
 }

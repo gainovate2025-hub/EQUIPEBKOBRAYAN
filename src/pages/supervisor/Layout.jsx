@@ -20,6 +20,7 @@ export default function SupervisorLayout() {
     { to: '/supervisor/contestacoes', label: contestacaoLabel, icon: FileText },
     { to: '/supervisor/reagendamentos', label: 'Reagendamentos', icon: CalendarClock },
     { to: '/supervisor/faturas', label: 'Faturas', icon: Receipt },
+    { to: '/supervisor/fatura-contestacoes', label: 'Contestação (Faturas)', icon: FileText },
     { to: '/supervisor/casos-whatsapp', label: 'Casos do WhatsApp', icon: MessageCircle },
     { to: '/supervisor/relatorios', label: 'Relatórios', icon: ClipboardList },
     { to: '/supervisor/equipe', label: 'Equipe', icon: Users },
