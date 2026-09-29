@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { fetchPlanilhaLinhas, escreverPlanilhaCampo } from '../../lib/api'
 import Toast from '../ui/Toast'
 import { useToast } from '../../lib/useToast'
+import { useAuth } from '../../lib/AuthContext'
 
 function hojeCurto() {
   const d = new Date()
@@ -41,6 +43,7 @@ export default function PlanilhaLista({
   mostrarRetorno = false,
   autoDataContestado = false,
 }) {
+  const { role } = useAuth()
   const { toast, showToast } = useToast()
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
@@ -145,7 +148,11 @@ export default function PlanilhaLista({
   if (!config?.aba_nome) {
     return (
       <p className="text-sm text-muted">
-        Configuração ainda não feita — peça pro supervisor configurar em Automações.
+        {role === 'supervisor' ? (
+          <>Configuração ainda não feita — vá em <Link to="/supervisor/automacoes" className="underline">Automações</Link> e escolha a aba e as colunas dessa planilha.</>
+        ) : (
+          'Configuração ainda não feita — peça pro supervisor configurar em Automações.'
+        )}
       </p>
     )
   }

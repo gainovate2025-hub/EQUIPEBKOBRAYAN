@@ -6,6 +6,7 @@ import SectionHeading from '../../components/ui/SectionHeading'
 import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
+import ModuloConfigForm from '../../components/automacoes/ModuloConfigForm'
 
 export default function Configuracoes() {
   const { profile, refreshProfile } = useAuth()
@@ -48,6 +49,25 @@ export default function Configuracoes() {
         </Field>
         <button type="submit" className="btn-primary self-start" disabled={saving}>{saving ? 'Salvando…' : 'Salvar alterações'}</button>
       </form>
+
+      {profile?.role === 'supervisor' && (
+        <>
+          <SectionHeading title="Planilha de fatura" hint="Escolhe a aba e as colunas que cada tela puxa da planilha Controle de fatura" />
+          <div className="card p-6">
+            <span className="text-sm font-semibold">Faturas</span>
+            <ModuloConfigForm modulo="fatura" />
+          </div>
+          <div className="card p-6">
+            <span className="text-sm font-semibold">Contestação (Faturas)</span>
+            <ModuloConfigForm modulo="contestacao" />
+          </div>
+          <div className="card p-6">
+            <span className="text-sm font-semibold">Reagendamento (Faturas)</span>
+            <ModuloConfigForm modulo="reagendamento" />
+          </div>
+        </>
+      )}
+
       <Toast toast={toast} />
     </div>
   )
