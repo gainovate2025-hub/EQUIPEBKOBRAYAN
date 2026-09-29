@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Users, Clock, XCircle, Wallet } from 'lucide-react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
 import { HeroCardRed } from '../../components/ui/HeroCard'
 import StatCard from '../../components/ui/StatCard'
@@ -124,16 +125,18 @@ export default function SupervisorDashboard() {
     <div className="flex flex-col gap-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatCard label={`${contestacaoLabel} autorizadas`} value={totals.done} pct={pctContestacoes} showStatus />
+          <StatCard label={`${contestacaoLabel} autorizadas`} value={totals.done} pct={pctContestacoes} showStatus icon={Users} />
           <StatCard
             label="Pendentes de autorização"
             value={contestStats.pendentes}
             sub={contestStats.pendentes > 0 ? 'Aguardando revisão' : 'Tudo em dia'}
+            icon={Clock}
           />
-          <StatCard label="Recusadas" value={contestStats.recusadas} />
+          <StatCard label="Recusadas" value={contestStats.recusadas} icon={XCircle} />
           <StatCard
             label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
             value={fmtMoney(totals.commission)}
+            icon={Wallet}
           />
         </div>
         <HeroCardRed label="Meta da equipe" value={totals.goal} sub={`${totals.done} / ${totals.goal} · ${pctContestacoes}%`} pct={pctContestacoes} />

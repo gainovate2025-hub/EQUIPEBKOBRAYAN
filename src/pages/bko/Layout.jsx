@@ -30,8 +30,9 @@ export default function BkoLayout() {
       <div className="app-shell">
         <Sidebar title="Painel BKO" items={navItems} />
         <div className="app-main">
-          <Topbar title={current?.label || 'Dashboard'} />
+          <Topbar />
           <main className="mx-auto max-w-6xl p-6">
+            <h1 className="mb-6 text-2xl font-bold text-ink">{current?.label || 'Dashboard'}</h1>
             <Outlet />
           </main>
         </div>
