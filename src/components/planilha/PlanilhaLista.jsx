@@ -24,7 +24,7 @@ function linkWhatsapp(telefone) {
 // Lista genérica ligada numa aba da planilha "Controle de fatura" — vale
 // pros 3 módulos (fatura, contestação, reagendamento), cada um é só uma
 // aba diferente com seu próprio mapeamento de coluna (configurado em
-// Automações). O que muda de módulo pra módulo são as opções passadas:
+// Configurações). O que muda de módulo pra módulo são as opções passadas:
 //
 // - modulo: 'fatura' | 'contestacao' | 'reagendamento'
 // - filtroNomes: null (mostra todo mundo) ou array de nomes permitidos
@@ -149,9 +149,9 @@ export default function PlanilhaLista({
     return (
       <p className="text-sm text-muted">
         {role === 'supervisor' ? (
-          <>Configuração ainda não feita — vá em <Link to="/supervisor/automacoes" className="underline">Automações</Link> e escolha a aba e as colunas dessa planilha.</>
+          <>Configuração ainda não feita — vá em <Link to="/supervisor/configuracoes" className="underline">Configurações</Link> e escolha a aba e as colunas dessa planilha.</>
         ) : (
-          'Configuração ainda não feita — peça pro supervisor configurar em Automações.'
+          'Configuração ainda não feita — peça pro supervisor configurar em Configurações.'
         )}
       </p>
     )
