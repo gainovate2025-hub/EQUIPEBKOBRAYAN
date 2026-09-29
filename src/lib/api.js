@@ -190,6 +190,106 @@ export async function updateFaturasConfig(userId, patch) {
   if (error) throw error
 }
 
+// Chama a Edge Function "sheets-faturas" (lê/escreve na planilha Google
+// Sheets "Controle de fatura") — mesmo jeito de chamar do updateLogin
+// (fetch direto, chave "publishable" no apikey).
+async function chamarSheetsFaturas(body) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData?.session?.access_token
+  if (!accessToken) throw new Error('Sessão expirada, faça login novamente.')
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/sheets-faturas`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    }
+  )
+  const dados = await res.json().catch(() => ({}))
+  if (!res.ok || dados.error) throw new Error(dados.error || 'Falha ao consultar a planilha.')
+  return dados
+}
+
+// Letra da coluna do Google Sheets a partir do índice (0=A, 1=B, ...,
+// 25=Z, 26=AA...).
+function indiceParaColuna(indice) {
+  let letra = ''
+  let n = indice + 1
+  while (n > 0) {
+    const resto = (n - 1) % 26
+    letra = String.fromCharCode(65 + resto) + letra
+    n = Math.floor((n - 1) / 26)
+  }
+  return letra
+}
+
+// Lê a aba configurada inteira, acha o índice de cada coluna mapeada
+// pelo NOME (cabeçalho, linha 1) e devolve cada linha já como objeto —
+// guarda os índices junto (usados depois pra escrever de volta sem
+// precisar reler o cabeçalho a cada vez).
+export async function fetchFaturasLinhas() {
+  const config = await fetchFaturasConfig()
+  if (!config.aba_nome) {
+    return { config, colunas: null, linhas: [] }
+  }
+
+  const { valores } = await chamarSheetsFaturas({
+    action: 'ler',
+    intervalo: `${config.aba_nome}!A1:ZZ2000`,
+  })
+  const todasLinhas = valores || []
+  if (todasLinhas.length === 0) return { config, colunas: null, linhas: [] }
+
+  const cabecalho = todasLinhas[0]
+  const acharColuna = (nome) =>
+    cabecalho.findIndex((c) => (c || '').trim().toUpperCase() === (nome || '').trim().toUpperCase())
+
+  const colunas = {
+    nome: acharColuna(config.coluna_nome),
+    cnpj: acharColuna(config.coluna_cnpj),
+    custcode: acharColuna(config.coluna_custcode),
+    telefone: acharColuna(config.coluna_telefone),
+    status: acharColuna(config.coluna_status),
+    protocolo: acharColuna(config.coluna_protocolo),
+    vendedor: acharColuna(config.coluna_vendedor),
+  }
+
+  const pegar = (linha, indice) => (indice >= 0 ? linha[indice] || '' : '')
+
+  const linhas = todasLinhas
+    .slice(1)
+    .map((linha, i) => ({
+      linhaPlanilha: i + 2, // linha real na planilha (1 = cabeçalho)
+      nome: pegar(linha, colunas.nome),
+      cnpj: pegar(linha, colunas.cnpj),
+      custcode: pegar(linha, colunas.custcode),
+      telefone: pegar(linha, colunas.telefone),
+      status: pegar(linha, colunas.status),
+      protocolo: pegar(linha, colunas.protocolo),
+      vendedor: pegar(linha, colunas.vendedor),
+    }))
+    .filter((l) => l.nome || l.cnpj || l.custcode)
+
+  return { config, colunas, linhas }
+}
+
+// Escreve um campo (status ou protocolo) de volta na planilha, numa
+// linha específica — usa o índice de coluna já resolvido por
+// fetchFaturasLinhas (colunas.status / colunas.protocolo).
+export async function escreverFaturaCampo(config, colunas, linhaPlanilha, campo, valor) {
+  const indice = colunas[campo]
+  if (indice == null || indice < 0) {
+    throw new Error(`Coluna de "${campo}" não encontrada na planilha — confere a configuração em Automações.`)
+  }
+  const celula = `${config.aba_nome}!${indiceParaColuna(indice)}${linhaPlanilha}`
+  await chamarSheetsFaturas({ action: 'escrever', intervalo: celula, valor })
+}
+
 export async function fetchParcelamentoConfig() {
   const { data, error } = await supabase
     .from('parcelamento_config')
