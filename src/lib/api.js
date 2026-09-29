@@ -172,6 +172,24 @@ export async function fetchTeamContestacoes(teamId) {
   return data
 }
 
+export async function fetchFaturasConfig() {
+  const { data, error } = await supabase
+    .from('faturas_config')
+    .select('*')
+    .eq('id', 1)
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function updateFaturasConfig(userId, patch) {
+  const { error } = await supabase
+    .from('faturas_config')
+    .update({ ...patch, atualizado_por: userId, atualizado_em: new Date().toISOString() })
+    .eq('id', 1)
+  if (error) throw error
+}
+
 export async function fetchParcelamentoConfig() {
   const { data, error } = await supabase
     .from('parcelamento_config')
