@@ -299,8 +299,13 @@ export async function fetchPlanilhaLinhas(modulo) {
   if (todasLinhas.length === 0) return { config, colunas: null, linhas: [] }
 
   const cabecalho = todasLinhas[0]
+  // Normaliza espaços (inclusive não-quebráveis, comuns em texto colado
+  // do Sheets) antes de comparar — nome da coluna configurado precisa
+  // bater com o cabeçalho real, mas variações de espaço não devem
+  // quebrar o match.
+  const normalizar = (texto) => (texto || '').replace(/\s+/g, ' ').trim().toUpperCase()
   const acharColuna = (nome) =>
-    cabecalho.findIndex((c) => (c || '').trim().toUpperCase() === (nome || '').trim().toUpperCase())
+    cabecalho.findIndex((c) => normalizar(c) === normalizar(nome))
 
   const colunas = {
     nome: acharColuna(config.coluna_nome),
