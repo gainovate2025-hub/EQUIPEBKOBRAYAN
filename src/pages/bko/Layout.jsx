@@ -15,7 +15,7 @@ export default function BkoLayout() {
   const navItems = [
     { to: '/bko', label: 'Meu Dashboard', end: true, icon: LayoutDashboard },
     { to: '/bko/contestacoes', label: contestacaoLabel, icon: FileText },
-    { to: '/bko/reagendamentos', label: 'Meus Reagendamentos', icon: CalendarClock },
+    { to: '/bko/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
     { to: '/bko/faturas', label: 'Faturas', icon: Receipt },
     { to: '/bko/fatura-contestacoes', label: 'Contestação (Faturas)', icon: FileText },
     { to: '/bko/relatorio-diario', label: 'Relatório diário', icon: ClipboardList },

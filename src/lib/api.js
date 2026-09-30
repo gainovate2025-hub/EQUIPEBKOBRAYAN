@@ -134,11 +134,12 @@ export async function fetchReagendamentoCasos({ bkoId } = {}) {
   return data
 }
 
-export async function adicionarReagendamentoCaso(bkoId, cnpj, razaoSocial) {
+export async function adicionarReagendamentoCaso(bkoId, cnpj, razaoSocial, custcode = '') {
   const { error } = await supabase.rpc('adicionar_reagendamento_caso', {
     p_bko_id: bkoId,
     p_cnpj: cnpj,
     p_razao_social: razaoSocial,
+    p_custcode: custcode,
   })
   if (error) throw new Error(error.message || 'Falha ao adicionar caso.')
 }

@@ -61,10 +61,6 @@ export default function Configuracoes() {
             <span className="text-sm font-semibold">Contestação (Faturas)</span>
             <ModuloConfigForm modulo="contestacao" />
           </div>
-          <div className="card p-6">
-            <span className="text-sm font-semibold">Reagendamento (Faturas)</span>
-            <ModuloConfigForm modulo="reagendamento" />
-          </div>
         </>
       )}
 

@@ -18,7 +18,7 @@ export default function SupervisorLayout() {
     { to: '/supervisor/cust-codes', label: 'Cust Codes', icon: ListOrdered },
     { to: '/supervisor/comissao', label: 'Comissão', icon: Percent },
     { to: '/supervisor/contestacoes', label: contestacaoLabel, icon: FileText },
-    { to: '/supervisor/reagendamentos', label: 'Reagendamentos', icon: CalendarClock },
+    { to: '/supervisor/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
     { to: '/supervisor/faturas', label: 'Faturas', icon: Receipt },
     { to: '/supervisor/fatura-contestacoes', label: 'Contestação (Faturas)', icon: FileText },
     { to: '/supervisor/casos-whatsapp', label: 'Casos do WhatsApp', icon: MessageCircle },
