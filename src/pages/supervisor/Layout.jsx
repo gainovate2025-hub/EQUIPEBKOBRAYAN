@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Users, Trophy, Settings, Zap, ListOrdered, ClipboardList, Receipt, MessageCircle,
+  Users, Trophy, Settings, Zap, ClipboardList, Receipt, MessageCircle,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -15,7 +15,6 @@ export default function SupervisorLayout() {
   const navItems = [
     { to: '/supervisor', label: 'Dashboard', end: true, icon: LayoutDashboard },
     { to: '/supervisor/aprovacao', label: 'Aprovação', icon: ShieldCheck },
-    { to: '/supervisor/cust-codes', label: 'Cust Codes', icon: ListOrdered },
     { to: '/supervisor/comissao', label: 'Comissão', icon: Percent },
     { to: '/supervisor/contestacoes', label: contestacaoLabel, icon: FileText },
     { to: '/supervisor/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
