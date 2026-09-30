@@ -14,7 +14,10 @@
 
 import { createClient } from 'jsr:@supabase/supabase-js@2'
 
-const SPREADSHEET_ID = '1F7mJZUAE85F_k0s4cX66DI0ERtY10CaGLuJnpCa48qk'
+// Planilha padrão ("Controle de fatura") — cada módulo (fatura/
+// contestação) pode apontar pra outra planilha via config, mandando o
+// spreadsheetId no corpo da chamada; sem isso, cai nessa aqui.
+const SPREADSHEET_ID_PADRAO = '1F7mJZUAE85F_k0s4cX66DI0ERtY10CaGLuJnpCa48qk'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -91,16 +94,16 @@ async function pegarTokenDeAcesso(contaServico) {
   return dados.access_token
 }
 
-async function lerIntervalo(token, intervalo) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(intervalo)}`
+async function lerIntervalo(token, spreadsheetId, intervalo) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(intervalo)}`
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!resp.ok) throw new Error(`Sheets API ${resp.status}: ${await resp.text()}`)
   const dados = await resp.json()
   return dados.values || []
 }
 
-async function escreverIntervalo(token, intervalo, valor) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(intervalo)}?valueInputOption=USER_ENTERED`
+async function escreverIntervalo(token, spreadsheetId, intervalo, valor) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(intervalo)}?valueInputOption=USER_ENTERED`
   const resp = await fetch(url, {
     method: 'PUT',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -109,8 +112,8 @@ async function escreverIntervalo(token, intervalo, valor) {
   if (!resp.ok) throw new Error(`Sheets API ${resp.status}: ${await resp.text()}`)
 }
 
-async function listarAbas(token) {
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}?fields=sheets.properties.title`
+async function listarAbas(token, spreadsheetId) {
+  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
   if (!resp.ok) throw new Error(`Sheets API ${resp.status}: ${await resp.text()}`)
   const dados = await resp.json()
@@ -143,16 +146,17 @@ Deno.serve(async (req) => {
     const contaServico = JSON.parse(contaServicoTexto)
     const token = await pegarTokenDeAcesso(contaServico)
 
-    const { action, intervalo, valor } = await req.json()
+    const { action, intervalo, valor, spreadsheetId } = await req.json()
+    const idPlanilha = spreadsheetId || SPREADSHEET_ID_PADRAO
 
     if (action === 'listar_abas') {
-      const abas = await listarAbas(token)
+      const abas = await listarAbas(token, idPlanilha)
       return resposta({ abas })
     }
 
     if (action === 'ler') {
       if (!intervalo) return resposta({ error: 'Falta o intervalo (ex: NomeDaAba!A1:Z100).' }, 400)
-      const valores = await lerIntervalo(token, intervalo)
+      const valores = await lerIntervalo(token, idPlanilha, intervalo)
       return resposta({ valores })
     }
 
@@ -160,7 +164,7 @@ Deno.serve(async (req) => {
       if (!intervalo || valor === undefined) {
         return resposta({ error: 'Falta o intervalo e/ou o valor.' }, 400)
       }
-      await escreverIntervalo(token, intervalo, valor)
+      await escreverIntervalo(token, idPlanilha, intervalo, valor)
       return resposta({ ok: true })
     }
 

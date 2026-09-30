@@ -224,6 +224,24 @@ export async function updateModuloConfig(modulo, userId, patch) {
   if (error) throw error
 }
 
+// Aceita tanto o link inteiro (https://docs.google.com/spreadsheets/d/ID/edit...)
+// quanto só o ID colado direto — extrai o ID dos dois jeitos.
+export function extrairSpreadsheetId(urlOuId) {
+  const texto = (urlOuId || '').trim()
+  const match = texto.match(/\/d\/([a-zA-Z0-9-_]+)/)
+  return match ? match[1] : texto
+}
+
+// Lista as abas de uma planilha a partir do link (ou ID) colado no
+// formulário — antes mesmo de salvar, pra dar pra escolher a aba certa
+// num dropdown (como a automação do P2B).
+export async function listarAbasPlanilha(sheetUrl) {
+  const spreadsheetId = extrairSpreadsheetId(sheetUrl)
+  if (!spreadsheetId) throw new Error('Cola o link da planilha primeiro.')
+  const { abas } = await chamarSheetsFaturas({ action: 'listar_abas', spreadsheetId })
+  return abas
+}
+
 // Chama a Edge Function "sheets-faturas" (lê/escreve na planilha Google
 // Sheets "Controle de fatura") — mesmo jeito de chamar do updateLogin
 // (fetch direto, chave "publishable" no apikey).
@@ -275,6 +293,7 @@ export async function fetchPlanilhaLinhas(modulo) {
   const { valores } = await chamarSheetsFaturas({
     action: 'ler',
     intervalo: `${config.aba_nome}!A1:ZZ2000`,
+    spreadsheetId: extrairSpreadsheetId(config.sheet_url) || undefined,
   })
   const todasLinhas = valores || []
   if (todasLinhas.length === 0) return { config, colunas: null, linhas: [] }
@@ -321,7 +340,12 @@ export async function escreverPlanilhaCampo(config, colunas, linhaPlanilha, camp
     throw new Error(`Coluna de "${campo}" não encontrada na planilha — confere a configuração em Automações.`)
   }
   const celula = `${config.aba_nome}!${indiceParaColuna(indice)}${linhaPlanilha}`
-  await chamarSheetsFaturas({ action: 'escrever', intervalo: celula, valor })
+  await chamarSheetsFaturas({
+    action: 'escrever',
+    intervalo: celula,
+    valor,
+    spreadsheetId: extrairSpreadsheetId(config.sheet_url) || undefined,
+  })
 }
 
 export async function fetchParcelamentoConfig() {
