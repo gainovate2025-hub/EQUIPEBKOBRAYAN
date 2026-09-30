@@ -121,19 +121,13 @@ export default function ModuloConfigForm({ modulo }) {
         <Field label="Coluna do telefone (WhatsApp)">
           <input className="field-input" placeholder="TEL.PRINCIPAL" value={colunaTelefone} onChange={(e) => setColunaTelefone(e.target.value)} />
         </Field>
-        <Field label="Coluna do status">
-          <input className="field-input" placeholder="STATUS LINHA" value={colunaStatus} onChange={(e) => setColunaStatus(e.target.value)} />
-        </Field>
         <Field label="Coluna do protocolo (contestação)">
           <input className="field-input" placeholder="OBS" value={colunaProtocolo} onChange={(e) => setColunaProtocolo(e.target.value)} />
-        </Field>
-        <Field label="Coluna do vendedor/responsável">
-          <input className="field-input" placeholder="VENDEDOR" value={colunaVendedor} onChange={(e) => setColunaVendedor(e.target.value)} />
         </Field>
       </div>
       <p className="text-xs text-muted">
         Se trocar de planilha, precisa compartilhar ela (Editor) com <strong>painel-bko-sheet@painel-bko.iam.gserviceaccount.com</strong> antes de buscar as abas. Deixando o link em branco, usa a planilha padrão "Controle de fatura".
-        Os nomes das colunas precisam bater exatamente com o cabeçalho (linha 1) da aba escolhida. A coluna do vendedor decide o que cada BKO vê — o nome na planilha precisa bater com o nome cadastrado no perfil dele.
+        Os nomes das colunas precisam bater exatamente com o cabeçalho (linha 1) da aba escolhida.
       </p>
       <button type="submit" className="btn-primary self-start" disabled={salvando}>
         {salvando ? 'Salvando…' : 'Salvar configuração'}
