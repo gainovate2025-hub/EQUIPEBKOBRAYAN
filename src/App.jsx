@@ -19,7 +19,6 @@ import SupervisorFaturaContestacoes from './pages/supervisor/FaturaContestacoes'
 
 import BkoLayout from './pages/bko/Layout'
 import BkoDashboard from './pages/bko/Dashboard'
-import BkoContestacoes from './pages/bko/Contestacoes'
 import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoComissao from './pages/bko/Comissao'
 import BkoFaturas from './pages/bko/Faturas'
@@ -70,7 +69,6 @@ export default function App() {
         }
       >
         <Route index element={<BkoDashboard />} />
-        <Route path="contestacoes" element={<BkoContestacoes />} />
         <Route path="reagendamentos" element={<BkoReagendamentos />} />
         <Route path="faturas" element={<BkoFaturas />} />
         <Route path="fatura-contestacoes" element={<BkoFaturaContestacoes />} />

@@ -6,15 +6,12 @@ import {
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
 import { BkoDataProvider } from '../../lib/BkoDataContext'
-import { useAuth } from '../../lib/AuthContext'
 
 export default function BkoLayout() {
-  const { contestacaoLabel } = useAuth()
   const location = useLocation()
 
   const navItems = [
     { to: '/bko', label: 'Meu Dashboard', end: true, icon: LayoutDashboard },
-    { to: '/bko/contestacoes', label: contestacaoLabel, icon: FileText },
     { to: '/bko/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
     { to: '/bko/faturas', label: 'Faturas', icon: Receipt },
     { to: '/bko/fatura-contestacoes', label: 'Contestação (Faturas)', icon: FileText },
