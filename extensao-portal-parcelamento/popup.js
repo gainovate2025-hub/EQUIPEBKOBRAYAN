@@ -1,4 +1,5 @@
 const botaoToggle = document.getElementById('toggle')
+const botaoReiniciar = document.getElementById('reiniciar')
 const status = document.getElementById('status')
 const erro = document.getElementById('erro')
 
@@ -28,6 +29,15 @@ botaoToggle.addEventListener('click', async () => {
   const ligadoAgora = botaoToggle.textContent === 'Desligar'
   await chrome.runtime.sendMessage({ tipo: ligadoAgora ? 'pp:desligar' : 'pp:ligar' })
   await carregar()
+})
+
+botaoReiniciar.addEventListener('click', async () => {
+  botaoReiniciar.disabled = true
+  botaoReiniciar.textContent = 'Reiniciando…'
+  await chrome.runtime.sendMessage({ tipo: 'pp:reiniciar' })
+  await carregar()
+  botaoReiniciar.disabled = false
+  botaoReiniciar.textContent = 'Reiniciar (travou)'
 })
 
 carregar()

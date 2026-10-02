@@ -192,6 +192,22 @@ export default function P2BPanel() {
     }
   }
 
+  // Pra quando a automação trava (fica "Rodando" sem avançar) — um clique
+  // só, em vez de ter que parar e iniciar na mão de novo.
+  async function reiniciar() {
+    setErro('')
+    setAcaoEmAndamento(true)
+    try {
+      await chamar('/api/automation/command', { method: 'POST', body: JSON.stringify({ action: 'stop' }) })
+      await chamar('/api/automation/command', { method: 'POST', body: JSON.stringify({ action: 'start' }) })
+      await carregarEstado()
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setAcaoEmAndamento(false)
+    }
+  }
+
   if (carregandoGoogle) return <p className="mt-4 text-sm text-muted">Carregando…</p>
 
   if (!googleConectado) {
@@ -315,6 +331,11 @@ export default function P2BPanel() {
         {!rodando && (
           <button type="button" className="btn-primary" onClick={iniciar} disabled={acaoEmAndamento || !planilhaId || !abaNome}>
             {acaoEmAndamento ? 'Iniciando…' : 'Iniciar'}
+          </button>
+        )}
+        {(rodando || estado?.status === 'paused') && (
+          <button type="button" className="btn-ghost" onClick={reiniciar} disabled={acaoEmAndamento}>
+            {acaoEmAndamento ? 'Reiniciando…' : 'Reiniciar (travou)'}
           </button>
         )}
         {rodando && (

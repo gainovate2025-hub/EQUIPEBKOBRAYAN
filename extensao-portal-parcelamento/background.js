@@ -13,6 +13,11 @@
 const PORTAL_URL = 'https://portalparcelamento.timbrasil.com.br/pparcelamentos/appSgr/home/selecaoContexto.xhtml'
 const MAX_TENTATIVAS_PORTAL = 4
 const INTERVALO_CICLO_MINUTOS = 1
+// Se um cliente fica "em andamento" sem nenhuma atualização por mais
+// tempo que isso, é sinal de que travou de verdade (aba fechada, erro
+// silencioso, etc.) — o próprio ciclo de 1 em 1 minuto detecta e limpa
+// sozinho, sem precisar ninguém clicar em nada.
+const TRAVADO_APOS_MINUTOS = 5
 
 // Mesmo projeto Supabase do resto do painel-bko.
 const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
@@ -75,7 +80,7 @@ async function pegarJob() {
 }
 
 async function salvarJob(job) {
-  await chrome.storage.session.set({ pp_job: job })
+  await chrome.storage.session.set({ pp_job: { ...job, atualizadoEm: Date.now() } })
 }
 
 async function limparJob() {
@@ -159,8 +164,17 @@ async function abrirAbaPortal() {
 async function tentarProximoCiclo() {
   if (!(await pegarLigado())) return
 
-  const jobAtual = await pegarJob()
-  if (jobAtual?.ativo) return // já tem um cliente em andamento
+  let jobAtual = await pegarJob()
+  if (jobAtual?.ativo) {
+    const paradoHaMinutos = (Date.now() - (jobAtual.atualizadoEm || 0)) / 60000
+    if (paradoHaMinutos >= TRAVADO_APOS_MINUTOS) {
+      log(`Cliente ${jobAtual.custcode} parado há ${Math.round(paradoHaMinutos)} min sem atualização — considerando travado, limpando pra tentar de novo.`)
+      await limparJob()
+      jobAtual = null
+    } else {
+      return // já tem um cliente em andamento, dentro do tempo normal
+    }
+  }
 
   let config
   try {
@@ -442,6 +456,15 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     }
 
     if (msg?.tipo === 'pp:ligar') {
+      await chrome.storage.local.set({ pp_ligado: true })
+      tentarProximoCiclo()
+      sendResponse({ ok: true })
+      return
+    }
+
+    if (msg?.tipo === 'pp:reiniciar') {
+      log('Reinício manual pedido pela pessoa — limpando qualquer cliente travado e tentando de novo.')
+      await limparJob()
       await chrome.storage.local.set({ pp_ligado: true })
       tentarProximoCiclo()
       sendResponse({ ok: true })
