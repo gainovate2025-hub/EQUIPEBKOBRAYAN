@@ -153,8 +153,11 @@ export default function P2BPanel() {
     }
   }
 
-  async function iniciar() {
+  async function iniciar(forceAll = false) {
     if (!planilhaId || !abaNome) return setErro('Escolhe a planilha e a aba primeiro.')
+    if (forceAll && !window.confirm('Isso vai reprocessar TODAS as linhas, mesmo as que já têm dado preenchido. Continuar?')) {
+      return
+    }
     setErro('')
     setAcaoEmAndamento(true)
     try {
@@ -168,7 +171,7 @@ export default function P2BPanel() {
           : mapeamentoAtual
       await chamar('/api/sheets/connect', {
         method: 'POST',
-        body: JSON.stringify({ spreadsheetId: planilhaId, sheetName: abaNome, columnMapping, mode: modo }),
+        body: JSON.stringify({ spreadsheetId: planilhaId, sheetName: abaNome, columnMapping, mode: modo, forceAll }),
       })
       await chamar('/api/automation/command', { method: 'POST', body: JSON.stringify({ action: 'start' }) })
       await carregarEstado()
@@ -329,8 +332,24 @@ export default function P2BPanel() {
 
       <div className="flex gap-2">
         {!rodando && (
-          <button type="button" className="btn-primary" onClick={iniciar} disabled={acaoEmAndamento || !planilhaId || !abaNome}>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => iniciar(false)}
+            disabled={acaoEmAndamento || !planilhaId || !abaNome}
+          >
             {acaoEmAndamento ? 'Iniciando…' : 'Iniciar'}
+          </button>
+        )}
+        {!rodando && (
+          <button
+            type="button"
+            className="btn-ghost"
+            onClick={() => iniciar(true)}
+            disabled={acaoEmAndamento || !planilhaId || !abaNome}
+            title="Reprocessa a planilha inteira, mesmo as linhas que já têm dado preenchido."
+          >
+            {acaoEmAndamento ? 'Iniciando…' : 'Rodar tudo de novo'}
           </button>
         )}
         {(rodando || estado?.status === 'paused') && (
