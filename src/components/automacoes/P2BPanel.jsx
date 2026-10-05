@@ -27,6 +27,16 @@ const STATUS_TEXTO = {
   completed: 'Concluído',
 }
 
+// Status de UMA linha da fila (vem do backend em maiúsculas) — diferente do
+// STATUS_TEXTO acima, que é do estado geral da automação em lote.
+const ROW_STATUS_TEXTO = {
+  CONCLUIDO: 'Concluído',
+  ERRO: 'Erro',
+  NAO_ENCONTRADO: 'Não encontrado',
+  SEM_FATURA: 'Sem fatura em aberto',
+  PENDENTE: 'Pendente',
+}
+
 export default function P2BPanel() {
   const [carregandoGoogle, setCarregandoGoogle] = useState(true)
   const [googleConectado, setGoogleConectado] = useState(false)
@@ -46,6 +56,9 @@ export default function P2BPanel() {
 
   const [logs, setLogs] = useState([])
   const [estado, setEstado] = useState(null)
+  const [custcodeAvulso, setCustcodeAvulso] = useState('')
+  const [buscandoAvulso, setBuscandoAvulso] = useState(false)
+  const [resultadoAvulso, setResultadoAvulso] = useState(null)
   const [extensaoLigada, setExtensaoLigada] = useState(null)
   const [acaoEmAndamento, setAcaoEmAndamento] = useState(false)
   const [codigoPareamento, setCodigoPareamento] = useState(null)
@@ -195,6 +208,29 @@ export default function P2BPanel() {
     }
   }
 
+  // Busca avulsa: digita um CUSTCODE/CNPJ específico e atualiza só essa
+  // linha na planilha, sem rodar a fila inteira. Exige a automação em lote
+  // parada/pausada (o backend recusa se estiver "Rodando").
+  async function buscarAvulso() {
+    if (!custcodeAvulso.trim()) return
+    setErro('')
+    setResultadoAvulso(null)
+    setBuscandoAvulso(true)
+    try {
+      const item = await chamar('/api/automation/process-single', {
+        method: 'POST',
+        body: JSON.stringify({ custCode: custcodeAvulso.trim() }),
+      })
+      setResultadoAvulso(item)
+      await carregarEstado()
+      await carregarLogs()
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setBuscandoAvulso(false)
+    }
+  }
+
   // Pra quando a automação trava (fica "Rodando" sem avançar) — um clique
   // só, em vez de ter que parar e iniciar na mão de novo.
   async function reiniciar() {
@@ -314,6 +350,39 @@ export default function P2BPanel() {
           </label>
         </div>
       )}
+
+      <div className="rounded-lg border border-line p-3">
+        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+          Buscar um {modo === 'cnpj' ? 'CNPJ' : 'CUSTCODE'} específico (sem rodar a fila inteira)
+          <div className="flex gap-2">
+            <input
+              className="field-input flex-1"
+              value={custcodeAvulso}
+              onChange={(e) => setCustcodeAvulso(e.target.value)}
+              placeholder={modo === 'cnpj' ? 'Ex: 12345678000190' : 'Ex: 7.2223650'}
+              disabled={rodando || buscandoAvulso}
+            />
+            <button
+              type="button"
+              className="btn-ghost shrink-0"
+              onClick={buscarAvulso}
+              disabled={rodando || buscandoAvulso || !custcodeAvulso.trim()}
+            >
+              {buscandoAvulso ? 'Buscando…' : 'Buscar'}
+            </button>
+          </div>
+        </label>
+        {rodando && (
+          <p className="mt-1 text-[11px] text-muted">Pausa ou para a automação em lote primeiro.</p>
+        )}
+        {resultadoAvulso && (
+          <p className="mt-2 text-xs">
+            <span className="font-semibold text-ink">{resultadoAvulso.custCode}:</span>{' '}
+            {ROW_STATUS_TEXTO[resultadoAvulso.status] || resultadoAvulso.status}
+            {resultadoAvulso.error ? ` — ${resultadoAvulso.error}` : ''}
+          </p>
+        )}
+      </div>
 
       {estado && estado.total > 0 && (
         <div className="rounded-lg bg-paper p-3 text-xs text-muted">
