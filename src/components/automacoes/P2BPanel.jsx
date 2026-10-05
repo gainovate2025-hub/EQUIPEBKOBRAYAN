@@ -56,9 +56,10 @@ export default function P2BPanel() {
 
   const [logs, setLogs] = useState([])
   const [estado, setEstado] = useState(null)
-  const [custcodeAvulso, setCustcodeAvulso] = useState('')
+  const [custcodesAvulso, setCustcodesAvulso] = useState('')
   const [buscandoAvulso, setBuscandoAvulso] = useState(false)
-  const [resultadoAvulso, setResultadoAvulso] = useState(null)
+  const [progressoAvulso, setProgressoAvulso] = useState(null) // { atual, total }
+  const [resultadosAvulso, setResultadosAvulso] = useState([])
   const [extensaoLigada, setExtensaoLigada] = useState(null)
   const [acaoEmAndamento, setAcaoEmAndamento] = useState(false)
   const [codigoPareamento, setCodigoPareamento] = useState(null)
@@ -208,25 +209,38 @@ export default function P2BPanel() {
     }
   }
 
-  // Busca avulsa: digita um CUSTCODE/CNPJ específico e atualiza só essa
-  // linha na planilha, sem rodar a fila inteira. Exige a automação em lote
-  // parada/pausada (o backend recusa se estiver "Rodando").
+  // Busca avulsa: cola uma lista de CUSTCODE/CNPJ (um por linha ou separados
+  // por vírgula) e atualiza só essas linhas na planilha, sem rodar a fila
+  // inteira. Manda um de cada vez pro backend (ele já recusa rodar junto
+  // com a automação em lote se ela estiver "Rodando").
   async function buscarAvulso() {
-    if (!custcodeAvulso.trim()) return
+    const lista = [...new Set(
+      custcodesAvulso
+        .split(/[\n,;]+/)
+        .map((c) => c.trim())
+        .filter(Boolean)
+    )]
+    if (lista.length === 0) return
     setErro('')
-    setResultadoAvulso(null)
+    setResultadosAvulso([])
     setBuscandoAvulso(true)
     try {
-      const item = await chamar('/api/automation/process-single', {
-        method: 'POST',
-        body: JSON.stringify({ custCode: custcodeAvulso.trim() }),
-      })
-      setResultadoAvulso(item)
+      for (let i = 0; i < lista.length; i++) {
+        setProgressoAvulso({ atual: i + 1, total: lista.length })
+        try {
+          const item = await chamar('/api/automation/process-single', {
+            method: 'POST',
+            body: JSON.stringify({ custCode: lista[i] }),
+          })
+          setResultadosAvulso((atual) => [...atual, item])
+        } catch (err) {
+          setResultadosAvulso((atual) => [...atual, { custCode: lista[i], status: 'ERRO', error: err.message }])
+        }
+      }
       await carregarEstado()
       await carregarLogs()
-    } catch (err) {
-      setErro(err.message)
     } finally {
+      setProgressoAvulso(null)
       setBuscandoAvulso(false)
     }
   }
@@ -353,34 +367,42 @@ export default function P2BPanel() {
 
       <div className="rounded-lg border border-line p-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-          Buscar um {modo === 'cnpj' ? 'CNPJ' : 'CUSTCODE'} específico (sem rodar a fila inteira)
-          <div className="flex gap-2">
-            <input
-              className="field-input flex-1"
-              value={custcodeAvulso}
-              onChange={(e) => setCustcodeAvulso(e.target.value)}
-              placeholder={modo === 'cnpj' ? 'Ex: 12345678000190' : 'Ex: 7.2223650'}
-              disabled={rodando || buscandoAvulso}
-            />
-            <button
-              type="button"
-              className="btn-ghost shrink-0"
-              onClick={buscarAvulso}
-              disabled={rodando || buscandoAvulso || !custcodeAvulso.trim()}
-            >
-              {buscandoAvulso ? 'Buscando…' : 'Buscar'}
-            </button>
-          </div>
+          Buscar uma lista de {modo === 'cnpj' ? 'CNPJs' : 'CUSTCODEs'} específicos (sem rodar a fila inteira)
+          <textarea
+            className="field-input min-h-20 resize-y"
+            value={custcodesAvulso}
+            onChange={(e) => setCustcodesAvulso(e.target.value)}
+            placeholder={
+              modo === 'cnpj'
+                ? 'Um por linha (ou separados por vírgula):\n12345678000190\n98765432000111'
+                : 'Um por linha (ou separados por vírgula):\n7.2223650\n7.2223651'
+            }
+            disabled={rodando || buscandoAvulso}
+          />
+          <button
+            type="button"
+            className="btn-ghost self-start"
+            onClick={buscarAvulso}
+            disabled={rodando || buscandoAvulso || !custcodesAvulso.trim()}
+          >
+            {buscandoAvulso && progressoAvulso
+              ? `Buscando ${progressoAvulso.atual}/${progressoAvulso.total}…`
+              : 'Buscar lista'}
+          </button>
         </label>
         {rodando && (
           <p className="mt-1 text-[11px] text-muted">Pausa ou para a automação em lote primeiro.</p>
         )}
-        {resultadoAvulso && (
-          <p className="mt-2 text-xs">
-            <span className="font-semibold text-ink">{resultadoAvulso.custCode}:</span>{' '}
-            {ROW_STATUS_TEXTO[resultadoAvulso.status] || resultadoAvulso.status}
-            {resultadoAvulso.error ? ` — ${resultadoAvulso.error}` : ''}
-          </p>
+        {resultadosAvulso.length > 0 && (
+          <div className="mt-2 max-h-40 overflow-y-auto text-xs">
+            {resultadosAvulso.map((r, i) => (
+              <p key={`${r.custCode}-${i}`}>
+                <span className="font-semibold text-ink">{r.custCode}:</span>{' '}
+                {ROW_STATUS_TEXTO[r.status] || r.status}
+                {r.error ? ` — ${r.error}` : ''}
+              </p>
+            ))}
+          </div>
         )}
       </div>
 
