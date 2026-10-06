@@ -13,8 +13,6 @@ import SupervisorAprovacao from './pages/supervisor/Aprovacao'
 import SupervisorCrivo from './pages/supervisor/Crivo'
 import SupervisorAutomacoes from './pages/supervisor/Automacoes'
 import SupervisorRelatorios from './pages/supervisor/Relatorios'
-import SupervisorFaturas from './pages/supervisor/Faturas'
-import SupervisorFaturaContestacoes from './pages/supervisor/FaturaContestacoes'
 import SupervisorRelatorioContestacaoSheet from './pages/supervisor/RelatorioContestacaoSheet'
 
 import BkoLayout from './pages/bko/Layout'
@@ -47,8 +45,6 @@ export default function App() {
         <Route path="comissao" element={<SupervisorComissao />} />
         <Route path="contestacoes" element={<SupervisorContestacoes />} />
         <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
-        <Route path="faturas" element={<SupervisorFaturas />} />
-        <Route path="fatura-contestacoes" element={<SupervisorFaturaContestacoes />} />
         <Route path="relatorio-contestacao-sheet" element={<SupervisorRelatorioContestacaoSheet />} />
         <Route path="relatorios" element={<SupervisorRelatorios />} />
         <Route path="equipe" element={<SupervisorEquipe />} />
