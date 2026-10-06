@@ -22,6 +22,14 @@ const COLUNAS_PENDENTES = [
   { key: 'enviado', label: 'Enviado em', width: '1.1fr' },
 ]
 
+const COLUNAS_APROVADOS = [
+  { key: 'custcode', label: 'Cust Code', width: '1fr' },
+  { key: 'nome', label: 'Cliente', width: '1.3fr' },
+  { key: 'bko', label: 'BKO', width: '1.1fr' },
+  { key: 'enviado', label: 'Enviado em', width: '1fr' },
+  { key: 'saiu', label: 'Aprovado em', width: '1fr' },
+]
+
 export default function RelatorioContestacaoSheet() {
   const { profile } = useAuth()
   const { toast, showToast } = useToast()
@@ -80,6 +88,16 @@ export default function RelatorioContestacaoSheet() {
     enviado: fmtDateTime(r.enviado_em),
   }))
 
+  const aprovadosMes = useMemo(() => doMes.filter((r) => r.saiu_em), [doMes])
+  const linhasAprovados = aprovadosMes.map((r) => ({
+    key: r.id,
+    custcode: r.cust_code,
+    nome: r.nome_cliente || '—',
+    bko: r.profiles?.name || '—',
+    enviado: fmtDateTime(r.enviado_em),
+    saiu: fmtDateTime(r.saiu_em),
+  }))
+
   return (
     <>
       <div className="flex flex-wrap gap-4">
@@ -110,6 +128,28 @@ export default function RelatorioContestacaoSheet() {
           <p className="text-sm text-muted">Carregando…</p>
         ) : (
           <DataTable columns={COLUNAS_POR_BKO} rows={porBko} />
+        )}
+      </div>
+
+      <div className="mt-9 flex flex-col gap-4">
+        <SectionHeading
+          title="Aprovados este mês (saíram do sistema)"
+          hint="Cust Codes que o TIM já processou e tirou da fila de Contestação"
+        />
+        {!loading && linhasAprovados.length === 0 && (
+          <p className="text-sm text-muted">Nenhum Cust Code aprovado ainda esse mês.</p>
+        )}
+        {linhasAprovados.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="btn-ghost btn-sm self-start"
+              onClick={() => copiarCustCodes(aprovadosMes, 'aprovados esse mês')}
+            >
+              Copiar Cust Codes aprovados
+            </button>
+            <DataTable columns={COLUNAS_APROVADOS} rows={linhasAprovados} />
+          </>
         )}
       </div>
 
