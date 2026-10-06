@@ -15,6 +15,7 @@ import SupervisorAutomacoes from './pages/supervisor/Automacoes'
 import SupervisorRelatorios from './pages/supervisor/Relatorios'
 import SupervisorFaturas from './pages/supervisor/Faturas'
 import SupervisorFaturaContestacoes from './pages/supervisor/FaturaContestacoes'
+import SupervisorRelatorioContestacaoSheet from './pages/supervisor/RelatorioContestacaoSheet'
 
 import BkoLayout from './pages/bko/Layout'
 import BkoDashboard from './pages/bko/Dashboard'
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
         <Route path="faturas" element={<SupervisorFaturas />} />
         <Route path="fatura-contestacoes" element={<SupervisorFaturaContestacoes />} />
+        <Route path="relatorio-contestacao-sheet" element={<SupervisorRelatorioContestacaoSheet />} />
         <Route path="casos-whatsapp" element={<CasosWhatsapp />} />
         <Route path="relatorios" element={<SupervisorRelatorios />} />
         <Route path="equipe" element={<SupervisorEquipe />} />

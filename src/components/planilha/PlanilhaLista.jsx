@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { fetchPlanilhaLinhas, escreverPlanilhaCampo } from '../../lib/api'
+import { fetchPlanilhaLinhas, escreverPlanilhaCampo, sincronizarContestacaoSheet } from '../../lib/api'
 import Toast from '../ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { useAuth } from '../../lib/AuthContext'
@@ -71,6 +71,11 @@ export default function PlanilhaLista({
       })
       setStatusLivre(statusIniciais)
       setProtocolos(protocolosIniciais)
+      // Histórico pro relatório mensal — nunca trava a tela se falhar
+      // (é só registro, a lista em si já carregou normal acima).
+      if (modulo === 'contestacao') {
+        sincronizarContestacaoSheet(resultado.linhas).catch(() => {})
+      }
     } catch (err) {
       setErro(err.message || 'Falha ao carregar planilha.')
     } finally {

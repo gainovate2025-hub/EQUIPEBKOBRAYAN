@@ -203,6 +203,58 @@ export async function fetchTeamContestacoes(teamId) {
   return data
 }
 
+// ---------- contestações da planilha (módulo "Contestação (Faturas)") ----------
+// Histórico de quando cada Cust Code apareceu na aba de Contestação e
+// quando saiu dela (resolvido no sistema do TIM, pode levar até ~10 dias)
+// — separado do fluxo de aprovação acima (contestacoes/submit_contestacao).
+
+// Chamada ao abrir a tela de Contestação (Faturas) — registra quem é novo
+// na aba e marca quem sumiu dela como "saído agora". Falha aqui nunca
+// deve travar a tela (é só histórico), então os chamadores engolem erro.
+export async function sincronizarContestacaoSheet(linhasAtivas) {
+  const comCustcode = linhasAtivas.filter((l) => l.custcode)
+  const { error } = await supabase.rpc('sincronizar_contestacao_sheet', {
+    p_custcodes_ativos: comCustcode.map((l) => l.custcode),
+    p_nomes: comCustcode.map((l) => l.nome || ''),
+  })
+  if (error) throw new Error(error.message || 'Falha ao sincronizar contestações.')
+}
+
+// Relatório do mês atual (enviadas desde o dia 1) — "reset mensal" é só
+// filtrar por data, nada é apagado, então os que ainda estão em trânsito
+// na virada do mês continuam rastreados até saírem de verdade.
+export async function fetchContestacaoSheetRelatorioMes(teamId) {
+  const inicioMes = new Date()
+  inicioMes.setDate(1)
+  inicioMes.setHours(0, 0, 0, 0)
+  let query = supabase
+    .from('contestacao_sheet_envios')
+    .select(`*, profiles!contestacao_sheet_envios_user_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
+    .gte('enviado_em', inicioMes.toISOString())
+    .order('enviado_em', { ascending: false })
+  if (teamId) query = query.eq('profiles.team_id', teamId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Lista dos últimos ~14 dias ainda sem saiu_em — a "lista da última
+// semana" que não pode sumir na virada do mês, já que pode levar até 10
+// dias pra sair do sistema.
+export async function fetchContestacaoSheetPendentesRecentes(teamId) {
+  const limite = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+  let query = supabase
+    .from('contestacao_sheet_envios')
+    .select(`*, profiles!contestacao_sheet_envios_user_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
+    .is('saiu_em', null)
+    .gte('enviado_em', limite.toISOString())
+    .order('enviado_em', { ascending: false })
+  if (teamId) query = query.eq('profiles.team_id', teamId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
 // Configuração por módulo (fatura / contestacao / reagendamento) — os 3
 // são abas da MESMA planilha "Controle de fatura", cada um com sua
 // própria aba e mapeamento de coluna.

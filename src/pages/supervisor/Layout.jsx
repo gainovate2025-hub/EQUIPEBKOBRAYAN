@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Users, Trophy, Settings, Zap, ClipboardList, Receipt, MessageCircle,
+  Users, Trophy, Settings, Zap, ClipboardList, Receipt, MessageCircle, BarChart3,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -20,6 +20,7 @@ export default function SupervisorLayout() {
     { to: '/supervisor/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
     { to: '/supervisor/faturas', label: 'Faturas', icon: Receipt },
     { to: '/supervisor/fatura-contestacoes', label: 'Contestação (Faturas)', icon: FileText },
+    { to: '/supervisor/relatorio-contestacao-sheet', label: 'Relatório de Contestações', icon: BarChart3 },
     { to: '/supervisor/casos-whatsapp', label: 'Casos do WhatsApp', icon: MessageCircle },
     { to: '/supervisor/relatorios', label: 'Relatórios', icon: ClipboardList },
     { to: '/supervisor/equipe', label: 'Equipe', icon: Users },
