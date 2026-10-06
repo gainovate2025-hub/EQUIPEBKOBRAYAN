@@ -8,7 +8,7 @@ import { supabase, usernameToEmail } from './supabaseClient'
 export async function fetchTeam(teamId) {
   let query = supabase
     .from('profiles')
-    .select('id, name, username, role, active, performance(*)')
+    .select('id, name, username, role, active, modulos_responsavel, performance(*)')
     .eq('role', 'bko')
     .order('name', { ascending: true })
   if (teamId) query = query.eq('team_id', teamId)
