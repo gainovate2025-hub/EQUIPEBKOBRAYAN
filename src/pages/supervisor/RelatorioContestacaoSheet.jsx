@@ -3,6 +3,8 @@ import { useAuth } from '../../lib/AuthContext'
 import SectionHeading from '../../components/ui/SectionHeading'
 import { HeroCardWhite } from '../../components/ui/HeroCard'
 import DataTable from '../../components/ui/DataTable'
+import Toast from '../../components/ui/Toast'
+import { useToast } from '../../lib/useToast'
 import { fetchContestacaoSheetRelatorioMes, fetchContestacaoSheetPendentesRecentes } from '../../lib/api'
 import { fmtDateTime } from '../../lib/helpers'
 
@@ -22,6 +24,7 @@ const COLUNAS_PENDENTES = [
 
 export default function RelatorioContestacaoSheet() {
   const { profile } = useAuth()
+  const { toast, showToast } = useToast()
   const [doMes, setDoMes] = useState([])
   const [pendentesRecentes, setPendentesRecentes] = useState([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +61,17 @@ export default function RelatorioContestacaoSheet() {
   const totalEnviadas = doMes.length
   const totalSaidas = doMes.filter((r) => r.saiu_em).length
 
+  async function copiarCustCodes(lista, rotulo) {
+    const custcodes = [...new Set(lista.map((r) => r.cust_code).filter(Boolean))]
+    if (custcodes.length === 0) return showToast('Nenhum Cust Code pra copiar.', 'error')
+    try {
+      await navigator.clipboard.writeText(custcodes.join('\n'))
+      showToast(`${custcodes.length} Cust Code(s) ${rotulo} copiados.`)
+    } catch {
+      showToast('Não consegui copiar — copia manualmente da lista.', 'error')
+    }
+  }
+
   const linhasPendentes = pendentesRecentes.map((r) => ({
     key: r.id,
     custcode: r.cust_code,
@@ -72,6 +86,17 @@ export default function RelatorioContestacaoSheet() {
         <HeroCardWhite label="Enviadas este mês" value={totalEnviadas} minWidth={220} />
         <HeroCardWhite label="Saíram do sistema" value={totalSaidas} minWidth={220} />
         <HeroCardWhite label="Ainda em trâmite" value={totalEnviadas - totalSaidas} minWidth={220} />
+      </div>
+
+      <div className="mt-4">
+        <button
+          type="button"
+          className="btn-ghost btn-sm"
+          onClick={() => copiarCustCodes(doMes, 'enviados esse mês')}
+          disabled={loading || doMes.length === 0}
+        >
+          Copiar todos os Cust Codes enviados esse mês
+        </button>
       </div>
 
       {erro && <p className="mt-4 text-sm font-medium text-bad-text">{erro}</p>}
@@ -96,8 +121,21 @@ export default function RelatorioContestacaoSheet() {
         {!loading && linhasPendentes.length === 0 && (
           <p className="text-sm text-muted">Nenhum Cust Code pendente nos últimos 14 dias.</p>
         )}
-        {linhasPendentes.length > 0 && <DataTable columns={COLUNAS_PENDENTES} rows={linhasPendentes} />}
+        {linhasPendentes.length > 0 && (
+          <>
+            <button
+              type="button"
+              className="btn-ghost btn-sm self-start"
+              onClick={() => copiarCustCodes(pendentesRecentes, 'pendentes')}
+            >
+              Copiar Cust Codes pendentes
+            </button>
+            <DataTable columns={COLUNAS_PENDENTES} rows={linhasPendentes} />
+          </>
+        )}
       </div>
+
+      <Toast toast={toast} />
     </>
   )
 }
