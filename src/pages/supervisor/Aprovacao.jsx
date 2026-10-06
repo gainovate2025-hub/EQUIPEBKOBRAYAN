@@ -139,6 +139,17 @@ export default function Aprovacao() {
     showToast('Cust Code copiado.')
   }
 
+  async function copyAllCodes() {
+    const codigos = [...new Set(rows.map((c) => c.cust_code).filter(Boolean))]
+    if (codigos.length === 0) return showToast('Nenhum Cust Code pra copiar com esse filtro.', 'error')
+    try {
+      await navigator.clipboard.writeText(codigos.join('\n'))
+      showToast(`${codigos.length} Cust Code(s) copiados.`)
+    } catch {
+      showToast('Não consegui copiar — copia um por um.', 'error')
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <SectionHeading title={`Aprovação de ${contestacaoLabel}`} hint="Só entra na meta e na comissão depois de autorizada" />
@@ -167,6 +178,9 @@ export default function Aprovacao() {
           <option value="7d">Últimos 7 dias</option>
           <option value="30d">Últimos 30 dias</option>
         </select>
+        <button type="button" className="btn-ghost btn-sm" onClick={copyAllCodes} disabled={rows.length === 0}>
+          <Copy size={14} /> Copiar Cust Codes ({rows.length})
+        </button>
         <button type="button" className="btn-ghost btn-sm ml-auto" onClick={() => setLote({ texto: '', processando: false })}>
           <ListChecks size={14} /> Aprovar em lote
         </button>
