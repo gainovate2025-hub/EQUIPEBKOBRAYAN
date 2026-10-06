@@ -123,12 +123,13 @@ export async function submitRelatorio({ reagendamentos = 0, contestacoes = 0, fa
 // líder manda o caso pro BKO, que marca como feito quando resolve (só aí
 // conta na meta/comissão).
 
-export async function fetchReagendamentoCasos({ bkoId } = {}) {
+export async function fetchReagendamentoCasos({ bkoId, teamId } = {}) {
   let query = supabase
     .from('reagendamento_casos')
-    .select('*, profiles!reagendamento_casos_bko_id_fkey(name)')
+    .select(`*, profiles!reagendamento_casos_bko_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
     .order('criado_em', { ascending: false })
   if (bkoId) query = query.eq('bko_id', bkoId)
+  if (teamId) query = query.eq('profiles.team_id', teamId)
   const { data, error } = await query
   if (error) throw error
   return data
