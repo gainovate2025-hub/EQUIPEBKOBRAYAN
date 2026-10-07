@@ -53,6 +53,11 @@ export default function P2BPanel() {
   const [modo, setModo] = useState('custcode')
   const [colunaCnpj, setColunaCnpj] = useState('CNPJ')
   const [colunaCustcodeSaida, setColunaCustcodeSaida] = useState('CUSTCODE')
+  // Modo "Portabilidade" (07/10/2026): também busca por CNPJ (reaproveita
+  // colunaCnpj acima), mas grava o status da solicitação em duas colunas
+  // diferentes em vez de descobrir um CUSTCODE.
+  const [colunaFilaAtual, setColunaFilaAtual] = useState('FILA ATUAL')
+  const [colunaObsDaVenda, setColunaObsDaVenda] = useState('OBS DA VENDA')
 
   const [logs, setLogs] = useState([])
   const [estado, setEstado] = useState(null)
@@ -182,6 +187,8 @@ export default function P2BPanel() {
       const columnMapping =
         modo === 'cnpj'
           ? { ...mapeamentoAtual, cnpj: colunaCnpj, custcodeOutput: colunaCustcodeSaida }
+          : modo === 'portabilidade'
+          ? { ...mapeamentoAtual, cnpj: colunaCnpj, filaAtual: colunaFilaAtual, obsDaVenda: colunaObsDaVenda }
           : mapeamentoAtual
       await chamar('/api/sheets/connect', {
         method: 'POST',
@@ -313,6 +320,7 @@ export default function P2BPanel() {
         <select className="field-input" value={modo} onChange={(e) => setModo(e.target.value)} disabled={rodando}>
           <option value="custcode">Buscar por CUSTCODE → trazer a fatura</option>
           <option value="cnpj">Buscar por CNPJ → só descobrir o CUSTCODE</option>
+          <option value="portabilidade">Buscar por CNPJ → status da portabilidade</option>
         </select>
       </label>
 
@@ -365,17 +373,44 @@ export default function P2BPanel() {
         </div>
       )}
 
+      {modo === 'portabilidade' && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Coluna do CNPJ (entrada)
+            <input className="field-input" value={colunaCnpj} onChange={(e) => setColunaCnpj(e.target.value)} disabled={rodando} />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Coluna "FILA ATUAL" (saída)
+            <input
+              className="field-input"
+              value={colunaFilaAtual}
+              onChange={(e) => setColunaFilaAtual(e.target.value)}
+              disabled={rodando}
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Coluna "OBS DA VENDA" (saída)
+            <input
+              className="field-input"
+              value={colunaObsDaVenda}
+              onChange={(e) => setColunaObsDaVenda(e.target.value)}
+              disabled={rodando}
+            />
+          </label>
+        </div>
+      )}
+
       <div className="rounded-lg border border-line p-3">
         <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-          Buscar uma lista de {modo === 'cnpj' ? 'CNPJs' : 'CUSTCODEs'} específicos (sem rodar a fila inteira)
+          Buscar uma lista de {modo === 'custcode' ? 'CUSTCODEs' : 'CNPJs'} específicos (sem rodar a fila inteira)
           <textarea
             className="field-input min-h-20 resize-y"
             value={custcodesAvulso}
             onChange={(e) => setCustcodesAvulso(e.target.value)}
             placeholder={
-              modo === 'cnpj'
-                ? 'Um por linha (ou separados por vírgula):\n12345678000190\n98765432000111'
-                : 'Um por linha (ou separados por vírgula):\n7.2223650\n7.2223651'
+              modo === 'custcode'
+                ? 'Um por linha (ou separados por vírgula):\n7.2223650\n7.2223651'
+                : 'Um por linha (ou separados por vírgula):\n12345678000190\n98765432000111'
             }
             disabled={rodando || buscandoAvulso}
           />
@@ -399,6 +434,8 @@ export default function P2BPanel() {
               <p key={`${r.custCode}-${i}`}>
                 <span className="font-semibold text-ink">{r.custCode}:</span>{' '}
                 {ROW_STATUS_TEXTO[r.status] || r.status}
+                {r.data?.status ? ` — status: ${r.data.status}` : ''}
+                {r.data?.motivoRecusa ? ` — motivo: ${r.data.motivoRecusa}` : ''}
                 {r.error ? ` — ${r.error}` : ''}
               </p>
             ))}
