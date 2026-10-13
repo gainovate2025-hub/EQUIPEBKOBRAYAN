@@ -12,7 +12,7 @@
  *    lugar do microfone).
  *
  * Servidor -> Deepgram: streaming de voz->texto (wss://api.deepgram.com).
- * Servidor -> Anthropic: decide a resposta.
+ * Servidor -> Groq: decide a resposta (API compatível com OpenAI, grátis).
  * Servidor -> ElevenLabs: texto->voz.
  */
 
@@ -22,8 +22,8 @@ import http from 'node:http';
 
 const PORT = process.env.PORT || 4001;
 const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
-const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const GROQ_MODEL = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY;
 const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID;
 
@@ -67,27 +67,25 @@ function openDeepgramStream({ onTranscript, onUtteranceEnd }) {
   return dg;
 }
 
-// --- Anthropic (decide a resposta) -----------------------------------------
+// --- Groq (decide a resposta — API compatível com OpenAI, grátis) ----------
 
 async function gerarResposta(history) {
-  if (!ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY não configurada.');
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
+  if (!GROQ_API_KEY) throw new Error('GROQ_API_KEY não configurada.');
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
+      authorization: `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: ANTHROPIC_MODEL,
+      model: GROQ_MODEL,
       max_tokens: 300,
-      system: SYSTEM_PROMPT,
-      messages: history,
+      messages: [{ role: 'system', content: SYSTEM_PROMPT }, ...history],
     }),
   });
-  if (!res.ok) throw new Error(`Anthropic ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new Error(`Groq ${res.status}: ${await res.text()}`);
   const data = await res.json();
-  return (data.content || []).map((b) => b.text || '').join('').trim();
+  return (data.choices?.[0]?.message?.content || '').trim();
 }
 
 // --- ElevenLabs (texto -> voz) ----------------------------------------------
