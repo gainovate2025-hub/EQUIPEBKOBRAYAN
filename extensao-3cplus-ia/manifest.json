@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IA nas Ligações — 3C Plus",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Escuta a ligação em tempo real (transcrição via Deepgram), decide a resposta com IA, e fala no lugar do microfone usando voz sintetizada (ElevenLabs). Precisa do servidor 3cplus-ia-backend rodando em localhost:4001.",
   "permissions": ["storage"],
   "host_permissions": [

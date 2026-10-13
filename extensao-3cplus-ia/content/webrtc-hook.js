@@ -92,15 +92,29 @@
     let pararCaptura = null;
     const microfoneFalso = criarMicrofoneFalso();
 
+    // Troca o que a ligação envia pelo nosso "microfone falso" — a partir
+    // daqui, quem fala pro cliente é a IA, não o microfone real. O sender
+    // pode não ter o track pronto ainda bem no início da ligação, então
+    // tenta de novo por alguns segundos em vez de desistir na 1ª checagem.
+    function trocarMicrofonePorIA(tentativas = 20) {
+      const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'audio');
+      if (sender) {
+        sender.replaceTrack(microfoneFalso.track);
+        marcar('microfone-trocado-pela-ia', { sucesso: true });
+        return;
+      }
+      if (tentativas <= 0) {
+        marcar('microfone-trocado-pela-ia', { sucesso: false, motivo: 'sender de áudio não encontrado' });
+        return;
+      }
+      setTimeout(() => trocarMicrofonePorIA(tentativas - 1), 250);
+    }
+
     ws.addEventListener('open', () => {
       marcar('ia-backend-conectado', {});
       ws.send(JSON.stringify({ type: 'start' }));
       pararCaptura = iniciarCapturaEEnvio(remoteStream, ws);
-
-      // Troca o que a ligação envia pelo nosso "microfone falso" — a
-      // partir daqui, quem fala pro cliente é a IA, não o microfone real.
-      const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'audio');
-      if (sender) sender.replaceTrack(microfoneFalso.track);
+      trocarMicrofonePorIA();
     });
 
     ws.addEventListener('message', (event) => {
@@ -109,7 +123,11 @@
         marcar(msg.type === 'transcript' ? 'cliente-disse' : 'ia-vai-responder', { texto: msg.text });
         return;
       }
-      microfoneFalso.tocar(event.data).catch((err) => marcar('erro-tocando-audio', { erro: err.message }));
+      marcar('audio-da-ia-recebido', { bytes: event.data.byteLength });
+      microfoneFalso
+        .tocar(event.data)
+        .then(() => marcar('audio-da-ia-tocando', {}))
+        .catch((err) => marcar('erro-tocando-audio', { erro: err.message }));
     });
 
     ws.addEventListener('error', () => marcar('erro-ia-backend', { url: BACKEND_WS_URL }));
