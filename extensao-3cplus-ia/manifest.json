@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "IA nas Ligações — 3C Plus (diagnóstico)",
-  "version": "0.1.0",
-  "description": "Fase 1 (diagnóstico): detecta e loga quando a 3C Plus abre uma conexão de áudio (WebRTC) numa ligação, pra confirmar se dá pra interceptar antes de tentar transcrição/resposta por IA.",
+  "name": "IA nas Ligações — 3C Plus",
+  "version": "0.2.0",
+  "description": "Escuta a ligação em tempo real (transcrição via Deepgram), decide a resposta com IA, e fala no lugar do microfone usando voz sintetizada (ElevenLabs). Precisa do servidor 3cplus-ia-backend rodando em localhost:4001.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://*.3c.plus/*"

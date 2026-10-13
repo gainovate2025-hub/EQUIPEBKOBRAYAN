@@ -1,0 +1,15 @@
+{
+  "name": "3cplus-ia-backend",
+  "version": "0.1.0",
+  "description": "Ponte entre a extensão 'IA nas Ligações — 3C Plus' e os serviços de IA (Deepgram STT, Anthropic, ElevenLabs TTS). Recebe áudio PCM da ligação via WebSocket, transcreve, gera resposta, sintetiza voz e devolve o áudio.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "ws": "^8.17.1"
+  }
+}
