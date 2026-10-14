@@ -172,6 +172,21 @@ export default function P2BPanel() {
     }
   }
 
+  // Quando o token do Google expira/é revogado (erro "invalid_grant" do
+  // Google), o status continua marcando "conectado" porque o token ainda
+  // existe salvo — só não funciona mais. Esse botão desconecta de vez
+  // (apaga o token salvo) pra poder clicar em "Conectar Google" de novo e
+  // gerar um token novo.
+  async function desconectarGoogle() {
+    setErro('')
+    try {
+      await chamar('/api/auth/google/disconnect', { method: 'POST' })
+      window.location.reload()
+    } catch (err) {
+      setErro(err.message)
+    }
+  }
+
   async function iniciar(forceAll = false) {
     if (!planilhaId || !abaNome) return setErro('Escolhe a planilha e a aba primeiro.')
     if (forceAll && !window.confirm('Isso vai reprocessar TODAS as linhas, mesmo as que já têm dado preenchido. Continuar?')) {
@@ -286,7 +301,18 @@ export default function P2BPanel() {
 
   return (
     <div className="mt-4 flex flex-col gap-3 border-t border-line pt-4">
-      <p className="text-xs text-muted">Conectado como {googleEmail}.</p>
+      <p className="text-xs text-muted">
+        Conectado como {googleEmail}.{' '}
+        <button type="button" className="text-xs font-medium text-red-600 underline" onClick={desconectarGoogle}>
+          Desconectar / trocar conta
+        </button>
+      </p>
+      {erro && erro.toLowerCase().includes('invalid_grant') && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+          O acesso à conta Google expirou ou foi revogado. Clica em "Desconectar / trocar conta" acima e depois em
+          "Conectar Google" de novo pra autorizar na hora.
+        </div>
+      )}
 
       {extensaoLigada === false && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
