@@ -53,6 +53,9 @@ export default function P2BPanel() {
   const [modo, setModo] = useState('custcode')
   const [colunaCnpj, setColunaCnpj] = useState('CNPJ')
   const [colunaCustcodeSaida, setColunaCustcodeSaida] = useState('CUSTCODE')
+  // Alguns CNPJs têm mais de um CustCode vinculado — o 2º vai pra essa
+  // coluna separada, se preenchida (14/10/2026).
+  const [colunaCustcodeSaida2, setColunaCustcodeSaida2] = useState('')
   // Modo "Portabilidade" (07/10/2026): também busca por CNPJ (reaproveita
   // colunaCnpj acima), mas grava o status da solicitação em duas colunas
   // diferentes em vez de descobrir um CUSTCODE.
@@ -201,7 +204,7 @@ export default function P2BPanel() {
       const mapeamentoAtual = await chamar('/api/sheets/mapping')
       const columnMapping =
         modo === 'cnpj'
-          ? { ...mapeamentoAtual, cnpj: colunaCnpj, custcodeOutput: colunaCustcodeSaida }
+          ? { ...mapeamentoAtual, cnpj: colunaCnpj, custcodeOutput: colunaCustcodeSaida, custcodeOutput2: colunaCustcodeSaida2 }
           : modo === 'portabilidade'
           ? { ...mapeamentoAtual, cnpj: colunaCnpj, filaAtual: colunaFilaAtual, obsDaVenda: colunaObsDaVenda }
           : mapeamentoAtual
@@ -382,13 +385,13 @@ export default function P2BPanel() {
       </div>
 
       {modo === 'cnpj' && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <label className="flex flex-col gap-1 text-xs font-medium text-muted">
             Coluna do CNPJ (entrada)
             <input className="field-input" value={colunaCnpj} onChange={(e) => setColunaCnpj(e.target.value)} disabled={rodando} />
           </label>
           <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-            Coluna do CUSTCODE (saída)
+            Coluna do 1º CUSTCODE (saída)
             <input
               className="field-input"
               value={colunaCustcodeSaida}
@@ -396,6 +399,20 @@ export default function P2BPanel() {
               disabled={rodando}
             />
           </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Coluna do 2º CUSTCODE (opcional)
+            <input
+              className="field-input"
+              value={colunaCustcodeSaida2}
+              onChange={(e) => setColunaCustcodeSaida2(e.target.value)}
+              placeholder="ex: CUSTCODE2"
+              disabled={rodando}
+            />
+          </label>
+          <p className="text-[11px] text-muted sm:col-span-3">
+            Se um CNPJ tiver mais de um CustCode vinculado, o 1º vai pra coluna acima e o 2º vai pra essa coluna
+            extra (se preenchida). Deixa em branco se não precisar dessa segunda coluna.
+          </p>
         </div>
       )}
 
