@@ -40,6 +40,24 @@ const SUPABASE_URL = 'https://cdbvevtsaorburbmogpk.supabase.co'
 const ANON_KEY =
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNkYnZldnRzYW9yYnVyYm1vZ3BrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODY3MzkwODcsImV4cCI6MjEwMjMxNTA4N30.JQS_71VpIHELYUBK27eY8X7asAA3LvzlXbbps8Iaeho'
 
+// CEP padrão configurado no painel (Crivo > Configurações) — usado quando
+// uma consulta não veio com um CEP específico, principalmente pra
+// reconstruir o formulário depois que ele trava (veja detectarEstado em
+// easyvendas-automation.js: tipo 'travado') e precisa de CEP de novo pra
+// seguir em frente. Guardado em memória e atualizado de tanto em tanto —
+// se o supervisor trocar o valor no painel, a aba já aberta pega o valor
+// novo sozinha, sem precisar recarregar.
+let cepPadrao = null
+async function atualizarCepPadrao() {
+  try {
+    const linhas = await supaFetch('crivo_configuracoes?select=cep_padrao&id=eq.1&limit=1')
+    cepPadrao = linhas?.[0]?.cep_padrao || null
+  } catch {
+    // mantém o valor anterior em caso de falha de rede — não derruba nada
+  }
+}
+const ATUALIZAR_CEP_PADRAO_MS = 60000
+
 const POLL_IDLE_MS = 1500 // sem consulta em andamento: procura pendente de tanto em tanto
 const POLL_ANDAMENTO_MS = 400 // com consulta em andamento: checa a tela rápido
 const TIMEOUT_ANDAMENTO_MS = 25000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar)
@@ -275,12 +293,17 @@ async function tentarComecarNova(numeroSistema, automation) {
 
   const base = { consulta, iniciadoEm: Date.now(), ultimoTextoNovo: '', estavel: 0 }
 
-  if (numeroSistema === 1 && consulta.cep) {
+  // Usa o CEP da própria consulta quando tem um; senão cai pro CEP padrão
+  // configurado no painel (Crivo > Configurações) — sem nenhum dos dois,
+  // esse campo (obrigatório na tela) fica vazio e o Avançar/Solicitar
+  // nunca funciona.
+  const cepParaUsar = consulta.cep || cepPadrao
+  if (numeroSistema === 1 && cepParaUsar) {
     const campoCep = automation.acharCampoCep()
     if (campoCep) {
-      log(numeroSistema, consulta.id, 'Preenchendo CEP fornecido:', consulta.cep)
+      log(numeroSistema, consulta.id, consulta.cep ? 'Preenchendo CEP fornecido:' : 'Preenchendo CEP padrão do painel:', cepParaUsar)
       const fotoAntes = automation.tirarFotoTexto()
-      automation.definirValorInput(campoCep, consulta.cep)
+      automation.definirValorInput(campoCep, cepParaUsar)
       const botaoBuscarCep = automation.acharBotaoBuscarCep(campoCep)
       if (botaoBuscarCep) {
         await pausaHumana(400, 900)
@@ -527,6 +550,9 @@ async function laco(numeroSistema, automation) {
 async function iniciar() {
   const numeroSistema = await pegarNumeroSistema()
   log(numeroSistema, null, 'Ativo em', location.href)
+
+  await atualizarCepPadrao()
+  setInterval(atualizarCepPadrao, ATUALIZAR_CEP_PADRAO_MS)
 
   const automation = new EasyVendasAutomation(EASYVENDAS_SELECTORS)
   laco(numeroSistema, automation)

@@ -163,6 +163,19 @@ class EasyVendasAutomation {
   // laço em easyvendas.js — é o "olhar pra tela" antes de decidir agir.
   detectarEstado() {
     const campoCnpj = this.acharCampoCnpj()
+
+    // Às vezes (visto ao vivo no 1º sistema) o campo de CNPJ fica cinza e
+    // trancado — não some da tela, só não aceita mais digitação. Se
+    // tratasse isso como "formulario" normal (campo + botão achados), a
+    // extensão ia tentar digitar num campo travado e nada acontecia,
+    // travando a fila inteira sem avisar nada de errado. Detecta esse
+    // estado ANTES de considerar formulário normal, pra quem chama saber
+    // que precisa recuperar a tela (clicar Clientes > Adicionar) em vez
+    // de tentar digitar.
+    if (campoCnpj && (campoCnpj.disabled || campoCnpj.readOnly || campoCnpj.getAttribute('aria-disabled') === 'true')) {
+      return { tipo: 'travado', campoCnpj }
+    }
+
     const botaoAvancar = this.acharBotaoPorTexto(this.selectors.botaoAvancarTextos)
     if (campoCnpj && botaoAvancar) return { tipo: 'formulario', campoCnpj, botaoAvancar }
 
@@ -243,19 +256,36 @@ class EasyVendasAutomation {
   // se clicou em algum dos dois (a próxima rodada do laço confere se já
   // chegou no formulário).
   async navegarParaAdicionarClientes() {
-    const botaoAdicionar = this.acharBotaoPorTexto(this.selectors.botaoAdicionarTextos)
-    if (botaoAdicionar) {
+    const botaoAdicionarJaVisivel = this.acharBotaoPorTexto(this.selectors.botaoAdicionarTextos)
+    if (botaoAdicionarJaVisivel) {
       await pausaHumana(250, 600)
-      botaoAdicionar.click()
+      botaoAdicionarJaVisivel.click()
       return true
     }
+
     const botaoClientes = this.acharBotaoPorTexto(this.selectors.botaoClientesTextos)
-    if (botaoClientes) {
-      await pausaHumana(250, 600)
-      botaoClientes.click()
-      return true
+    if (!botaoClientes) return false
+
+    await pausaHumana(250, 600)
+    botaoClientes.click()
+
+    // A página demora um pouco pra carregar depois de clicar em
+    // "Clientes" — antes a extensão só tentava achar "Adicionar" de novo
+    // na PRÓXIMA rodada do laço (1,5s depois, só uma vez), o que podia
+    // não ser tempo suficiente e fazia parecer que travou. Agora espera
+    // de verdade o botão "Adicionar" aparecer, checando a cada 300ms até
+    // 6s, e só desiste se ele não aparecer nesse tempo todo.
+    const inicio = Date.now()
+    while (Date.now() - inicio < 6000) {
+      await dormir(300)
+      const botaoAdicionar = this.acharBotaoPorTexto(this.selectors.botaoAdicionarTextos)
+      if (botaoAdicionar) {
+        await pausaHumana(250, 600)
+        botaoAdicionar.click()
+        return true
+      }
     }
-    return false
+    return true // já clicou em "Clientes" pelo menos — próxima rodada confere o resultado
   }
 
   // Tela de Contrato (Termo de Contratação / Contrato de Permanência) —

@@ -109,6 +109,43 @@ export default function Crivo() {
   const [msg, setMsg] = useState('')
   const fimRef = useRef(null)
 
+  // CEP padrão (crivo_configuracoes, 1 linha só) — a extensão usa esse
+  // valor sempre que uma consulta não vier com um CEP específico,
+  // principalmente pra conseguir reconstruir o formulário do 1º sistema
+  // quando ele trava (campo de CNPJ fica cinza) e precisa de CEP de novo
+  // pra seguir em frente.
+  const [cepPadrao, setCepPadrao] = useState('')
+  const [cepPadraoCarregado, setCepPadraoCarregado] = useState(false)
+  const [salvandoCepPadrao, setSalvandoCepPadrao] = useState(false)
+  const [msgCepPadrao, setMsgCepPadrao] = useState('')
+
+  useEffect(() => {
+    supabase
+      .from('crivo_configuracoes')
+      .select('cep_padrao')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCepPadrao(data?.cep_padrao || '')
+        setCepPadraoCarregado(true)
+      })
+  }, [])
+
+  async function salvarCepPadrao(e) {
+    e?.preventDefault()
+    setMsgCepPadrao('')
+    const limpo = soCepDigitos(cepPadrao)
+    if (limpo && limpo.length !== 8) return setMsgCepPadrao('CEP inválido (8 números) — ou deixa em branco.')
+
+    setSalvandoCepPadrao(true)
+    const { error } = await supabase
+      .from('crivo_configuracoes')
+      .update({ cep_padrao: limpo ? formatarCep(limpo) : null, atualizado_em: new Date().toISOString() })
+      .eq('id', 1)
+    setSalvandoCepPadrao(false)
+    setMsgCepPadrao(error ? 'Erro: ' + error.message : 'Salvo!')
+  }
+
   const load = useCallback(async () => {
     const { data } = await supabase
       .from('crivo_consultas')
@@ -165,6 +202,29 @@ export default function Crivo() {
   return (
     <div className="flex flex-col gap-4">
       <SectionHeading title="Chat do Crivo" hint="Manda o CNPJ aqui embaixo — o Crivo consulta nos dois sistemas do TIM e responde nessa mesma tela" />
+
+      {!visaoSimples && (
+        <div className="card flex flex-col gap-2 p-4">
+          <p className="text-sm font-semibold">CEP padrão</p>
+          <p className="text-xs text-muted">
+            Usado automaticamente quando uma consulta não vier com um CEP específico — ajuda o Crivo a se recuperar
+            sozinho quando o formulário trava (campo de CNPJ fica cinza) e precisa de CEP de novo pra seguir.
+          </p>
+          <form onSubmit={salvarCepPadrao} className="flex items-center gap-3">
+            <input
+              className="field-input w-32"
+              placeholder="00000-000"
+              value={formatarCep(cepPadrao)}
+              onChange={(e) => setCepPadrao(soCepDigitos(e.target.value))}
+              disabled={!cepPadraoCarregado}
+            />
+            <button type="submit" className="btn-primary" disabled={salvandoCepPadrao || !cepPadraoCarregado}>
+              {salvandoCepPadrao ? 'Salvando…' : 'Salvar'}
+            </button>
+            {msgCepPadrao && <span className="text-xs text-muted">{msgCepPadrao}</span>}
+          </form>
+        </div>
+      )}
 
       <div className="card flex max-h-[520px] min-h-[300px] flex-col gap-4 overflow-y-auto p-5">
         {loading && <p className="text-sm text-muted">Carregando…</p>}
