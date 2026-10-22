@@ -562,6 +562,8 @@ async function iniciar() {
   const numeroSistema = await pegarNumeroSistema()
   log(numeroSistema, null, 'Ativo em', location.href)
 
+  chrome.runtime.sendMessage({ tipo: 'crivo:abaAtiva' }).catch(() => {})
+
   await atualizarCepPadrao()
   setInterval(atualizarCepPadrao, ATUALIZAR_CEP_PADRAO_MS)
 

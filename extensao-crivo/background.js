@@ -9,7 +9,26 @@ function chave(tabId) {
   return `sistema_aba_${tabId}`
 }
 
+// Impede o Chrome de "descarregar" (Memory Saver / economia de memória) a
+// aba do Easy Vendas quando ela fica em segundo plano por um tempo — sem
+// isso, a aba virava um "zumbi" sem processo nenhum rodando até a pessoa
+// clicar nela de novo, parando a automação se a pessoa ficasse numa outra
+// aba (ex: o site do BKO) por alguns minutos. Mesma correção já aplicada
+// na extensão do P2B.
+function manterAbaAcordada(tabId) {
+  chrome.tabs.update(tabId, { autoDiscardable: false }, () => {
+    if (chrome.runtime.lastError) {
+      // ignora — não é crítico, só uma otimização
+    }
+  })
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.tipo === 'crivo:abaAtiva') {
+    if (sender.tab?.id != null) manterAbaAcordada(sender.tab.id)
+    return false
+  }
+
   if (msg?.tipo === 'crivo:definirSistema') {
     chrome.storage.session.set({ [chave(msg.tabId)]: msg.numero }).then(() => {
       chrome.tabs.sendMessage(msg.tabId, { tipo: 'crivo:recarregar' }).catch(() => {})
