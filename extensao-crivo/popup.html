@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <title>Crivo TIM</title>
+  <style>
+    body { font-family: system-ui, sans-serif; width: 230px; padding: 14px; }
+    h1 { font-size: 14px; margin: 0 0 6px; }
+    p.hint { font-size: 11px; color: #666; margin: 0 0 10px; }
+    label { display: block; padding: 8px; border: 1px solid #ccc; border-radius: 6px; margin-bottom: 8px; cursor: pointer; font-size: 13px; }
+    label:has(input:checked) { border-color: #2563eb; background: #eff6ff; }
+    #status { font-size: 12px; color: #16a34a; margin-top: 6px; min-height: 14px; }
+    #aviso { font-size: 12px; color: #b42318; }
+  </style>
+</head>
+<body>
+  <h1>Esta aba é o…</h1>
+  <p class="hint">A escolha vale só pra esta aba do Easy Vendas — não mexe nas outras.</p>
+  <div id="opcoes">
+    <label><input type="radio" name="sistema" value="1" /> 1º sistema</label>
+    <label><input type="radio" name="sistema" value="2" /> 2º sistema</label>
+    <div id="status"></div>
+  </div>
+  <div id="aviso"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
