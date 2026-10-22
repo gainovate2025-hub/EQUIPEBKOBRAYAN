@@ -23,24 +23,25 @@ function sistemaDoErro(mensagem) {
 // Conta a partir da PRIMEIRA consulta mandada no dia (é quando a
 // matrícula de verdade começou a ser usada/logada), e repete sozinho a
 // cada 40 minutos dali em diante — sem precisar de botão pra reiniciar.
-// Guardado no localStorage (por navegador/computador, igual quem mantém
-// essas abas abertas) pra sobreviver a um F5 na página sem perder a
-// contagem certa.
-const CHAVE_PRIMEIRA_CONSULTA = 'crivo_primeira_consulta_do_dia'
+//
+// Puxa esse horário do BANCO (não de localStorage) — tem ~40 operadores
+// cada um no próprio navegador, mas quem acompanha o timer de verdade é
+// quem administra os PCs da automação; se fosse guardado só no
+// navegador de cada um, o timer de quem administra nunca começaria a
+// contar a menos que ELA MESMA mandasse a 1ª consulta do dia. Com o
+// banco, funciona pra quem estiver olhando essa tela, em qualquer PC.
+async function buscarPrimeiraConsultaHoje() {
+  const inicioDoDia = new Date()
+  inicioDoDia.setHours(0, 0, 0, 0)
+  const { data } = await supabase
+    .from('crivo_consultas')
+    .select('created_at')
+    .gte('created_at', inicioDoDia.toISOString())
+    .order('created_at', { ascending: true })
+    .limit(1)
+  return data?.[0] ? new Date(data[0].created_at).getTime() : null
+}
 const DURACAO_RELOGIN_MS = 40 * 60 * 1000
-
-function hojeISO() {
-  return new Date().toISOString().slice(0, 10)
-}
-
-// Marca "agora" como a primeira consulta do dia, se ainda não tiver uma
-// marcada pra hoje (um dia novo sempre reseta — a matrícula desloga de
-// um dia pro outro de qualquer forma).
-function marcarPrimeiraConsultaSePreciso() {
-  const salvo = JSON.parse(localStorage.getItem(CHAVE_PRIMEIRA_CONSULTA) || 'null')
-  if (salvo?.dia === hojeISO()) return
-  localStorage.setItem(CHAVE_PRIMEIRA_CONSULTA, JSON.stringify({ dia: hojeISO(), em: Date.now() }))
-}
 
 function formatarTempo(totalSegundos) {
   const s = Math.max(0, totalSegundos)
@@ -140,26 +141,42 @@ export default function Crivo() {
   const [msg, setMsg] = useState('')
   const fimRef = useRef(null)
 
-  // Timer de relogin das matrículas (veja comentário de CHAVE_PRIMEIRA_CONSULTA).
+  // Timer de relogin das matrículas (veja comentário de buscarPrimeiraConsultaHoje).
   // null enquanto ainda não teve nenhuma consulta hoje (timer parado).
+  const [primeiraConsultaHoje, setPrimeiraConsultaHoje] = useState(null)
   const [segundosRestantes, setSegundosRestantes] = useState(null)
 
+  // Busca no banco de tempos em tempos — só precisa até achar a 1ª
+  // consulta do dia; depois disso o horário não muda mais (para de
+  // perguntar de novo, sem necessidade).
   useEffect(() => {
+    if (primeiraConsultaHoje) return
+    let cancelado = false
+    buscarPrimeiraConsultaHoje().then((em) => {
+      if (!cancelado) setPrimeiraConsultaHoje(em)
+    })
+    const intervalo = setInterval(async () => {
+      const em = await buscarPrimeiraConsultaHoje()
+      if (!cancelado && em) setPrimeiraConsultaHoje(em)
+    }, 20000)
+    return () => { cancelado = true; clearInterval(intervalo) }
+  }, [primeiraConsultaHoje])
+
+  // Repete sozinho a cada 40min a partir da 1ª consulta do dia — nunca
+  // para, não precisa de botão pra reiniciar.
+  useEffect(() => {
+    if (!primeiraConsultaHoje) {
+      setSegundosRestantes(null)
+      return
+    }
     function tick() {
-      const salvo = JSON.parse(localStorage.getItem(CHAVE_PRIMEIRA_CONSULTA) || 'null')
-      if (!salvo || salvo.dia !== hojeISO()) {
-        setSegundosRestantes(null)
-        return
-      }
-      // Repete sozinho a cada 40min a partir da 1ª consulta — nunca para,
-      // não precisa de botão pra reiniciar.
-      const decorrido = (Date.now() - salvo.em) % DURACAO_RELOGIN_MS
+      const decorrido = (Date.now() - primeiraConsultaHoje) % DURACAO_RELOGIN_MS
       setSegundosRestantes(Math.round((DURACAO_RELOGIN_MS - decorrido) / 1000))
     }
     tick()
     const intervalo = setInterval(tick, 1000)
     return () => clearInterval(intervalo)
-  }, [])
+  }, [primeiraConsultaHoje])
 
   // CEP padrão (crivo_configuracoes, 1 linha só) — a extensão usa esse
   // valor sempre que uma consulta não vier com um CEP específico,
@@ -266,7 +283,9 @@ export default function Crivo() {
     })
     setEnviando(false)
     if (error) return setMsg('Erro: ' + error.message)
-    marcarPrimeiraConsultaSePreciso()
+    // Se essa acabou sendo a 1ª consulta do dia, não precisa esperar o
+    // próximo poll (até 20s) pra o timer começar a contar.
+    setPrimeiraConsultaHoje((atual) => atual || Date.now())
     setCnpj('')
     setCep('')
   }
