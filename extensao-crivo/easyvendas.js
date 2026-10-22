@@ -66,7 +66,7 @@ const ATUALIZAR_CEP_PADRAO_MS = 60000
 const POLL_IDLE_MS = 1500 // sem consulta em andamento: procura pendente de tanto em tanto
 const POLL_ANDAMENTO_MS = 400 // com consulta em andamento: checa a tela rápido
 const TIMEOUT_ANDAMENTO_MS = 45000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar) — aumentado de 25s pra reduzir desistência falsa que levava a reenviar o MESMO CNPJ de novo (visto ao vivo: reenvio caindo na tela de Contrato)
-const ESTAVEL_MIN = 7 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2,8s, igual antes — só poll mais rápido) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer
+const ESTAVEL_MIN = 5 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2s) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer. Reduzido de 7 pra 5 pra ganhar velocidade (~40 pessoas usando ao mesmo tempo); ainda é tempo suficiente pra não confundir texto de passagem com resultado de verdade.
 
 // "Não encontrado" e erros (tela não carregou, serviço temporariamente
 // indisponível, timeout etc.) às vezes são passageiros — antes de
@@ -317,7 +317,7 @@ async function tentarComecarNova(numeroSistema, automation) {
       automation.definirValorInput(campoCep, cepParaUsar)
       const botaoBuscarCep = automation.acharBotaoBuscarCep(campoCep)
       if (botaoBuscarCep) {
-        await pausaHumana(400, 900)
+        await pausaHumana(300, 600)
         botaoBuscarCep.click()
       }
       return { ...base, fotoAntes, fase: 'aguardando_cep' }
@@ -330,7 +330,7 @@ async function tentarComecarNova(numeroSistema, automation) {
       log(numeroSistema, consulta.id, 'Digitando CNPJ e clicando na lupa de busca')
       const fotoAntes = automation.tirarFotoTexto()
       await automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
-      await pausaHumana(400, 900)
+      await pausaHumana(300, 600)
       botaoBuscar.click()
       return { ...base, fotoAntes, fase: 'buscando' }
     }
@@ -398,7 +398,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
         await automation.digitarCnpj(estadoAgora.campoCnpj, andamento.consulta.cnpj)
         const botaoBuscar = automation.acharBotaoBuscar()
         if (botaoBuscar) {
-          await pausaHumana(400, 900)
+          await pausaHumana(300, 600)
           botaoBuscar.click()
         }
         andamento.fotoAntes = fotoAntes
@@ -424,7 +424,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   // vezes — os dados da empresa podem demorar mais que isso pra
   // carregar, e clicar antes dava "Formulário com pendências" de novo.
   if (andamento.fase === 'aguardando_dados') {
-    const tempoMinimoPassou = decorrido >= 4000
+    const tempoMinimoPassou = decorrido >= 2000 // reduzido de 4000 — a checagem de campos inválidos logo abaixo já é a garantia real, esse tempo é só pra não checar cedo demais
     const invalidos = tempoMinimoPassou ? automation.camposInvalidosVisiveis() : null
 
     if (tempoMinimoPassou && invalidos.length === 0) {
@@ -432,7 +432,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
       if (estadoAgora.tipo === 'formulario') {
         log(numeroSistema, andamento.consulta.id, 'Campos da empresa validados, clicando Avançar agora')
         andamento.fotoAntes = automation.tirarFotoTexto()
-        await pausaHumana(400, 900)
+        await pausaHumana(300, 600)
         estadoAgora.botaoAvancar.click()
         andamento.fase = 'consultando'
         andamento.ultimoTextoNovo = ''
@@ -465,7 +465,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (botaoConsultar) {
       log(numeroSistema, andamento.consulta.id, 'Achou o botão de consultar depois da busca. Texto visto na busca:', textoNovo || '(nada)')
       andamento.fotoAntes = automation.tirarFotoTexto()
-      await pausaHumana(400, 900)
+      await pausaHumana(300, 600)
       botaoConsultar.click()
       andamento.fase = 'consultando'
       andamento.ultimoTextoNovo = ''

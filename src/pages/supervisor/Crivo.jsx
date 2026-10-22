@@ -146,15 +146,22 @@ export default function Crivo() {
     setMsgCepPadrao(error ? 'Erro: ' + error.message : 'Salvo!')
   }
 
+  // Com ~50 logins mandando CNPJ pro mesmo chat, cada operador só deve ver
+  // as PRÓPRIAS consultas — senão o CNPJ que o login 1 manda aparece
+  // misturado na tela do login 2, confuso pra equipe toda. Supervisor/
+  // líder continua vendo todo mundo (visão de acompanhamento geral).
   const load = useCallback(async () => {
-    const { data } = await supabase
+    if (!profile?.id) return
+    let query = supabase
       .from('crivo_consultas')
       .select('*, profiles(name)')
       .order('created_at', { ascending: false })
       .limit(50)
+    if (visaoSimples) query = query.eq('solicitado_por', profile.id)
+    const { data } = await query
     setConsultas((data || []).slice().reverse())
     setLoading(false)
-  }, [])
+  }, [profile?.id, visaoSimples])
 
   useEffect(() => { load() }, [load])
 
@@ -178,6 +185,18 @@ export default function Crivo() {
     setMsg('')
     const limpo = soCnpjDigitos(cnpj)
     if (limpo.length !== 14) return setMsg('Digita um CNPJ válido (14 números).')
+
+    // Se esse CNPJ já foi consultado antes E já tem uma resposta final
+    // (aprovado/reprovado/CNPJ errado), não manda de novo pra fila — além
+    // de ser perda de tempo, mandar o mesmo CNPJ duas vezes pro Easy
+    // Vendas faz ele cair na tela de Contrato (confirmado ao vivo), o que
+    // podia bagunçar a automação. Em vez disso, mostra a resposta que já
+    // tinha, igual se tivesse acabado de responder agora.
+    const jaRespondida = [...consultas].reverse().find((c) => soCnpjDigitos(c.cnpj) === limpo && veredito(c))
+    if (jaRespondida) {
+      const resultado = veredito(jaRespondida)
+      return setMsg(`Esse CNPJ já foi consultado e respondeu: ${RESULT_LABEL[resultado]} (em ${new Date(jaRespondida.created_at).toLocaleString('pt-BR')}).`)
+    }
 
     const ultima = consultas[consultas.length - 1]
     if (ultima && soCnpjDigitos(ultima.cnpj) === limpo) {

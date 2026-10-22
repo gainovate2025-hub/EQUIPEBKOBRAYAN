@@ -213,7 +213,7 @@ class EasyVendasAutomation {
     for (const caractere of textoFormatado) {
       valorAteAgora += caractere
       this.digitarUmCaractere(campoCnpj, caractere, valorAteAgora)
-      await pausaHumana(70, 190)
+      await pausaHumana(50, 130)
     }
     campoCnpj.dispatchEvent(new Event('change', { bubbles: true }))
     campoCnpj.dispatchEvent(new Event('blur', { bubbles: true }))
@@ -226,7 +226,7 @@ class EasyVendasAutomation {
   // o texto da tela com a foto tirada antes (veja textoNovoDesde).
   async preencherEAvancar(estadoFormulario, cnpjDigitos) {
     await this.digitarCnpj(estadoFormulario.campoCnpj, cnpjDigitos)
-    await pausaHumana(400, 900) // pausa antes de clicar, igual alguém conferindo o que digitou
+    await pausaHumana(300, 600) // pausa antes de clicar, igual alguém conferindo o que digitou
     estadoFormulario.botaoAvancar.click()
   }
 
