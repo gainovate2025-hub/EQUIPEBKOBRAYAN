@@ -18,6 +18,37 @@ function sistemaDoErro(mensagem) {
   return m ? m[1] : null
 }
 
+// Timer de relogin das matrículas do Easy Vendas — a sessão delas cai
+// sozinha de 1h em 1h, derrubando a automação até alguém relogar na mão.
+// Conta a partir da PRIMEIRA consulta mandada no dia (é quando a
+// matrícula de verdade começou a ser usada/logada), e repete sozinho a
+// cada 40 minutos dali em diante — sem precisar de botão pra reiniciar.
+// Guardado no localStorage (por navegador/computador, igual quem mantém
+// essas abas abertas) pra sobreviver a um F5 na página sem perder a
+// contagem certa.
+const CHAVE_PRIMEIRA_CONSULTA = 'crivo_primeira_consulta_do_dia'
+const DURACAO_RELOGIN_MS = 40 * 60 * 1000
+
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+// Marca "agora" como a primeira consulta do dia, se ainda não tiver uma
+// marcada pra hoje (um dia novo sempre reseta — a matrícula desloga de
+// um dia pro outro de qualquer forma).
+function marcarPrimeiraConsultaSePreciso() {
+  const salvo = JSON.parse(localStorage.getItem(CHAVE_PRIMEIRA_CONSULTA) || 'null')
+  if (salvo?.dia === hojeISO()) return
+  localStorage.setItem(CHAVE_PRIMEIRA_CONSULTA, JSON.stringify({ dia: hojeISO(), em: Date.now() }))
+}
+
+function formatarTempo(totalSegundos) {
+  const s = Math.max(0, totalSegundos)
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`
+}
+
 function soCnpjDigitos(v) {
   return v.replace(/\D/g, '')
 }
@@ -108,6 +139,27 @@ export default function Crivo() {
   const [enviando, setEnviando] = useState(false)
   const [msg, setMsg] = useState('')
   const fimRef = useRef(null)
+
+  // Timer de relogin das matrículas (veja comentário de CHAVE_PRIMEIRA_CONSULTA).
+  // null enquanto ainda não teve nenhuma consulta hoje (timer parado).
+  const [segundosRestantes, setSegundosRestantes] = useState(null)
+
+  useEffect(() => {
+    function tick() {
+      const salvo = JSON.parse(localStorage.getItem(CHAVE_PRIMEIRA_CONSULTA) || 'null')
+      if (!salvo || salvo.dia !== hojeISO()) {
+        setSegundosRestantes(null)
+        return
+      }
+      // Repete sozinho a cada 40min a partir da 1ª consulta — nunca para,
+      // não precisa de botão pra reiniciar.
+      const decorrido = (Date.now() - salvo.em) % DURACAO_RELOGIN_MS
+      setSegundosRestantes(Math.round((DURACAO_RELOGIN_MS - decorrido) / 1000))
+    }
+    tick()
+    const intervalo = setInterval(tick, 1000)
+    return () => clearInterval(intervalo)
+  }, [])
 
   // CEP padrão (crivo_configuracoes, 1 linha só) — a extensão usa esse
   // valor sempre que uma consulta não vier com um CEP específico,
@@ -214,6 +266,7 @@ export default function Crivo() {
     })
     setEnviando(false)
     if (error) return setMsg('Erro: ' + error.message)
+    marcarPrimeiraConsultaSePreciso()
     setCnpj('')
     setCep('')
   }
@@ -221,6 +274,21 @@ export default function Crivo() {
   return (
     <div className="flex flex-col gap-4">
       <SectionHeading title="Chat do Crivo" hint="Manda o CNPJ aqui embaixo — o Crivo consulta nos dois sistemas do TIM e responde nessa mesma tela" />
+
+      {segundosRestantes !== null && (
+        <div className={`card flex items-center gap-3 p-4 ${segundosRestantes <= 0 ? 'border-red-400 bg-red-50' : ''}`}>
+          {segundosRestantes > 0 ? (
+            <p className="text-sm">
+              <span className="font-semibold">Relogar as matrículas do Easy Vendas em:</span>{' '}
+              <span className="font-mono text-base">{formatarTempo(segundosRestantes)}</span>
+            </p>
+          ) : (
+            <p className="text-sm font-semibold text-red-700">
+              ⏰ Hora de relogar as matrículas no Easy Vendas (a sessão cai sozinha de 1h em 1h)!
+            </p>
+          )}
+        </div>
+      )}
 
       {!visaoSimples && (
         <div className="card flex flex-col gap-2 p-4">
