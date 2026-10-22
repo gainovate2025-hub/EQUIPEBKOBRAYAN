@@ -65,7 +65,7 @@ const ATUALIZAR_CEP_PADRAO_MS = 60000
 
 const POLL_IDLE_MS = 1500 // sem consulta em andamento: procura pendente de tanto em tanto
 const POLL_ANDAMENTO_MS = 400 // com consulta em andamento: checa a tela rápido
-const TIMEOUT_ANDAMENTO_MS = 25000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar)
+const TIMEOUT_ANDAMENTO_MS = 45000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar) — aumentado de 25s pra reduzir desistência falsa que levava a reenviar o MESMO CNPJ de novo (visto ao vivo: reenvio caindo na tela de Contrato)
 const ESTAVEL_MIN = 7 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2,8s, igual antes — só poll mais rápido) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer
 
 // "Não encontrado" e erros (tela não carregou, serviço temporariamente
@@ -502,10 +502,24 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 
   // Caiu na tela de Contrato (Termo de Contratação) sem querer — não é
   // uma tela de resultado, e a extensão NUNCA clica em nada nela (nem
-  // Salvar, nem Enviar por e-mail). Só clica voltar (igual o botão
-  // voltar do navegador) e continua esperando a mensagem de resultado
-  // de verdade aparecer, sem decidir nada por conta própria aqui.
+  // Salvar, nem Enviar por e-mail). Confirmado ao vivo: essa tela aparece
+  // quando o MESMO CNPJ é mandado duas vezes (reenvio de uma negociação
+  // que já existe) — por isso, se isso acontecer numa consulta que JÁ
+  // tinha passado por um retry antes (ou seja, esse reenvio pode ter sido
+  // causado pela própria extensão desistindo cedo demais da 1ª tentativa
+  // e tentando de novo), para por aqui e marca como erro pra conferência
+  // manual, em vez de voltar e esperar mais — continuar o ciclo podia
+  // levar a um 3º envio do mesmo CNPJ.
   if (automation.pareceTelaDeContrato()) {
+    if (tentativasFeitas(andamento.consulta.id) > 0) {
+      log(numeroSistema, andamento.consulta.id, 'Caiu na tela de Contrato de novo, depois de já ter tentado essa consulta antes — parando aqui (provável reenvio do mesmo CNPJ) pra não arriscar mandar um 3º envio.')
+      automation.voltarUmaPagina()
+      sessionStorage.removeItem(chaveTentativas(andamento.consulta.id))
+      await salvarResultado(andamento.consulta.id, numeroSistema, {
+        erro: `[${numeroSistema}º sistema] caiu na tela de Contrato depois de reenviar o mesmo CNPJ — provavelmente já tinha sido processado antes. Confere manualmente em vez de mandar de novo.`,
+      })
+      return true
+    }
     log(numeroSistema, andamento.consulta.id, 'Caiu na tela de Contrato — voltando uma página e esperando o resultado')
     automation.voltarUmaPagina()
     andamento.aguardandoSairDoContrato = true
