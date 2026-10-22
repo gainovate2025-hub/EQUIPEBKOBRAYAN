@@ -51,8 +51,13 @@ let cepPadrao = null
 async function atualizarCepPadrao() {
   try {
     const linhas = await supaFetch('crivo_configuracoes?select=cep_padrao&id=eq.1&limit=1')
-    cepPadrao = linhas?.[0]?.cep_padrao || null
-  } catch {
+    const novo = linhas?.[0]?.cep_padrao || null
+    if (novo !== cepPadrao) {
+      console.log('[Crivo/EasyVendas] CEP padrão atualizado:', novo || '(vazio)')
+    }
+    cepPadrao = novo
+  } catch (err) {
+    console.log('[Crivo/EasyVendas] Falha ao buscar CEP padrão:', err.message)
     // mantém o valor anterior em caso de falha de rede — não derruba nada
   }
 }
@@ -298,8 +303,14 @@ async function tentarComecarNova(numeroSistema, automation) {
   // esse campo (obrigatório na tela) fica vazio e o Avançar/Solicitar
   // nunca funciona.
   const cepParaUsar = consulta.cep || cepPadrao
+  if (numeroSistema === 1) {
+    log(numeroSistema, consulta.id, 'CEP a usar:', cepParaUsar || '(nenhum — consulta sem CEP e nenhum CEP padrão configurado)')
+  }
   if (numeroSistema === 1 && cepParaUsar) {
     const campoCep = automation.acharCampoCep()
+    if (!campoCep) {
+      log(numeroSistema, consulta.id, 'Tinha CEP pra usar, mas não achei o campo de CEP nessa tela — seguindo direto pro CNPJ')
+    }
     if (campoCep) {
       log(numeroSistema, consulta.id, consulta.cep ? 'Preenchendo CEP fornecido:' : 'Preenchendo CEP padrão do painel:', cepParaUsar)
       const fotoAntes = automation.tirarFotoTexto()
