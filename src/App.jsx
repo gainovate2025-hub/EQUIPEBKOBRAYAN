@@ -28,6 +28,9 @@ import OperacaoLayout from './pages/operacao/Layout'
 import OperacaoConfiguracoes from './pages/supervisor/Configuracoes'
 import OperacaoVendaCnpj from './pages/operacao/VendaCnpj'
 
+import CadastroLayout from './pages/cadastro/Layout'
+import CadastroVendasParaCadastro from './pages/cadastro/VendasParaCadastro'
+
 export default function App() {
   return (
     <Routes>
@@ -83,6 +86,18 @@ export default function App() {
       >
         <Route index element={<SupervisorCrivo />} />
         <Route path="venda" element={<OperacaoVendaCnpj />} />
+        <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
+      </Route>
+
+      <Route
+        path="/cadastro"
+        element={
+          <ProtectedRoute roles={['cadastro']}>
+            <CadastroLayout />
+          </ProtectedRoute>
+        }
+      >
+        <Route index element={<CadastroVendasParaCadastro />} />
         <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
       </Route>
 

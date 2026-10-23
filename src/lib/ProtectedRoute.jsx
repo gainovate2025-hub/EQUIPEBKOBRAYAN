@@ -2,11 +2,12 @@ import { Navigate } from 'react-router-dom'
 import { useAuth } from './AuthContext'
 
 // 'supervisor' e 'lider' usam o mesmo painel de gestão (o RLS do banco já
-// restringe o que um "lider" enxerga à própria equipe); 'bko' e 'operacao'
-// têm painéis à parte (o de operação só com Consulta Crivo + Chat).
+// restringe o que um "lider" enxerga à própria equipe); 'bko', 'operacao'
+// e 'cadastro' têm painéis à parte, cada um enxuto pro que precisa fazer.
 export function homeFor(role) {
   if (role === 'bko') return '/bko'
   if (role === 'operacao') return '/operacao'
+  if (role === 'cadastro') return '/cadastro'
   return '/supervisor'
 }
 

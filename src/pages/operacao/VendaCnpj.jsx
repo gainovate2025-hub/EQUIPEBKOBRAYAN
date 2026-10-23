@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Copy, Check, Search, Loader2 } from 'lucide-react'
+import { Search, Loader2 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
+import { Campo } from '../../components/vendaCnpj/Campo'
 
 // RASCUNHO (23/10/2026) — ver supabase/migration_025_vendas_cnpj.sql pro
 // contexto completo. Campos de venda (quantidade de linhas, plano etc.)
@@ -50,42 +51,6 @@ async function buscarCnpj(cnpjLimpo) {
   if (res.status === 429) throw new Error('Muitas consultas seguidas — espera um minuto e tenta de novo.')
   if (!res.ok) throw new Error('CNPJ não encontrado ou serviço fora do ar.')
   return res.json()
-}
-
-function BotaoCopiar({ valor }) {
-  const [copiado, setCopiado] = useState(false)
-  if (!valor) return null
-  return (
-    <button
-      type="button"
-      className="rounded-md p-1 text-muted hover:bg-paper hover:text-ink"
-      title="Copiar"
-      onClick={async () => {
-        await navigator.clipboard.writeText(String(valor))
-        setCopiado(true)
-        setTimeout(() => setCopiado(false), 1200)
-      }}
-    >
-      {copiado ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
-    </button>
-  )
-}
-
-// comCopiar=false: usado na tela inicial do operador (só pra ele ver os
-// dados da empresa e decidir venda feita/não feita) — não tem motivo pra
-// copiar nada ainda. comCopiar=true: só na "Ficha da venda" final, que é
-// pra quem faz o cadastro colar as informações no sistema de verdade.
-function Campo({ label, valor, comCopiar = false }) {
-  if (!valor) return null
-  return (
-    <div className="flex items-center justify-between gap-2 border-b border-line py-1.5 text-sm">
-      <div>
-        <span className="text-muted">{label}: </span>
-        <span className="font-medium text-ink">{valor}</span>
-      </div>
-      {comCopiar && <BotaoCopiar valor={valor} />}
-    </div>
-  )
 }
 
 export default function VendaCnpj() {
