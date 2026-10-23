@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "seed": "node scripts/seed.mjs",
     "seed:baia": "node scripts/seed_baia.mjs",
-    "reset:baia": "node scripts/reset_senhas_baia.mjs"
+    "reset:baia": "node scripts/reset_senhas_baia.mjs",
+    "reset:op": "node scripts/reset_senhas_op.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
