@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom'
-import { Search, Settings } from 'lucide-react'
+import { Search, Settings, PhoneCall } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
 
@@ -8,6 +8,7 @@ export default function OperacaoLayout() {
 
   const navItems = [
     { to: '/operacao', label: 'Consulta Crivo', end: true, icon: Search },
+    { to: '/operacao/venda', label: 'Consulta CNPJ + Venda', icon: PhoneCall },
     { to: '/operacao/configuracoes', label: 'Configurações', icon: Settings },
   ]
 

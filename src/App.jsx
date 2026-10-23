@@ -26,6 +26,7 @@ import Ranking from './pages/Ranking'
 
 import OperacaoLayout from './pages/operacao/Layout'
 import OperacaoConfiguracoes from './pages/supervisor/Configuracoes'
+import OperacaoVendaCnpj from './pages/operacao/VendaCnpj'
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
         <Route path="ranking" element={<Ranking />} />
         <Route path="crivo" element={<SupervisorCrivo />} />
         <Route path="automacoes" element={<SupervisorAutomacoes />} />
+        <Route path="venda-cnpj" element={<OperacaoVendaCnpj />} />
         <Route path="configuracoes" element={<SupervisorConfiguracoes />} />
       </Route>
 
@@ -80,6 +82,7 @@ export default function App() {
         }
       >
         <Route index element={<SupervisorCrivo />} />
+        <Route path="venda" element={<OperacaoVendaCnpj />} />
         <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
       </Route>
 
