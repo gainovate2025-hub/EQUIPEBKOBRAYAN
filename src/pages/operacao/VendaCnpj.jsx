@@ -22,6 +22,12 @@ function formatarCnpj(v) {
 
 const PLANOS = ['R$ 50', 'R$ 70', 'R$ 100']
 
+function formatarDataBr(iso) {
+  if (!iso) return ''
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
+}
+
 // Monta o endereço num texto só, pra ficar fácil de copiar de uma vez.
 function montarEndereco(estabelecimento) {
   if (!estabelecimento) return ''
@@ -65,7 +71,11 @@ function BotaoCopiar({ valor }) {
   )
 }
 
-function Campo({ label, valor }) {
+// comCopiar=false: usado na tela inicial do operador (só pra ele ver os
+// dados da empresa e decidir venda feita/não feita) — não tem motivo pra
+// copiar nada ainda. comCopiar=true: só na "Ficha da venda" final, que é
+// pra quem faz o cadastro colar as informações no sistema de verdade.
+function Campo({ label, valor, comCopiar = false }) {
   if (!valor) return null
   return (
     <div className="flex items-center justify-between gap-2 border-b border-line py-1.5 text-sm">
@@ -73,7 +83,7 @@ function Campo({ label, valor }) {
         <span className="text-muted">{label}: </span>
         <span className="font-medium text-ink">{valor}</span>
       </div>
-      <BotaoCopiar valor={valor} />
+      {comCopiar && <BotaoCopiar valor={valor} />}
     </div>
   )
 }
@@ -136,6 +146,9 @@ export default function VendaCnpj() {
       endereco: montarEndereco(est),
       telefone: est?.telefone1 ? `(${est.ddd1 || ''}) ${est.telefone1}` : '',
       email: est?.email || '',
+      situacao: est?.situacao_cadastral || '',
+      data_abertura: formatarDataBr(est?.data_inicio_atividade),
+      atividade_principal: est?.atividade_principal?.descricao || '',
     }
   }
 
@@ -199,6 +212,9 @@ export default function VendaCnpj() {
           </div>
           <div className="flex flex-col gap-0.5">
             <Campo label="CNPJ" valor={empresa.cnpj} />
+            <Campo label="Situação" valor={empresa.situacao} />
+            <Campo label="Aberta desde" valor={empresa.data_abertura} />
+            <Campo label="Atividade" valor={empresa.atividade_principal} />
             <Campo label="Endereço" valor={empresa.endereco} />
             <Campo label="Telefone" valor={empresa.telefone} />
             <Campo label="E-mail" valor={empresa.email} />
@@ -279,17 +295,21 @@ export default function VendaCnpj() {
       {vendaSalva && (
         <div className="card flex flex-col gap-1 p-5">
           <p className="mb-2 text-base font-bold text-ink">Ficha da venda — pronta pra cadastrar</p>
-          <Campo label="CNPJ" valor={vendaSalva.cnpj} />
-          <Campo label="Razão Social" valor={vendaSalva.razao_social} />
-          <Campo label="Nome Fantasia" valor={vendaSalva.nome_fantasia} />
-          <Campo label="Endereço" valor={vendaSalva.endereco} />
-          <Campo label="Telefone" valor={vendaSalva.telefone} />
-          <Campo label="E-mail" valor={vendaSalva.email} />
-          <Campo label="Titular da linha" valor={vendaSalva.titular_linha} />
-          <Campo label="Quantidade de linhas" valor={vendaSalva.quantidade_linhas} />
-          <Campo label="Número(s)" valor={vendaSalva.numeros_linhas} />
-          <Campo label="Tipo" valor={vendaSalva.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
-          <Campo label="Plano" valor={vendaSalva.plano} />
+          <p className="mb-1 text-xs text-muted">Clica no ícone ao lado de cada campo pra copiar o valor.</p>
+          <Campo comCopiar label="CNPJ" valor={vendaSalva.cnpj} />
+          <Campo comCopiar label="Razão Social" valor={vendaSalva.razao_social} />
+          <Campo comCopiar label="Nome Fantasia" valor={vendaSalva.nome_fantasia} />
+          <Campo comCopiar label="Situação" valor={vendaSalva.situacao} />
+          <Campo comCopiar label="Aberta desde" valor={vendaSalva.data_abertura} />
+          <Campo comCopiar label="Atividade" valor={vendaSalva.atividade_principal} />
+          <Campo comCopiar label="Endereço" valor={vendaSalva.endereco} />
+          <Campo comCopiar label="Telefone" valor={vendaSalva.telefone} />
+          <Campo comCopiar label="E-mail" valor={vendaSalva.email} />
+          <Campo comCopiar label="Titular da linha" valor={vendaSalva.titular_linha} />
+          <Campo comCopiar label="Quantidade de linhas" valor={vendaSalva.quantidade_linhas} />
+          <Campo comCopiar label="Número(s)" valor={vendaSalva.numeros_linhas} />
+          <Campo comCopiar label="Tipo" valor={vendaSalva.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
+          <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
           <button type="button" className="btn-primary mt-3 self-start" onClick={limparTudo}>
             Nova consulta
           </button>
