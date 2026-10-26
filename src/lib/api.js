@@ -100,6 +100,32 @@ export async function updateLogin(userId, { username, password } = {}) {
   if (!res.ok) throw new Error(body.error || 'Falha ao trocar login.')
 }
 
+// Descobre a operadora (Vivo/Claro/TIM) de um número de celular, via Edge
+// Function (o navegador não consegue chamar o site de consulta direto —
+// veja supabase/functions/consulta-operadora). numero: DDD + número, só
+// dígitos. Devolve { operadora, operadoraBruta, portado }.
+export async function consultarOperadora(numero) {
+  const { data: sessionData } = await supabase.auth.getSession()
+  const accessToken = sessionData?.session?.access_token
+  if (!accessToken) throw new Error('Sessão expirada, faça login novamente.')
+
+  const res = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/consulta-operadora`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ numero }),
+    }
+  )
+  const body = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(body.error || 'Falha ao consultar operadora.')
+  return body
+}
+
 // ---------- registro diário (só reagendamento — contestação agora exige aprovação) ----------
 
 export async function submitDailyReport(reagendamentos) {

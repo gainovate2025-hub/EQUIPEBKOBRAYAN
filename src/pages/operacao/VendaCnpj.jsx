@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Search, Loader2, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
+import { consultarOperadora } from '../../lib/api'
 import { Campo } from '../../components/vendaCnpj/Campo'
 import { soDigitos, formatarCnpj, formatarCpf } from '../../lib/documentos'
 
@@ -76,6 +77,12 @@ export default function VendaCnpj() {
   const [titularRazaoSocial, setTitularRazaoSocial] = useState('')
   const [titularCnpj, setTitularCnpj] = useState('')
 
+  // Consulta de operadora (Vivo/Claro/TIM) dos números digitados — ver
+  // supabase/functions/consulta-operadora. resultadosOperadora é uma
+  // lista paralela aos números digitados em numerosLinhas.
+  const [consultandoOperadora, setConsultandoOperadora] = useState(false)
+  const [resultadosOperadora, setResultadosOperadora] = useState([])
+
   function limparTudo() {
     setCnpj('')
     setDados(null)
@@ -91,6 +98,36 @@ export default function VendaCnpj() {
     setTitularNomePf('')
     setTitularRazaoSocial('')
     setTitularCnpj('')
+    setResultadosOperadora([])
+  }
+
+  // Consulta a operadora de cada número digitado em "Número(s) da(s)
+  // linha(s)" (um por linha, ou separados por vírgula), um de cada vez —
+  // o site externo não é uma API de verdade, então evita mandar tudo em
+  // paralelo. Mostra o resultado assim que cada um volta, não espera
+  // todos terminarem pra começar a exibir.
+  async function consultarOperadoras() {
+    const numeros = [...new Set(
+      numerosLinhas
+        .split(/[\n,;]+/)
+        .map((n) => soDigitos(n))
+        .filter((n) => n.length === 10 || n.length === 11)
+    )]
+    if (numeros.length === 0) {
+      return setErro('Digita pelo menos um número válido (DDD + número) em "Número(s) da(s) linha(s)" antes de consultar a operadora.')
+    }
+    setErro('')
+    setConsultandoOperadora(true)
+    setResultadosOperadora([])
+    for (const numero of numeros) {
+      try {
+        const r = await consultarOperadora(numero)
+        setResultadosOperadora((atual) => [...atual, { numero, ...r }])
+      } catch (err) {
+        setResultadosOperadora((atual) => [...atual, { numero, erro: err.message }])
+      }
+    }
+    setConsultandoOperadora(false)
   }
 
   async function consultar(e) {
@@ -165,6 +202,9 @@ export default function VendaCnpj() {
       titular_tipo: titularTipo,
       titular_documento: titularTipo === 'pf' ? soDigitos(titularCpf) : soDigitos(titularCnpj),
       titular_nome: titularTipo === 'pf' ? titularNomePf.trim() : titularRazaoSocial.trim(),
+      operadora_linha: resultadosOperadora
+        .map((r) => `${r.numero}: ${r.operadora || r.operadoraBruta || r.erro || '?'}`)
+        .join(' | ') || null,
       solicitado_por: profile.id,
     }
     const { data, error } = await supabase.from('vendas_cnpj').insert(payload).select().single()
@@ -275,6 +315,36 @@ export default function VendaCnpj() {
                 />
               </label>
 
+              <button
+                type="button"
+                className="btn-ghost btn-sm self-start"
+                onClick={consultarOperadoras}
+                disabled={consultandoOperadora}
+              >
+                {consultandoOperadora ? 'Consultando operadora…' : 'Consultar operadora dos números'}
+              </button>
+
+              {resultadosOperadora.length > 0 && (
+                <div className="flex flex-col gap-1">
+                  {resultadosOperadora.map((r) => (
+                    <div key={r.numero} className="text-xs">
+                      {r.erro ? (
+                        <span className="text-red-600">{r.numero}: {r.erro}</span>
+                      ) : r.operadora === 'TIM' ? (
+                        <span className="flex items-center gap-1 font-semibold text-red-700">
+                          <AlertTriangle size={12} /> {r.numero}: TIM — atenção, não fazemos TIM pra TIM
+                        </span>
+                      ) : (
+                        <span className="text-muted">
+                          {r.numero}: <span className="font-medium text-ink">{r.operadora || r.operadoraBruta}</span>
+                          {r.portado === true && ' (já portado)'}
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="rounded-lg border border-line p-2">
                 <p className="mb-1.5 text-xs font-semibold text-ink">Titular da linha</p>
                 <div className="mb-2 flex gap-2">
@@ -383,6 +453,7 @@ export default function VendaCnpj() {
           <Campo comCopiar label="Quantidade de linhas" valor={vendaSalva.quantidade_linhas} />
           <Campo comCopiar label="Número(s)" valor={vendaSalva.numeros_linhas} />
           <Campo comCopiar label="Tipo" valor={vendaSalva.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
+          <Campo comCopiar label="Operadora" valor={vendaSalva.operadora_linha} />
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
           <button type="button" className="btn-primary mt-3 self-start" onClick={limparTudo}>
             Nova consulta

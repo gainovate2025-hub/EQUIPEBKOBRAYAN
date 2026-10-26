@@ -80,6 +80,7 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Quantidade de linhas" valor={v.quantidade_linhas} />
           <Campo comCopiar label="Número(s)" valor={v.numeros_linhas} />
           <Campo comCopiar label="Tipo" valor={v.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
+          <Campo comCopiar label="Operadora" valor={v.operadora_linha} />
           <Campo comCopiar label="Plano" valor={v.plano} />
           <button
             type="button"
