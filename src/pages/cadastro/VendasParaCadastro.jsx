@@ -64,21 +64,25 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Aberta desde" valor={v.data_abertura} />
           <Campo comCopiar label="Atividade" valor={v.atividade_principal} />
           <Campo comCopiar label="Endereço" valor={v.endereco} />
-          <Campo comCopiar label="Telefone" valor={v.telefone} />
+          <Campo comCopiar label="Telefone (empresa)" valor={v.telefone} />
           <Campo comCopiar label="E-mail (empresa)" valor={v.email} />
           <Campo comCopiar label="Ponto de referência" valor={v.ponto_referencia} />
-          <Campo comCopiar label="E-mail do cliente" valor={v.email_cliente} />
+          <Campo comCopiar label="Nome do cliente" valor={v.nome_cliente} />
           <Campo comCopiar label="CPF do cliente" valor={v.cpf_cliente ? formatarCpf(v.cpf_cliente) : ''} />
+          <Campo comCopiar label="Telefone do cliente (3C)" valor={v.telefone_cliente} />
+          <Campo comCopiar label="E-mail do cliente" valor={v.email_cliente} />
           <Campo comCopiar label="Plano" valor={v.plano} />
           <Campo comCopiar label="Captador da venda" valor={v.captador} />
           <Campo comCopiar label="Quem fechou a venda" valor={v.fechou_venda} />
+          <Campo comCopiar label="Supervisor" valor={v.supervisor} />
 
           {(v.linhas || []).map((l, i) => (
             <div key={i} className="mt-2 border-t border-line pt-2">
               <p className="mb-1 text-xs font-semibold text-ink">Linha {i + 1}</p>
               <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
-              {l.tipo === 'portabilidade' && <Campo comCopiar label="Número" valor={l.numero} />}
-              {l.tipo === 'portabilidade' && <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />}
+              <Campo comCopiar label="Número" valor={l.numero} />
+              <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />
+              <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
               <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
               <Campo
                 comCopiar

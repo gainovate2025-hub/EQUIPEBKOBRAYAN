@@ -65,6 +65,7 @@ function linhaVazia() {
     titularNomePf: '',
     titularRazaoSocial: '',
     titularCnpj: '',
+    tipoChip: 'fisico', // 'fisico' | 'esim'
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -229,6 +230,14 @@ function LinhaForm({ indice, linha, atualizar }) {
           </label>
         </div>
       )}
+
+      <label className="mt-2 flex flex-col gap-1 text-xs font-medium text-muted">
+        Tipo de chip
+        <select className="field-input" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)}>
+          <option value="fisico">Chip físico</option>
+          <option value="esim">eSIM</option>
+        </select>
+      </label>
     </div>
   )
 }
@@ -248,10 +257,13 @@ export default function VendaCnpj() {
   const [linhas, setLinhas] = useState([linhaVazia()])
   const [plano, setPlano] = useState(PLANOS[0])
   const [pontoReferencia, setPontoReferencia] = useState('')
+  const [nomeCliente, setNomeCliente] = useState('')
   const [emailCliente, setEmailCliente] = useState('')
   const [cpfCliente, setCpfCliente] = useState('')
+  const [telefoneCliente, setTelefoneCliente] = useState('')
   const [captador, setCaptador] = useState('')
   const [fechouVenda, setFechouVenda] = useState(profile?.name || '')
+  const [supervisor, setSupervisor] = useState('')
 
   function atualizarQuantidade(valorBruto) {
     const n = Math.max(1, Math.min(10, Number(valorBruto) || 1))
@@ -278,10 +290,13 @@ export default function VendaCnpj() {
     setLinhas([linhaVazia()])
     setPlano(PLANOS[0])
     setPontoReferencia('')
+    setNomeCliente('')
     setEmailCliente('')
     setCpfCliente('')
+    setTelefoneCliente('')
     setCaptador('')
     setFechouVenda(profile?.name || '')
+    setSupervisor('')
   }
 
   async function consultar(e) {
@@ -337,8 +352,9 @@ export default function VendaCnpj() {
 
   function linhasParaSalvar() {
     return linhas.map((l) => ({
-      numero: l.tipo === 'portabilidade' ? soDigitos(l.numero) : null,
+      numero: soDigitos(l.numero) || null,
       tipo: l.tipo,
+      tipo_chip: l.tipoChip,
       titular_tipo: l.titularTipo,
       titular_documento: l.titularTipo === 'pf' ? soDigitos(l.titularCpf) : soDigitos(l.titularCnpj),
       titular_nome: l.titularTipo === 'pf' ? l.titularNomePf.trim() : l.titularRazaoSocial.trim(),
@@ -363,10 +379,13 @@ export default function VendaCnpj() {
       linhas: linhasParaSalvar(),
       plano,
       ponto_referencia: pontoReferencia.trim() || null,
+      nome_cliente: nomeCliente.trim() || null,
       email_cliente: emailCliente.trim() || null,
       cpf_cliente: soDigitos(cpfCliente) || null,
+      telefone_cliente: soDigitos(telefoneCliente) || null,
       captador: captador.trim() || null,
       fechou_venda: fechouVenda.trim() || null,
+      supervisor: supervisor.trim() || null,
       solicitado_por: profile.id,
     }
     const { data, error } = await supabase.from('vendas_cnpj').insert(payload).select().single()
@@ -442,12 +461,33 @@ export default function VendaCnpj() {
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Dados do cliente</p>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                    Ponto de referência
+                    Nome do cliente
                     <input
                       className="field-input"
-                      placeholder="Ex: perto do mercado São José"
-                      value={pontoReferencia}
-                      onChange={(e) => setPontoReferencia(e.target.value)}
+                      placeholder="Nome completo"
+                      value={nomeCliente}
+                      onChange={(e) => setNomeCliente(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    CPF do cliente
+                    <input
+                      className="field-input"
+                      placeholder="000.000.000-00"
+                      value={formatarCpf(cpfCliente)}
+                      onChange={(e) => setCpfCliente(soDigitos(e.target.value).slice(0, 11))}
+                      required
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Telefone do cliente (o que consta no 3C)
+                    <input
+                      className="field-input"
+                      placeholder="Ex: 11999990000"
+                      value={telefoneCliente}
+                      onChange={(e) => setTelefoneCliente(soDigitos(e.target.value).slice(0, 11))}
+                      required
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs font-medium text-muted">
@@ -458,18 +498,24 @@ export default function VendaCnpj() {
                       placeholder="cliente@exemplo.com"
                       value={emailCliente}
                       onChange={(e) => setEmailCliente(e.target.value)}
+                      required
                     />
                   </label>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                    CPF do cliente
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted sm:col-span-2">
+                    Ponto de referência
                     <input
                       className="field-input"
-                      placeholder="000.000.000-00"
-                      value={formatarCpf(cpfCliente)}
-                      onChange={(e) => setCpfCliente(soDigitos(e.target.value).slice(0, 11))}
+                      placeholder="Ex: perto do mercado São José"
+                      value={pontoReferencia}
+                      onChange={(e) => setPontoReferencia(e.target.value)}
+                      required
                     />
                   </label>
                 </div>
+                <p className="flex items-start gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                  <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                  O endereço de entrega é só o que consta no cartão CNPJ do cliente — não é liberada venda pra outro endereço.
+                </p>
               </section>
 
               <section className="flex flex-col gap-2">
@@ -485,11 +531,22 @@ export default function VendaCnpj() {
                     />
                   </label>
                   <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                    Quem fechou a venda
+                    Quem fechou a venda (Operador)
                     <input
                       className="field-input"
                       value={fechouVenda}
                       onChange={(e) => setFechouVenda(e.target.value)}
+                      required
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Supervisor
+                    <input
+                      className="field-input"
+                      placeholder="Nome ou e-mail do supervisor"
+                      value={supervisor}
+                      onChange={(e) => setSupervisor(e.target.value)}
+                      required
                     />
                   </label>
                 </div>
@@ -554,20 +611,24 @@ export default function VendaCnpj() {
           <Campo comCopiar label="Atividade" valor={vendaSalva.atividade_principal} />
           <Campo comCopiar label="Endereço" valor={vendaSalva.endereco} />
           <Campo comCopiar label="Ponto de referência" valor={vendaSalva.ponto_referencia} />
-          <Campo comCopiar label="Telefone" valor={vendaSalva.telefone} />
+          <Campo comCopiar label="Telefone (empresa)" valor={vendaSalva.telefone} />
           <Campo comCopiar label="E-mail (empresa)" valor={vendaSalva.email} />
-          <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
+          <Campo comCopiar label="Nome do cliente" valor={vendaSalva.nome_cliente} />
           <Campo comCopiar label="CPF do cliente" valor={vendaSalva.cpf_cliente ? formatarCpf(vendaSalva.cpf_cliente) : ''} />
+          <Campo comCopiar label="Telefone do cliente (3C)" valor={vendaSalva.telefone_cliente} />
+          <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
           <Campo comCopiar label="Captador da venda" valor={vendaSalva.captador} />
           <Campo comCopiar label="Quem fechou a venda" valor={vendaSalva.fechou_venda} />
+          <Campo comCopiar label="Supervisor" valor={vendaSalva.supervisor} />
 
           {(vendaSalva.linhas || []).map((l, i) => (
             <div key={i} className="mt-2 border-t border-line pt-2">
               <p className="mb-1 text-xs font-semibold text-ink">Linha {i + 1}</p>
               <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
-              {l.tipo === 'portabilidade' && <Campo comCopiar label="Número" valor={l.numero} />}
-              {l.tipo === 'portabilidade' && <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />}
+              <Campo comCopiar label="Número" valor={l.numero} />
+              <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />
+              <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
               <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
               <Campo
                 comCopiar
