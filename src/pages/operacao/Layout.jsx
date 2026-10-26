@@ -1,5 +1,5 @@
 import { Outlet, useLocation } from 'react-router-dom'
-import { Search, Settings, PhoneCall } from 'lucide-react'
+import { Search, Settings } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
 
@@ -7,8 +7,7 @@ export default function OperacaoLayout() {
   const location = useLocation()
 
   const navItems = [
-    { to: '/operacao', label: 'Consulta Crivo', end: true, icon: Search },
-    { to: '/operacao/venda', label: 'Consulta CNPJ + Venda', icon: PhoneCall },
+    { to: '/operacao', label: 'Consultas', end: true, icon: Search },
     { to: '/operacao/configuracoes', label: 'Configurações', icon: Settings },
   ]
 
@@ -20,7 +19,7 @@ export default function OperacaoLayout() {
       <div className="app-main">
         <Topbar />
         <main className="mx-auto max-w-6xl p-6">
-          <h1 className="mb-6 text-2xl font-bold text-ink">{current?.label || 'Consulta Crivo'}</h1>
+          <h1 className="mb-6 text-2xl font-bold text-ink">{current?.label || 'Consultas'}</h1>
           <Outlet />
         </main>
       </div>

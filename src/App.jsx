@@ -28,6 +28,7 @@ import Ranking from './pages/Ranking'
 import OperacaoLayout from './pages/operacao/Layout'
 import OperacaoConfiguracoes from './pages/supervisor/Configuracoes'
 import OperacaoVendaCnpj from './pages/operacao/VendaCnpj'
+import OperacaoConsultaUnificada from './pages/operacao/ConsultaUnificada'
 
 import CadastroLayout from './pages/cadastro/Layout'
 import CadastroVendasParaCadastro from './pages/cadastro/VendasParaCadastro'
@@ -86,7 +87,7 @@ export default function App() {
           </ProtectedRoute>
         }
       >
-        <Route index element={<SupervisorCrivo />} />
+        <Route index element={<OperacaoConsultaUnificada />} />
         <Route path="venda" element={<OperacaoVendaCnpj />} />
         <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
       </Route>
