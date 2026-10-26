@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { Campo } from '../../components/vendaCnpj/Campo'
+import { formatarCnpj, formatarCpf } from '../../lib/documentos'
 
 // RASCUNHO (23/10/2026) — fila de vendas já feitas pela operação,
 // esperando alguém do cadastro registrar no sistema de verdade. Some da
@@ -65,7 +66,17 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Endereço" valor={v.endereco} />
           <Campo comCopiar label="Telefone" valor={v.telefone} />
           <Campo comCopiar label="E-mail" valor={v.email} />
-          <Campo comCopiar label="Titular da linha" valor={v.titular_linha} />
+          <Campo comCopiar label="Titular" valor={v.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
+          <Campo
+            comCopiar
+            label={v.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
+            valor={v.titular_tipo === 'pj' ? formatarCnpj(v.titular_documento) : formatarCpf(v.titular_documento)}
+          />
+          <Campo
+            comCopiar
+            label={v.titular_tipo === 'pj' ? 'Razão Social do titular' : 'Nome do titular'}
+            valor={v.titular_nome}
+          />
           <Campo comCopiar label="Quantidade de linhas" valor={v.quantidade_linhas} />
           <Campo comCopiar label="Número(s)" valor={v.numeros_linhas} />
           <Campo comCopiar label="Tipo" valor={v.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />

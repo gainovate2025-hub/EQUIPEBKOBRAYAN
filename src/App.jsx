@@ -12,6 +12,7 @@ import SupervisorConfiguracoes from './pages/supervisor/Configuracoes'
 import SupervisorAprovacao from './pages/supervisor/Aprovacao'
 import SupervisorCrivo from './pages/supervisor/Crivo'
 import SupervisorAutomacoes from './pages/supervisor/Automacoes'
+import SupervisorVendasDesempenho from './pages/supervisor/VendasDesempenho'
 import SupervisorRelatorios from './pages/supervisor/Relatorios'
 import SupervisorRelatorioContestacaoSheet from './pages/supervisor/RelatorioContestacaoSheet'
 
@@ -56,6 +57,7 @@ export default function App() {
         <Route path="crivo" element={<SupervisorCrivo />} />
         <Route path="automacoes" element={<SupervisorAutomacoes />} />
         <Route path="venda-cnpj" element={<OperacaoVendaCnpj />} />
+        <Route path="vendas-desempenho" element={<SupervisorVendasDesempenho />} />
         <Route path="configuracoes" element={<SupervisorConfiguracoes />} />
       </Route>
 

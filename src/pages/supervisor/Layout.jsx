@@ -1,7 +1,7 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Users, Trophy, Settings, Zap, ClipboardList, BarChart3, PhoneCall,
+  Users, Trophy, Settings, Zap, ClipboardList, BarChart3, PhoneCall, TrendingUp,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -24,6 +24,7 @@ export default function SupervisorLayout() {
     { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
     { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },
     { to: '/supervisor/venda-cnpj', label: 'Consulta CNPJ + Venda', icon: PhoneCall },
+    { to: '/supervisor/vendas-desempenho', label: 'Desempenho — Vendas', icon: TrendingUp },
     { to: '/supervisor/configuracoes', label: 'Configurações', icon: Settings },
   ]
 

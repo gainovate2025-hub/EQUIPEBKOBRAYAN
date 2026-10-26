@@ -1,24 +1,16 @@
 import { useState } from 'react'
-import { Search, Loader2 } from 'lucide-react'
+import { Search, Loader2, AlertTriangle } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import { Campo } from '../../components/vendaCnpj/Campo'
+import { soDigitos, formatarCnpj, formatarCpf } from '../../lib/documentos'
 
-// RASCUNHO (23/10/2026) — ver supabase/migration_025_vendas_cnpj.sql pro
-// contexto completo. Campos de venda (quantidade de linhas, plano etc.)
-// são um chute inicial — ajustar quando as informações reais chegarem.
+// RASCUNHO (26/10/2026) — ver supabase/migration_025_vendas_cnpj.sql e
+// seguintes pro contexto completo. Campos de venda são um chute inicial —
+// ajustar quando as informações reais chegarem.
 
-function soDigitos(v) {
-  return (v || '').replace(/\D/g, '')
-}
-
-function formatarCnpj(v) {
-  const d = soDigitos(v).slice(0, 14)
-  return d
-    .replace(/^(\d{2})(\d)/, '$1.$2')
-    .replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3')
-    .replace(/\.(\d{3})(\d)/, '.$1/$2')
-    .replace(/(\d{4})(\d)/, '$1-$2')
+function semAcento(v) {
+  return (v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
 const PLANOS = ['R$ 50', 'R$ 70', 'R$ 100']
@@ -53,6 +45,14 @@ async function buscarCnpj(cnpjLimpo) {
   return res.json()
 }
 
+// "Suspensa", "Inapta" (com ou sem acento/maiúscula) — não pode vender
+// pra esse CNPJ. "Baixada"/"Nula" também são encerradas, mas o pedido foi
+// especificamente por esses dois termos — mantém restrito a eles por ora.
+function situacaoBloqueada(situacao) {
+  const s = semAcento(situacao)
+  return s.includes('suspens') || s.includes('inapt')
+}
+
 export default function VendaCnpj() {
   const { profile } = useAuth()
   const [cnpj, setCnpj] = useState('')
@@ -68,7 +68,13 @@ export default function VendaCnpj() {
   const [numerosLinhas, setNumerosLinhas] = useState('')
   const [tipoLinha, setTipoLinha] = useState('nova')
   const [plano, setPlano] = useState(PLANOS[0])
-  const [titularLinha, setTitularLinha] = useState('')
+
+  // Titular da linha — PF pede CPF + nome, PJ pede Razão Social + CNPJ.
+  const [titularTipo, setTitularTipo] = useState('pf')
+  const [titularCpf, setTitularCpf] = useState('')
+  const [titularNomePf, setTitularNomePf] = useState('')
+  const [titularRazaoSocial, setTitularRazaoSocial] = useState('')
+  const [titularCnpj, setTitularCnpj] = useState('')
 
   function limparTudo() {
     setCnpj('')
@@ -80,7 +86,11 @@ export default function VendaCnpj() {
     setNumerosLinhas('')
     setTipoLinha('nova')
     setPlano(PLANOS[0])
-    setTitularLinha('')
+    setTitularTipo('pf')
+    setTitularCpf('')
+    setTitularNomePf('')
+    setTitularRazaoSocial('')
+    setTitularCnpj('')
   }
 
   async function consultar(e) {
@@ -114,6 +124,7 @@ export default function VendaCnpj() {
       situacao: est?.situacao_cadastral || '',
       data_abertura: formatarDataBr(est?.data_inicio_atividade),
       atividade_principal: est?.atividade_principal?.descricao || '',
+      uf: est?.estado?.sigla || '',
     }
   }
 
@@ -129,8 +140,18 @@ export default function VendaCnpj() {
     limparTudo()
   }
 
+  function tituloValido() {
+    if (titularTipo === 'pf') return soDigitos(titularCpf).length === 11 && titularNomePf.trim()
+    return soDigitos(titularCnpj).length === 14 && titularRazaoSocial.trim()
+  }
+
   async function salvarVendaFeita(e) {
     e?.preventDefault()
+    if (!tituloValido()) {
+      return setErro(
+        titularTipo === 'pf' ? 'Preenche o CPF (11 números) e o nome do titular.' : 'Preenche o CNPJ (14 números) e a Razão Social do titular.'
+      )
+    }
     setSalvando(true)
     setErro('')
     const empresa = dadosEmpresa()
@@ -141,7 +162,9 @@ export default function VendaCnpj() {
       numeros_linhas: numerosLinhas,
       tipo_linha: tipoLinha,
       plano,
-      titular_linha: titularLinha,
+      titular_tipo: titularTipo,
+      titular_documento: titularTipo === 'pf' ? soDigitos(titularCpf) : soDigitos(titularCnpj),
+      titular_nome: titularTipo === 'pf' ? titularNomePf.trim() : titularRazaoSocial.trim(),
       solicitado_por: profile.id,
     }
     const { data, error } = await supabase.from('vendas_cnpj').insert(payload).select().single()
@@ -151,13 +174,14 @@ export default function VendaCnpj() {
   }
 
   const empresa = dados ? dadosEmpresa() : null
+  const bloqueado = empresa ? situacaoBloqueada(empresa.situacao) : false
 
   return (
-    <div className="flex flex-col gap-4">
-      <form onSubmit={consultar} className="flex items-center gap-3">
+    <div className="flex flex-col gap-3">
+      <form onSubmit={consultar} className="flex items-center gap-2">
         <input
           className="field-input flex-1"
-          placeholder="Digita o CNPJ (00.000.000/0000-00)"
+          placeholder="Digita ou cola o CNPJ (00.000.000/0000-00)"
           value={formatarCnpj(cnpj)}
           onChange={(e) => setCnpj(soDigitos(e.target.value).slice(0, 14))}
         />
@@ -170,12 +194,20 @@ export default function VendaCnpj() {
       {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
 
       {empresa && !vendaSalva && (
-        <div className="card flex flex-col gap-3 p-5">
+        <div className="card flex flex-col gap-2 p-3">
           <div>
-            <p className="text-lg font-bold text-ink">{empresa.razao_social || '(sem razão social)'}</p>
-            {empresa.nome_fantasia && <p className="text-sm text-muted">{empresa.nome_fantasia}</p>}
+            <p className="text-base font-bold text-ink">{empresa.razao_social || '(sem razão social)'}</p>
+            {empresa.nome_fantasia && <p className="text-xs text-muted">{empresa.nome_fantasia}</p>}
           </div>
-          <div className="flex flex-col gap-0.5">
+
+          {bloqueado && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              CNPJ {empresa.situacao?.toUpperCase()} — não vender pra esse cliente.
+            </div>
+          )}
+
+          <div className="flex flex-col">
             <Campo label="CNPJ" valor={empresa.cnpj} />
             <Campo label="Situação" valor={empresa.situacao} />
             <Campo label="Aberta desde" valor={empresa.data_abertura} />
@@ -186,8 +218,14 @@ export default function VendaCnpj() {
           </div>
 
           {!mostrarFormVenda && (
-            <div className="mt-2 flex gap-3">
-              <button type="button" className="btn-primary" onClick={() => setMostrarFormVenda(true)}>
+            <div className="mt-1 flex gap-2">
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={() => setMostrarFormVenda(true)}
+                disabled={bloqueado}
+                title={bloqueado ? 'CNPJ suspenso/inapto — não dá pra vender' : undefined}
+              >
                 Venda feita
               </button>
               <button type="button" className="btn-ghost" onClick={registrarVendaNaoFeita} disabled={salvando}>
@@ -197,8 +235,8 @@ export default function VendaCnpj() {
           )}
 
           {mostrarFormVenda && (
-            <form onSubmit={salvarVendaFeita} className="mt-2 flex flex-col gap-3 border-t border-line pt-4">
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <form onSubmit={salvarVendaFeita} className="mt-1 flex flex-col gap-2 border-t border-line pt-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                   Quantidade de linhas
                   <input
@@ -211,22 +249,13 @@ export default function VendaCnpj() {
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Titular da linha
-                  <input
-                    className="field-input"
-                    value={titularLinha}
-                    onChange={(e) => setTitularLinha(e.target.value)}
-                    required
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                   Linha nova ou portabilidade?
                   <select className="field-input" value={tipoLinha} onChange={(e) => setTipoLinha(e.target.value)}>
                     <option value="nova">Linha nova</option>
                     <option value="portabilidade">Portabilidade</option>
                   </select>
                 </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                <label className="flex flex-col gap-1 text-xs font-medium text-muted sm:col-span-2">
                   Plano
                   <select className="field-input" value={plano} onChange={(e) => setPlano(e.target.value)}>
                     {PLANOS.map((p) => (
@@ -235,16 +264,86 @@ export default function VendaCnpj() {
                   </select>
                 </label>
               </div>
+
               <label className="flex flex-col gap-1 text-xs font-medium text-muted">
                 Número(s) da(s) linha(s)
                 <textarea
-                  className="field-input min-h-16 resize-y"
-                  placeholder="Um por linha, se for mais de um número"
+                  className="field-input min-h-14 resize-y"
+                  placeholder="Ex: 11999990000 — um por linha, se for mais de um número"
                   value={numerosLinhas}
                   onChange={(e) => setNumerosLinhas(e.target.value)}
                 />
               </label>
-              <div className="flex gap-3">
+
+              <div className="rounded-lg border border-line p-2">
+                <p className="mb-1.5 text-xs font-semibold text-ink">Titular da linha</p>
+                <div className="mb-2 flex gap-2">
+                  <button
+                    type="button"
+                    className={titularTipo === 'pf' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+                    onClick={() => setTitularTipo('pf')}
+                  >
+                    Pessoa Física
+                  </button>
+                  <button
+                    type="button"
+                    className={titularTipo === 'pj' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+                    onClick={() => setTitularTipo('pj')}
+                  >
+                    Pessoa Jurídica
+                  </button>
+                </div>
+
+                {titularTipo === 'pf' ? (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                      CPF do titular
+                      <input
+                        className="field-input"
+                        placeholder="000.000.000-00"
+                        value={formatarCpf(titularCpf)}
+                        onChange={(e) => setTitularCpf(soDigitos(e.target.value).slice(0, 11))}
+                        required
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                      Nome do titular
+                      <input
+                        className="field-input"
+                        placeholder="Nome completo"
+                        value={titularNomePf}
+                        onChange={(e) => setTitularNomePf(e.target.value)}
+                        required
+                      />
+                    </label>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                      Razão Social do titular
+                      <input
+                        className="field-input"
+                        placeholder="Razão Social Ltda"
+                        value={titularRazaoSocial}
+                        onChange={(e) => setTitularRazaoSocial(e.target.value)}
+                        required
+                      />
+                    </label>
+                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                      CNPJ do titular
+                      <input
+                        className="field-input"
+                        placeholder="00.000.000/0000-00"
+                        value={formatarCnpj(titularCnpj)}
+                        onChange={(e) => setTitularCnpj(soDigitos(e.target.value).slice(0, 14))}
+                        required
+                      />
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-2">
                 <button type="submit" className="btn-primary" disabled={salvando}>
                   {salvando ? 'Salvando…' : 'Salvar venda'}
                 </button>
@@ -258,8 +357,8 @@ export default function VendaCnpj() {
       )}
 
       {vendaSalva && (
-        <div className="card flex flex-col gap-1 p-5">
-          <p className="mb-2 text-base font-bold text-ink">Ficha da venda — pronta pra cadastrar</p>
+        <div className="card flex flex-col gap-1 p-3">
+          <p className="mb-1 text-base font-bold text-ink">Ficha da venda — pronta pra cadastrar</p>
           <p className="mb-1 text-xs text-muted">Clica no ícone ao lado de cada campo pra copiar o valor.</p>
           <Campo comCopiar label="CNPJ" valor={vendaSalva.cnpj} />
           <Campo comCopiar label="Razão Social" valor={vendaSalva.razao_social} />
@@ -270,7 +369,17 @@ export default function VendaCnpj() {
           <Campo comCopiar label="Endereço" valor={vendaSalva.endereco} />
           <Campo comCopiar label="Telefone" valor={vendaSalva.telefone} />
           <Campo comCopiar label="E-mail" valor={vendaSalva.email} />
-          <Campo comCopiar label="Titular da linha" valor={vendaSalva.titular_linha} />
+          <Campo comCopiar label="Titular" valor={vendaSalva.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
+          <Campo
+            comCopiar
+            label={vendaSalva.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
+            valor={vendaSalva.titular_tipo === 'pj' ? formatarCnpj(vendaSalva.titular_documento) : formatarCpf(vendaSalva.titular_documento)}
+          />
+          <Campo
+            comCopiar
+            label={vendaSalva.titular_tipo === 'pj' ? 'Razão Social do titular' : 'Nome do titular'}
+            valor={vendaSalva.titular_nome}
+          />
           <Campo comCopiar label="Quantidade de linhas" valor={vendaSalva.quantidade_linhas} />
           <Campo comCopiar label="Número(s)" valor={vendaSalva.numeros_linhas} />
           <Campo comCopiar label="Tipo" valor={vendaSalva.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
