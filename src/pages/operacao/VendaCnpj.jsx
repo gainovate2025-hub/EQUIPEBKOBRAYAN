@@ -58,6 +58,7 @@ function situacaoBloqueada(situacao) {
 function linhaVazia() {
   return {
     numero: '',
+    numeroConsultado: null, // último número que já foi consultado, evita reconsultar à toa
     tipo: 'nova', // 'nova' | 'portabilidade'
     titularTipo: 'pf', // 'pf' | 'pj'
     titularCpf: '',
@@ -91,18 +92,39 @@ function LinhaForm({ indice, linha, atualizar }) {
     atualizar(indice, { ...linha, [campo]: valor })
   }
 
-  async function consultarEssaOperadora() {
-    const numeroLimpo = soDigitos(linha.numero)
-    if (numeroLimpo.length !== 10 && numeroLimpo.length !== 11) {
-      return atualizar(indice, { ...linha, erroOperadora: 'Número inválido (DDD + número).' })
-    }
-    atualizar(indice, { ...linha, consultando: true, erroOperadora: null })
+  // Consulta sozinha assim que o número digitado fica completo — não
+  // precisa de botão. Dispara no onChange quando chega a 11 dígitos
+  // (celular, o formato mais comum) e no onBlur como reforço pra números
+  // de 10 (caso a pessoa saia do campo sem completar os 11).
+  async function consultarEssaOperadora(numeroDigitado) {
+    const numeroLimpo = soDigitos(numeroDigitado)
+    if (numeroLimpo.length !== 10 && numeroLimpo.length !== 11) return
+    if (numeroLimpo === linha.numeroConsultado) return // já consultou esse mesmo número
+    atualizar(indice, { ...linha, numero: numeroLimpo, consultando: true, erroOperadora: null })
     try {
       const r = await consultarOperadora(numeroLimpo)
-      atualizar(indice, { ...linha, consultando: false, operadora: r.operadora, operadoraBruta: r.operadoraBruta, portado: r.portado })
+      atualizar(indice, {
+        ...linha,
+        numero: numeroLimpo,
+        numeroConsultado: numeroLimpo,
+        consultando: false,
+        operadora: r.operadora,
+        operadoraBruta: r.operadoraBruta,
+        portado: r.portado,
+      })
     } catch (err) {
-      atualizar(indice, { ...linha, consultando: false, erroOperadora: err.message })
+      atualizar(indice, { ...linha, numero: numeroLimpo, consultando: false, erroOperadora: err.message })
     }
+  }
+
+  function aoMudarNumero(valor) {
+    const digitos = soDigitos(valor).slice(0, 11)
+    set('numero', digitos)
+    if (digitos.length === 11) consultarEssaOperadora(digitos)
+  }
+
+  function aoSairDoNumero() {
+    if (linha.numero.length === 10) consultarEssaOperadora(linha.numero)
   }
 
   return (
@@ -120,18 +142,15 @@ function LinhaForm({ indice, linha, atualizar }) {
       <div className="mb-2">
           <label className="flex flex-col gap-1 text-xs font-medium text-muted">
             Número (DDD + número)
-            <div className="flex gap-2">
-              <input
-                className="field-input"
-                placeholder="Ex: 11999990000"
-                value={linha.numero}
-                onChange={(e) => set('numero', soDigitos(e.target.value).slice(0, 11))}
-              />
-              <button type="button" className="btn-ghost btn-sm shrink-0" onClick={consultarEssaOperadora} disabled={linha.consultando}>
-                {linha.consultando ? 'Consultando…' : 'Consultar operadora'}
-              </button>
-            </div>
+            <input
+              className="field-input"
+              placeholder="Ex: 11999990000"
+              value={linha.numero}
+              onChange={(e) => aoMudarNumero(e.target.value)}
+              onBlur={aoSairDoNumero}
+            />
           </label>
+          {linha.consultando && <p className="mt-1 text-xs text-muted">Consultando operadora…</p>}
           {linha.erroOperadora && <p className="mt-1 text-xs text-red-600">{linha.erroOperadora}</p>}
           {linha.operadora === 'TIM' && (
             <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-red-700">
