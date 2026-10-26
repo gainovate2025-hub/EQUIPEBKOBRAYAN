@@ -17,6 +17,13 @@ function semAcento(v) {
 // tinha 3 chutes (R$50/70/100), tirados a pedido dele.
 const PLANOS = ['BLACKFRIDAY 80GB R$53,99']
 
+// A Receita Federal coloca o número do CNPJ na frente da "razão social"
+// de MEI/autônomo (ex: "61.351.426 DENISE PEREIRA DOS SANTOS") — tira
+// esse prefixo numérico, deixando só o nome de verdade.
+function limparPrefixoNumerico(nome) {
+  return (nome || '').replace(/^[\d./-]+\s+/, '').trim()
+}
+
 function formatarDataBr(iso) {
   if (!iso) return ''
   const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso)
@@ -320,7 +327,7 @@ export default function VendaCnpj() {
     const est = dados?.estabelecimento
     return {
       cnpj: formatarCnpj(est?.cnpj || dados?.cnpj || cnpj),
-      razao_social: dados?.razao_social || '',
+      razao_social: limparPrefixoNumerico(dados?.razao_social),
       nome_fantasia: est?.nome_fantasia || '',
       endereco: montarEndereco(est),
       telefone: est?.telefone1 ? `(${est.ddd1 || ''}) ${est.telefone1}` : '',
