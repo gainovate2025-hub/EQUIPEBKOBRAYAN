@@ -437,82 +437,97 @@ export default function VendaCnpj() {
           )}
 
           {mostrarFormVenda && (
-            <form onSubmit={salvarVendaFeita} className="mt-1 flex flex-col gap-2 border-t border-line pt-3">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Quantidade de linhas
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
-                    className="field-input"
-                    value={quantidadeLinhas}
-                    onChange={(e) => atualizarQuantidade(e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Plano
-                  <select className="field-input" value={plano} onChange={(e) => setPlano(e.target.value)}>
-                    {PLANOS.map((p) => (
-                      <option key={p} value={p}>{p}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
+            <form onSubmit={salvarVendaFeita} className="mt-1 flex flex-col gap-4 border-t border-line pt-3">
+              <section className="flex flex-col gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Dados do cliente</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Ponto de referência
+                    <input
+                      className="field-input"
+                      placeholder="Ex: perto do mercado São José"
+                      value={pontoReferencia}
+                      onChange={(e) => setPontoReferencia(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    E-mail do cliente
+                    <input
+                      type="email"
+                      className="field-input"
+                      placeholder="cliente@exemplo.com"
+                      value={emailCliente}
+                      onChange={(e) => setEmailCliente(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    CPF do cliente
+                    <input
+                      className="field-input"
+                      placeholder="000.000.000-00"
+                      value={formatarCpf(cpfCliente)}
+                      onChange={(e) => setCpfCliente(soDigitos(e.target.value).slice(0, 11))}
+                    />
+                  </label>
+                </div>
+              </section>
 
-              <div className="flex flex-col gap-2">
-                {linhas.map((l, i) => (
-                  <LinhaForm key={i} indice={i} linha={l} atualizar={atualizarLinha} />
-                ))}
-              </div>
+              <section className="flex flex-col gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Equipe</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Captador da venda
+                    <input
+                      className="field-input"
+                      placeholder="Quem captou o cliente"
+                      value={captador}
+                      onChange={(e) => setCaptador(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Quem fechou a venda
+                    <input
+                      className="field-input"
+                      value={fechouVenda}
+                      onChange={(e) => setFechouVenda(e.target.value)}
+                    />
+                  </label>
+                </div>
+              </section>
 
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Ponto de referência
-                  <input
-                    className="field-input"
-                    placeholder="Ex: perto do mercado São José"
-                    value={pontoReferencia}
-                    onChange={(e) => setPontoReferencia(e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  E-mail do cliente
-                  <input
-                    type="email"
-                    className="field-input"
-                    placeholder="cliente@exemplo.com"
-                    value={emailCliente}
-                    onChange={(e) => setEmailCliente(e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  CPF do cliente
-                  <input
-                    className="field-input"
-                    placeholder="000.000.000-00"
-                    value={formatarCpf(cpfCliente)}
-                    onChange={(e) => setCpfCliente(soDigitos(e.target.value).slice(0, 11))}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Captador da venda
-                  <input
-                    className="field-input"
-                    placeholder="Quem captou o cliente"
-                    value={captador}
-                    onChange={(e) => setCaptador(e.target.value)}
-                  />
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Quem fechou a venda
-                  <input
-                    className="field-input"
-                    value={fechouVenda}
-                    onChange={(e) => setFechouVenda(e.target.value)}
-                  />
-                </label>
-              </div>
+              <section className="flex flex-col gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Plano</p>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Quantidade de linhas
+                    <input
+                      type="number"
+                      min="1"
+                      max="10"
+                      className="field-input"
+                      value={quantidadeLinhas}
+                      onChange={(e) => atualizarQuantidade(e.target.value)}
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                    Plano contratado
+                    <select className="field-input" value={plano} onChange={(e) => setPlano(e.target.value)}>
+                      {PLANOS.map((p) => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </section>
+
+              <section className="flex flex-col gap-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Linhas vendidas</p>
+                <div className="flex flex-col gap-2">
+                  {linhas.map((l, i) => (
+                    <LinhaForm key={i} indice={i} linha={l} atualizar={atualizarLinha} />
+                  ))}
+                </div>
+              </section>
 
               <div className="flex gap-2">
                 <button type="submit" className="btn-primary" disabled={salvando}>
