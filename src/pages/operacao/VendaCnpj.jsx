@@ -117,10 +117,9 @@ function LinhaForm({ indice, linha, atualizar }) {
         </select>
       </label>
 
-      {linha.tipo === 'portabilidade' && (
-        <div className="mb-2">
+      <div className="mb-2">
           <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-            Número atual (DDD + número)
+            Número (DDD + número)
             <div className="flex gap-2">
               <input
                 className="field-input"
@@ -145,8 +144,7 @@ function LinhaForm({ indice, linha, atualizar }) {
               {linha.portado === true && ' (já portado)'}
             </p>
           )}
-        </div>
-      )}
+      </div>
 
       <div className="mb-1.5 flex gap-2">
         <button
