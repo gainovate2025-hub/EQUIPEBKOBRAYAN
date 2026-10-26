@@ -74,7 +74,6 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Plano" valor={v.plano} />
           <Campo comCopiar label="Captador da venda" valor={v.captador} />
           <Campo comCopiar label="Quem fechou a venda" valor={v.fechou_venda} />
-          <Campo comCopiar label="Supervisor" valor={v.supervisor} />
 
           {(v.linhas || []).map((l, i) => (
             <div key={i} className="mt-2 border-t border-line pt-2">

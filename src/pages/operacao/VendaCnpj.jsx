@@ -263,7 +263,6 @@ export default function VendaCnpj() {
   const [telefoneCliente, setTelefoneCliente] = useState('')
   const [captador, setCaptador] = useState('')
   const [fechouVenda, setFechouVenda] = useState(profile?.name || '')
-  const [supervisor, setSupervisor] = useState('')
 
   function atualizarQuantidade(valorBruto) {
     const n = Math.max(1, Math.min(10, Number(valorBruto) || 1))
@@ -296,7 +295,6 @@ export default function VendaCnpj() {
     setTelefoneCliente('')
     setCaptador('')
     setFechouVenda(profile?.name || '')
-    setSupervisor('')
   }
 
   async function consultar(e) {
@@ -385,7 +383,6 @@ export default function VendaCnpj() {
       telefone_cliente: soDigitos(telefoneCliente) || null,
       captador: captador.trim() || null,
       fechou_venda: fechouVenda.trim() || null,
-      supervisor: supervisor.trim() || null,
       solicitado_por: profile.id,
     }
     const { data, error } = await supabase.from('vendas_cnpj').insert(payload).select().single()
@@ -539,16 +536,6 @@ export default function VendaCnpj() {
                       required
                     />
                   </label>
-                  <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                    Supervisor
-                    <input
-                      className="field-input"
-                      placeholder="Nome ou e-mail do supervisor"
-                      value={supervisor}
-                      onChange={(e) => setSupervisor(e.target.value)}
-                      required
-                    />
-                  </label>
                 </div>
               </section>
 
@@ -620,7 +607,6 @@ export default function VendaCnpj() {
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
           <Campo comCopiar label="Captador da venda" valor={vendaSalva.captador} />
           <Campo comCopiar label="Quem fechou a venda" valor={vendaSalva.fechou_venda} />
-          <Campo comCopiar label="Supervisor" valor={vendaSalva.supervisor} />
 
           {(vendaSalva.linhas || []).map((l, i) => (
             <div key={i} className="mt-2 border-t border-line pt-2">
