@@ -64,9 +64,9 @@ async function atualizarCepPadrao() {
 const ATUALIZAR_CEP_PADRAO_MS = 60000
 
 const POLL_IDLE_MS = 1500 // sem consulta em andamento: procura pendente de tanto em tanto
-const POLL_ANDAMENTO_MS = 400 // com consulta em andamento: checa a tela rápido
+const POLL_ANDAMENTO_MS = 150 // com consulta em andamento: checa a tela rápido. Reduzido de 400 pra 150 (26/10/2026) — pedido do Brayan pra responder mais rápido; os casos já reconhecidos (reprovado/negado/não encontrado) são aceitos na hora, sem esperar rodada nenhuma (veja mais abaixo), então esse valor só afeta a granularidade de QUANDO a extensão percebe que o texto novo apareceu.
 const TIMEOUT_ANDAMENTO_MS = 45000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar) — aumentado de 25s pra reduzir desistência falsa que levava a reenviar o MESMO CNPJ de novo (visto ao vivo: reenvio caindo na tela de Contrato)
-const ESTAVEL_MIN = 5 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~2s) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer. Reduzido de 7 pra 5 pra ganhar velocidade (~40 pessoas usando ao mesmo tempo); ainda é tempo suficiente pra não confundir texto de passagem com resultado de verdade.
+const ESTAVEL_MIN = 2 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~300ms, com o POLL_ANDAMENTO_MS de 150 acima) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer, por isso não cai pra 1. Reduzido de 5 pra 2 (26/10/2026) — pedido do Brayan ("quero que a msg que aparece já vá direto pra aprovado/reprovado"); como ficou bem mais rápido pra checar (150ms em vez de 400ms), 2 rodadas já dá a mesma proteção contra texto de passagem de um jeito bem mais rápido (~300ms em vez de ~2s).
 
 // "Não encontrado" e erros (tela não carregou, serviço temporariamente
 // indisponível, timeout etc.) às vezes são passageiros — antes de
