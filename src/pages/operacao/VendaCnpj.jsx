@@ -7,14 +7,15 @@ import { Campo } from '../../components/vendaCnpj/Campo'
 import { soDigitos, formatarCnpj, formatarCpf } from '../../lib/documentos'
 
 // RASCUNHO (26/10/2026) — ver supabase/migration_025_vendas_cnpj.sql e
-// seguintes pro contexto completo. Campos de venda são um chute inicial —
-// ajustar quando as informações reais chegarem.
+// seguintes (principalmente migration_040) pro contexto completo.
 
 function semAcento(v) {
   return (v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
-const PLANOS = ['R$ 50', 'R$ 70', 'R$ 100']
+// Só o plano real que o Brayan mandou (print em 26/10/2026) — antes
+// tinha 3 chutes (R$50/70/100), tirados a pedido dele.
+const PLANOS = ['BLACKFRIDAY 80GB R$53,99']
 
 function formatarDataBr(iso) {
   if (!iso) return ''
@@ -54,6 +55,167 @@ function situacaoBloqueada(situacao) {
   return s.includes('suspens') || s.includes('inapt')
 }
 
+function linhaVazia() {
+  return {
+    numero: '',
+    tipo: 'nova', // 'nova' | 'portabilidade'
+    titularTipo: 'pf', // 'pf' | 'pj'
+    titularCpf: '',
+    titularNomePf: '',
+    titularRazaoSocial: '',
+    titularCnpj: '',
+    consultando: false,
+    operadora: null,
+    operadoraBruta: null,
+    portado: null,
+    erroOperadora: null,
+  }
+}
+
+function linhaValida(l) {
+  const titularOk = l.titularTipo === 'pf'
+    ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
+    : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
+  if (!titularOk) return false
+  if (l.tipo === 'portabilidade') {
+    const d = soDigitos(l.numero)
+    if (d.length !== 10 && d.length !== 11) return false
+  }
+  return true
+}
+
+// Um cartão por linha vendida — tipo, titular (PF/PJ) e, se for
+// portabilidade, o número + consulta automática da operadora.
+function LinhaForm({ indice, linha, atualizar }) {
+  function set(campo, valor) {
+    atualizar(indice, { ...linha, [campo]: valor })
+  }
+
+  async function consultarEssaOperadora() {
+    const numeroLimpo = soDigitos(linha.numero)
+    if (numeroLimpo.length !== 10 && numeroLimpo.length !== 11) {
+      return atualizar(indice, { ...linha, erroOperadora: 'Número inválido (DDD + número).' })
+    }
+    atualizar(indice, { ...linha, consultando: true, erroOperadora: null })
+    try {
+      const r = await consultarOperadora(numeroLimpo)
+      atualizar(indice, { ...linha, consultando: false, operadora: r.operadora, operadoraBruta: r.operadoraBruta, portado: r.portado })
+    } catch (err) {
+      atualizar(indice, { ...linha, consultando: false, erroOperadora: err.message })
+    }
+  }
+
+  return (
+    <div className="rounded-lg border border-line p-2">
+      <p className="mb-1.5 text-xs font-semibold text-ink">Linha {indice + 1}</p>
+
+      <label className="mb-2 flex flex-col gap-1 text-xs font-medium text-muted">
+        Linha nova ou portabilidade?
+        <select className="field-input" value={linha.tipo} onChange={(e) => set('tipo', e.target.value)}>
+          <option value="nova">Linha nova</option>
+          <option value="portabilidade">Portabilidade</option>
+        </select>
+      </label>
+
+      {linha.tipo === 'portabilidade' && (
+        <div className="mb-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Número atual (DDD + número)
+            <div className="flex gap-2">
+              <input
+                className="field-input"
+                placeholder="Ex: 11999990000"
+                value={linha.numero}
+                onChange={(e) => set('numero', soDigitos(e.target.value).slice(0, 11))}
+              />
+              <button type="button" className="btn-ghost btn-sm shrink-0" onClick={consultarEssaOperadora} disabled={linha.consultando}>
+                {linha.consultando ? 'Consultando…' : 'Consultar operadora'}
+              </button>
+            </div>
+          </label>
+          {linha.erroOperadora && <p className="mt-1 text-xs text-red-600">{linha.erroOperadora}</p>}
+          {linha.operadora === 'TIM' && (
+            <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-red-700">
+              <AlertTriangle size={12} /> TIM — atenção, não fazemos TIM pra TIM
+            </p>
+          )}
+          {linha.operadora && linha.operadora !== 'TIM' && (
+            <p className="mt-1 text-xs text-muted">
+              Operadora: <span className="font-medium text-ink">{linha.operadora}</span>
+              {linha.portado === true && ' (já portado)'}
+            </p>
+          )}
+        </div>
+      )}
+
+      <div className="mb-1.5 flex gap-2">
+        <button
+          type="button"
+          className={linha.titularTipo === 'pf' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+          onClick={() => set('titularTipo', 'pf')}
+        >
+          Titular Pessoa Física
+        </button>
+        <button
+          type="button"
+          className={linha.titularTipo === 'pj' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
+          onClick={() => set('titularTipo', 'pj')}
+        >
+          Titular Pessoa Jurídica
+        </button>
+      </div>
+
+      {linha.titularTipo === 'pf' ? (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            CPF do titular
+            <input
+              className="field-input"
+              placeholder="000.000.000-00"
+              value={formatarCpf(linha.titularCpf)}
+              onChange={(e) => set('titularCpf', soDigitos(e.target.value).slice(0, 11))}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Nome do titular
+            <input
+              className="field-input"
+              placeholder="Nome completo"
+              value={linha.titularNomePf}
+              onChange={(e) => set('titularNomePf', e.target.value)}
+              required
+            />
+          </label>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Razão Social do titular
+            <input
+              className="field-input"
+              placeholder="Razão Social Ltda"
+              value={linha.titularRazaoSocial}
+              onChange={(e) => set('titularRazaoSocial', e.target.value)}
+              required
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            CNPJ do titular
+            <input
+              className="field-input"
+              placeholder="00.000.000/0000-00"
+              value={formatarCnpj(linha.titularCnpj)}
+              onChange={(e) => set('titularCnpj', soDigitos(e.target.value).slice(0, 14))}
+              required
+            />
+          </label>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function VendaCnpj() {
   const { profile } = useAuth()
   const [cnpj, setCnpj] = useState('')
@@ -65,23 +227,29 @@ export default function VendaCnpj() {
   const [salvando, setSalvando] = useState(false)
   const [vendaSalva, setVendaSalva] = useState(null) // registro já gravado, pra mostrar a ficha final
 
-  const [quantidadeLinhas, setQuantidadeLinhas] = useState('1')
-  const [numerosLinhas, setNumerosLinhas] = useState('')
-  const [tipoLinha, setTipoLinha] = useState('nova')
+  const [quantidadeLinhas, setQuantidadeLinhas] = useState(1)
+  const [linhas, setLinhas] = useState([linhaVazia()])
   const [plano, setPlano] = useState(PLANOS[0])
+  const [pontoReferencia, setPontoReferencia] = useState('')
+  const [emailCliente, setEmailCliente] = useState('')
+  const [cpfCliente, setCpfCliente] = useState('')
+  const [captador, setCaptador] = useState('')
+  const [fechouVenda, setFechouVenda] = useState(profile?.name || '')
 
-  // Titular da linha — PF pede CPF + nome, PJ pede Razão Social + CNPJ.
-  const [titularTipo, setTitularTipo] = useState('pf')
-  const [titularCpf, setTitularCpf] = useState('')
-  const [titularNomePf, setTitularNomePf] = useState('')
-  const [titularRazaoSocial, setTitularRazaoSocial] = useState('')
-  const [titularCnpj, setTitularCnpj] = useState('')
+  function atualizarQuantidade(valorBruto) {
+    const n = Math.max(1, Math.min(10, Number(valorBruto) || 1))
+    setQuantidadeLinhas(n)
+    setLinhas((atual) => {
+      const novas = [...atual]
+      while (novas.length < n) novas.push(linhaVazia())
+      novas.length = n
+      return novas
+    })
+  }
 
-  // Consulta de operadora (Vivo/Claro/TIM) dos números digitados — ver
-  // supabase/functions/consulta-operadora. resultadosOperadora é uma
-  // lista paralela aos números digitados em numerosLinhas.
-  const [consultandoOperadora, setConsultandoOperadora] = useState(false)
-  const [resultadosOperadora, setResultadosOperadora] = useState([])
+  function atualizarLinha(indice, novaLinha) {
+    setLinhas((atual) => atual.map((l, i) => (i === indice ? novaLinha : l)))
+  }
 
   function limparTudo() {
     setCnpj('')
@@ -89,45 +257,14 @@ export default function VendaCnpj() {
     setErro('')
     setMostrarFormVenda(false)
     setVendaSalva(null)
-    setQuantidadeLinhas('1')
-    setNumerosLinhas('')
-    setTipoLinha('nova')
+    setQuantidadeLinhas(1)
+    setLinhas([linhaVazia()])
     setPlano(PLANOS[0])
-    setTitularTipo('pf')
-    setTitularCpf('')
-    setTitularNomePf('')
-    setTitularRazaoSocial('')
-    setTitularCnpj('')
-    setResultadosOperadora([])
-  }
-
-  // Consulta a operadora de cada número digitado em "Número(s) da(s)
-  // linha(s)" (um por linha, ou separados por vírgula), um de cada vez —
-  // o site externo não é uma API de verdade, então evita mandar tudo em
-  // paralelo. Mostra o resultado assim que cada um volta, não espera
-  // todos terminarem pra começar a exibir.
-  async function consultarOperadoras() {
-    const numeros = [...new Set(
-      numerosLinhas
-        .split(/[\n,;]+/)
-        .map((n) => soDigitos(n))
-        .filter((n) => n.length === 10 || n.length === 11)
-    )]
-    if (numeros.length === 0) {
-      return setErro('Digita pelo menos um número válido (DDD + número) em "Número(s) da(s) linha(s)" antes de consultar a operadora.')
-    }
-    setErro('')
-    setConsultandoOperadora(true)
-    setResultadosOperadora([])
-    for (const numero of numeros) {
-      try {
-        const r = await consultarOperadora(numero)
-        setResultadosOperadora((atual) => [...atual, { numero, ...r }])
-      } catch (err) {
-        setResultadosOperadora((atual) => [...atual, { numero, erro: err.message }])
-      }
-    }
-    setConsultandoOperadora(false)
+    setPontoReferencia('')
+    setEmailCliente('')
+    setCpfCliente('')
+    setCaptador('')
+    setFechouVenda(profile?.name || '')
   }
 
   async function consultar(e) {
@@ -177,17 +314,27 @@ export default function VendaCnpj() {
     limparTudo()
   }
 
-  function tituloValido() {
-    if (titularTipo === 'pf') return soDigitos(titularCpf).length === 11 && titularNomePf.trim()
-    return soDigitos(titularCnpj).length === 14 && titularRazaoSocial.trim()
+  function linhasValidas() {
+    return linhas.every(linhaValida)
+  }
+
+  function linhasParaSalvar() {
+    return linhas.map((l) => ({
+      numero: l.tipo === 'portabilidade' ? soDigitos(l.numero) : null,
+      tipo: l.tipo,
+      titular_tipo: l.titularTipo,
+      titular_documento: l.titularTipo === 'pf' ? soDigitos(l.titularCpf) : soDigitos(l.titularCnpj),
+      titular_nome: l.titularTipo === 'pf' ? l.titularNomePf.trim() : l.titularRazaoSocial.trim(),
+      operadora: l.operadora,
+      operadora_bruta: l.operadoraBruta,
+      portado: l.portado,
+    }))
   }
 
   async function salvarVendaFeita(e) {
     e?.preventDefault()
-    if (!tituloValido()) {
-      return setErro(
-        titularTipo === 'pf' ? 'Preenche o CPF (11 números) e o nome do titular.' : 'Preenche o CNPJ (14 números) e a Razão Social do titular.'
-      )
+    if (!linhasValidas()) {
+      return setErro('Preenche o titular (CPF+nome ou CNPJ+Razão Social) de cada linha, e o número de quem for portabilidade.')
     }
     setSalvando(true)
     setErro('')
@@ -195,16 +342,14 @@ export default function VendaCnpj() {
     const payload = {
       ...empresa,
       status: 'venda_feita',
-      quantidade_linhas: Number(quantidadeLinhas) || null,
-      numeros_linhas: numerosLinhas,
-      tipo_linha: tipoLinha,
+      quantidade_linhas: linhas.length,
+      linhas: linhasParaSalvar(),
       plano,
-      titular_tipo: titularTipo,
-      titular_documento: titularTipo === 'pf' ? soDigitos(titularCpf) : soDigitos(titularCnpj),
-      titular_nome: titularTipo === 'pf' ? titularNomePf.trim() : titularRazaoSocial.trim(),
-      operadora_linha: resultadosOperadora
-        .map((r) => `${r.numero}: ${r.operadora || r.operadoraBruta || r.erro || '?'}`)
-        .join(' | ') || null,
+      ponto_referencia: pontoReferencia.trim() || null,
+      email_cliente: emailCliente.trim() || null,
+      cpf_cliente: soDigitos(cpfCliente) || null,
+      captador: captador.trim() || null,
+      fechou_venda: fechouVenda.trim() || null,
       solicitado_por: profile.id,
     }
     const { data, error } = await supabase.from('vendas_cnpj').insert(payload).select().single()
@@ -282,20 +427,13 @@ export default function VendaCnpj() {
                   <input
                     type="number"
                     min="1"
+                    max="10"
                     className="field-input"
                     value={quantidadeLinhas}
-                    onChange={(e) => setQuantidadeLinhas(e.target.value)}
-                    required
+                    onChange={(e) => atualizarQuantidade(e.target.value)}
                   />
                 </label>
                 <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                  Linha nova ou portabilidade?
-                  <select className="field-input" value={tipoLinha} onChange={(e) => setTipoLinha(e.target.value)}>
-                    <option value="nova">Linha nova</option>
-                    <option value="portabilidade">Portabilidade</option>
-                  </select>
-                </label>
-                <label className="flex flex-col gap-1 text-xs font-medium text-muted sm:col-span-2">
                   Plano
                   <select className="field-input" value={plano} onChange={(e) => setPlano(e.target.value)}>
                     {PLANOS.map((p) => (
@@ -305,112 +443,58 @@ export default function VendaCnpj() {
                 </label>
               </div>
 
-              <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                Número(s) da(s) linha(s)
-                <textarea
-                  className="field-input min-h-14 resize-y"
-                  placeholder="Ex: 11999990000 — um por linha, se for mais de um número"
-                  value={numerosLinhas}
-                  onChange={(e) => setNumerosLinhas(e.target.value)}
-                />
-              </label>
+              <div className="flex flex-col gap-2">
+                {linhas.map((l, i) => (
+                  <LinhaForm key={i} indice={i} linha={l} atualizar={atualizarLinha} />
+                ))}
+              </div>
 
-              <button
-                type="button"
-                className="btn-ghost btn-sm self-start"
-                onClick={consultarOperadoras}
-                disabled={consultandoOperadora}
-              >
-                {consultandoOperadora ? 'Consultando operadora…' : 'Consultar operadora dos números'}
-              </button>
-
-              {resultadosOperadora.length > 0 && (
-                <div className="flex flex-col gap-1">
-                  {resultadosOperadora.map((r) => (
-                    <div key={r.numero} className="text-xs">
-                      {r.erro ? (
-                        <span className="text-red-600">{r.numero}: {r.erro}</span>
-                      ) : r.operadora === 'TIM' ? (
-                        <span className="flex items-center gap-1 font-semibold text-red-700">
-                          <AlertTriangle size={12} /> {r.numero}: TIM — atenção, não fazemos TIM pra TIM
-                        </span>
-                      ) : (
-                        <span className="text-muted">
-                          {r.numero}: <span className="font-medium text-ink">{r.operadora || r.operadoraBruta}</span>
-                          {r.portado === true && ' (já portado)'}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              <div className="rounded-lg border border-line p-2">
-                <p className="mb-1.5 text-xs font-semibold text-ink">Titular da linha</p>
-                <div className="mb-2 flex gap-2">
-                  <button
-                    type="button"
-                    className={titularTipo === 'pf' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
-                    onClick={() => setTitularTipo('pf')}
-                  >
-                    Pessoa Física
-                  </button>
-                  <button
-                    type="button"
-                    className={titularTipo === 'pj' ? 'btn-primary btn-sm' : 'btn-ghost btn-sm'}
-                    onClick={() => setTitularTipo('pj')}
-                  >
-                    Pessoa Jurídica
-                  </button>
-                </div>
-
-                {titularTipo === 'pf' ? (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                      CPF do titular
-                      <input
-                        className="field-input"
-                        placeholder="000.000.000-00"
-                        value={formatarCpf(titularCpf)}
-                        onChange={(e) => setTitularCpf(soDigitos(e.target.value).slice(0, 11))}
-                        required
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                      Nome do titular
-                      <input
-                        className="field-input"
-                        placeholder="Nome completo"
-                        value={titularNomePf}
-                        onChange={(e) => setTitularNomePf(e.target.value)}
-                        required
-                      />
-                    </label>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                      Razão Social do titular
-                      <input
-                        className="field-input"
-                        placeholder="Razão Social Ltda"
-                        value={titularRazaoSocial}
-                        onChange={(e) => setTitularRazaoSocial(e.target.value)}
-                        required
-                      />
-                    </label>
-                    <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-                      CNPJ do titular
-                      <input
-                        className="field-input"
-                        placeholder="00.000.000/0000-00"
-                        value={formatarCnpj(titularCnpj)}
-                        onChange={(e) => setTitularCnpj(soDigitos(e.target.value).slice(0, 14))}
-                        required
-                      />
-                    </label>
-                  </div>
-                )}
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  Ponto de referência
+                  <input
+                    className="field-input"
+                    placeholder="Ex: perto do mercado São José"
+                    value={pontoReferencia}
+                    onChange={(e) => setPontoReferencia(e.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  E-mail do cliente
+                  <input
+                    type="email"
+                    className="field-input"
+                    placeholder="cliente@exemplo.com"
+                    value={emailCliente}
+                    onChange={(e) => setEmailCliente(e.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  CPF do cliente
+                  <input
+                    className="field-input"
+                    placeholder="000.000.000-00"
+                    value={formatarCpf(cpfCliente)}
+                    onChange={(e) => setCpfCliente(soDigitos(e.target.value).slice(0, 11))}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  Captador da venda
+                  <input
+                    className="field-input"
+                    placeholder="Quem captou o cliente"
+                    value={captador}
+                    onChange={(e) => setCaptador(e.target.value)}
+                  />
+                </label>
+                <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                  Quem fechou a venda
+                  <input
+                    className="field-input"
+                    value={fechouVenda}
+                    onChange={(e) => setFechouVenda(e.target.value)}
+                  />
+                </label>
               </div>
 
               <div className="flex gap-2">
@@ -437,24 +521,35 @@ export default function VendaCnpj() {
           <Campo comCopiar label="Aberta desde" valor={vendaSalva.data_abertura} />
           <Campo comCopiar label="Atividade" valor={vendaSalva.atividade_principal} />
           <Campo comCopiar label="Endereço" valor={vendaSalva.endereco} />
+          <Campo comCopiar label="Ponto de referência" valor={vendaSalva.ponto_referencia} />
           <Campo comCopiar label="Telefone" valor={vendaSalva.telefone} />
-          <Campo comCopiar label="E-mail" valor={vendaSalva.email} />
-          <Campo comCopiar label="Titular" valor={vendaSalva.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
-          <Campo
-            comCopiar
-            label={vendaSalva.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
-            valor={vendaSalva.titular_tipo === 'pj' ? formatarCnpj(vendaSalva.titular_documento) : formatarCpf(vendaSalva.titular_documento)}
-          />
-          <Campo
-            comCopiar
-            label={vendaSalva.titular_tipo === 'pj' ? 'Razão Social do titular' : 'Nome do titular'}
-            valor={vendaSalva.titular_nome}
-          />
-          <Campo comCopiar label="Quantidade de linhas" valor={vendaSalva.quantidade_linhas} />
-          <Campo comCopiar label="Número(s)" valor={vendaSalva.numeros_linhas} />
-          <Campo comCopiar label="Tipo" valor={vendaSalva.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
-          <Campo comCopiar label="Operadora" valor={vendaSalva.operadora_linha} />
+          <Campo comCopiar label="E-mail (empresa)" valor={vendaSalva.email} />
+          <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
+          <Campo comCopiar label="CPF do cliente" valor={vendaSalva.cpf_cliente ? formatarCpf(vendaSalva.cpf_cliente) : ''} />
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
+          <Campo comCopiar label="Captador da venda" valor={vendaSalva.captador} />
+          <Campo comCopiar label="Quem fechou a venda" valor={vendaSalva.fechou_venda} />
+
+          {(vendaSalva.linhas || []).map((l, i) => (
+            <div key={i} className="mt-2 border-t border-line pt-2">
+              <p className="mb-1 text-xs font-semibold text-ink">Linha {i + 1}</p>
+              <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
+              {l.tipo === 'portabilidade' && <Campo comCopiar label="Número" valor={l.numero} />}
+              {l.tipo === 'portabilidade' && <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />}
+              <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
+              <Campo
+                comCopiar
+                label={l.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
+                valor={l.titular_tipo === 'pj' ? formatarCnpj(l.titular_documento) : formatarCpf(l.titular_documento)}
+              />
+              <Campo
+                comCopiar
+                label={l.titular_tipo === 'pj' ? 'Razão Social do titular' : 'Nome do titular'}
+                valor={l.titular_nome}
+              />
+            </div>
+          ))}
+
           <button type="button" className="btn-primary mt-3 self-start" onClick={limparTudo}>
             Nova consulta
           </button>

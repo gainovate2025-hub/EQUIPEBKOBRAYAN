@@ -65,23 +65,33 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Atividade" valor={v.atividade_principal} />
           <Campo comCopiar label="Endereço" valor={v.endereco} />
           <Campo comCopiar label="Telefone" valor={v.telefone} />
-          <Campo comCopiar label="E-mail" valor={v.email} />
-          <Campo comCopiar label="Titular" valor={v.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
-          <Campo
-            comCopiar
-            label={v.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
-            valor={v.titular_tipo === 'pj' ? formatarCnpj(v.titular_documento) : formatarCpf(v.titular_documento)}
-          />
-          <Campo
-            comCopiar
-            label={v.titular_tipo === 'pj' ? 'Razão Social do titular' : 'Nome do titular'}
-            valor={v.titular_nome}
-          />
-          <Campo comCopiar label="Quantidade de linhas" valor={v.quantidade_linhas} />
-          <Campo comCopiar label="Número(s)" valor={v.numeros_linhas} />
-          <Campo comCopiar label="Tipo" valor={v.tipo_linha === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
-          <Campo comCopiar label="Operadora" valor={v.operadora_linha} />
+          <Campo comCopiar label="E-mail (empresa)" valor={v.email} />
+          <Campo comCopiar label="Ponto de referência" valor={v.ponto_referencia} />
+          <Campo comCopiar label="E-mail do cliente" valor={v.email_cliente} />
+          <Campo comCopiar label="CPF do cliente" valor={v.cpf_cliente ? formatarCpf(v.cpf_cliente) : ''} />
           <Campo comCopiar label="Plano" valor={v.plano} />
+          <Campo comCopiar label="Captador da venda" valor={v.captador} />
+          <Campo comCopiar label="Quem fechou a venda" valor={v.fechou_venda} />
+
+          {(v.linhas || []).map((l, i) => (
+            <div key={i} className="mt-2 border-t border-line pt-2">
+              <p className="mb-1 text-xs font-semibold text-ink">Linha {i + 1}</p>
+              <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
+              {l.tipo === 'portabilidade' && <Campo comCopiar label="Número" valor={l.numero} />}
+              {l.tipo === 'portabilidade' && <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />}
+              <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa Jurídica' : 'Pessoa Física'} />
+              <Campo
+                comCopiar
+                label={l.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
+                valor={l.titular_tipo === 'pj' ? formatarCnpj(l.titular_documento) : formatarCpf(l.titular_documento)}
+              />
+              <Campo
+                comCopiar
+                label={l.titular_tipo === 'pj' ? 'Razão Social do titular' : 'Nome do titular'}
+                valor={l.titular_nome}
+              />
+            </div>
+          ))}
           <button
             type="button"
             className="btn-primary mt-3 self-start"
