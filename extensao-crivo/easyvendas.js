@@ -63,7 +63,7 @@ async function atualizarCepPadrao() {
 }
 const ATUALIZAR_CEP_PADRAO_MS = 60000
 
-const POLL_IDLE_MS = 1500 // sem consulta em andamento: procura pendente de tanto em tanto
+const POLL_IDLE_MS = 500 // sem consulta em andamento: procura pendente de tanto em tanto. Reduzido de 1500 pra 500 (29/10/2026) — pedido do Brayan pra melhorar o tempo de resposta: era o tempo que um CNPJ novo mandado pelo chat ficava esperando até a extensão nem percebido que tinha chegado.
 const POLL_ANDAMENTO_MS = 150 // com consulta em andamento: checa a tela rápido. Reduzido de 400 pra 150 (26/10/2026) — pedido do Brayan pra responder mais rápido; os casos já reconhecidos (reprovado/negado/não encontrado) são aceitos na hora, sem esperar rodada nenhuma (veja mais abaixo), então esse valor só afeta a granularidade de QUANDO a extensão percebe que o texto novo apareceu.
 const TIMEOUT_ANDAMENTO_MS = 90000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar) — aumentado de 45s pra 90s (29/10/2026) — com 3 pessoas usando ao mesmo tempo, o EasyVendas fica mais lento pra responder, e 45s tava curto: a extensão desistia achando que tinha travado, recarregava a página e mandava o MESMO CNPJ de novo enquanto a resposta de verdade ainda tava a caminho (visto ao vivo: "consulta duas vezes o mesmo cnpj"). Quanto mais gente usando ao mesmo tempo, maior esse tempo precisa ser.
 const ESTAVEL_MIN = 2 // rodadas seguidas com o mesmo texto novo antes de aceitar como resultado final (~300ms, com o POLL_ANDAMENTO_MS de 150 acima) — a tela pode mostrar um texto de passagem (tipo dados da empresa carregando) antes do resultado de verdade aparecer, por isso não cai pra 1. Reduzido de 5 pra 2 (26/10/2026) — pedido do Brayan ("quero que a msg que aparece já vá direto pra aprovado/reprovado"); como ficou bem mais rápido pra checar (150ms em vez de 400ms), 2 rodadas já dá a mesma proteção contra texto de passagem de um jeito bem mais rápido (~300ms em vez de ~2s).
@@ -206,11 +206,19 @@ async function buscarPendente(numeroSistema) {
   let filtro = `status=eq.pendente&${campoResultado}=is.null`
   if (numeroSistema === 2) filtro += `&sistema1_resultado=eq.aprovado`
 
+  // Busca várias (não só a mais antiga) — se uma consulta já falhou antes
+  // nesta aba (está em retry, veja finalizarComRetry), ela continua
+  // "pendente" e, sendo a mais antiga, seria sempre escolhida de novo,
+  // travando a fila inteira nela em vez de seguir pras outras (pedido do
+  // Brayan em 29/10/2026: "caso ela der erro, consultar outro CNPJ, e
+  // depois consultar o CNPJ que deu erro também"). Prefere uma que ainda
+  // não falhou nenhuma vez aqui; só volta pra uma que já falhou se não
+  // tiver mais nenhuma "limpa" disponível.
   const linhas = await supaFetch(
-    `crivo_consultas?select=*&${filtro}&order=created_at.asc&limit=1`
+    `crivo_consultas?select=*&${filtro}&order=created_at.asc&limit=10`
   )
-  const consulta = linhas?.[0]
-  if (!consulta) return null
+  if (!linhas?.length) return null
+  const consulta = linhas.find((c) => tentativasFeitas(c.id) === 0) || linhas[0]
 
   const reivindicou = await supaFetch('rpc/crivo_reivindicar', {
     method: 'POST',
