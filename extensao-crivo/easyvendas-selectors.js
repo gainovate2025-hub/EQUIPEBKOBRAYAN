@@ -88,6 +88,16 @@ const EASYVENDAS_SELECTORS = {
   // importa o motivo escrito depois.
   padraoNegadoExplicito: /\bnegado\b|\bretaguarda\b/,
 
+  // Dívida financeira com a Tim — reprova na hora nos dois sistemas,
+  // não só no 1º (pedido do Brayan em 30/10/2026: "qualquer caso que
+  // conste dívida financeira na TIM é reprovado na hora"). Exige
+  // "dívida" perto de "tim" (até 40 caracteres de distância, em
+  // qualquer ordem) — não é só a palavra "tim" sozinha (isso já reprova
+  // à parte no 1º sistema, veja sistema1PadraoReprovado; no 2º sistema
+  // "tim" sozinha é comum demais pra significar dívida — o 2º sistema
+  // já é um crivo sobre uma venda da própria Tim).
+  padraoDividaTim: /div\w*[\s\S]{0,40}\btim\b|\btim\b[\s\S]{0,40}div\w*/,
+
   // "Formulário com pendências. Favor rever o preenchimento." — não é um
   // resultado de verdade, é um ERRO (os dados obrigatórios da empresa
   // não carregaram a tempo antes do Avançar, sistema 2). Não bate com
