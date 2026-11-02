@@ -80,6 +80,17 @@ export default function P2BPanel() {
   const [workerCount, setWorkerCount] = useState(1)
   const [salvandoDivisao, setSalvandoDivisao] = useState(false)
   const [divisaoSalva, setDivisaoSalva] = useState(false)
+
+  // Log detalhado por CUST CODE — mostra linha por linha (status + motivo
+  // de erro), não só o total (pedido do Brayan em 02/11/2026: "quero todas
+  // as informação, o motivo de porque o cust code não foi, qual custcode
+  // não foi, quero poder configurar certinho"). Fica fechado por padrão
+  // pra não sobrecarregar a tela de quem não precisa disso agora.
+  const [logDetalhadoAberto, setLogDetalhadoAberto] = useState(false)
+  const [filaDetalhe, setFilaDetalhe] = useState([])
+  const [carregandoFilaDetalhe, setCarregandoFilaDetalhe] = useState(false)
+  const [filtroStatusFila, setFiltroStatusFila] = useState('TODOS')
+  const [buscaCustCodeFila, setBuscaCustCodeFila] = useState('')
   const intervaloRef = useRef(null)
   const cronometroRef = useRef(null)
 
@@ -149,6 +160,32 @@ export default function P2BPanel() {
       // silencioso — o polling tenta de novo sozinho
     }
   }
+
+  // Lista linha por linha (CUST CODE, status, motivo do erro) — só busca
+  // quando a seção tá aberta, pra não gastar à toa em quem não usa.
+  async function carregarFilaDetalhe() {
+    setCarregandoFilaDetalhe(true)
+    try {
+      const query = filtroStatusFila !== 'TODOS' ? `?status=${filtroStatusFila}` : ''
+      setFilaDetalhe(await chamar(`/api/automation/queue${query}`))
+    } catch {
+      // silencioso — tenta de novo no próximo refresh
+    } finally {
+      setCarregandoFilaDetalhe(false)
+    }
+  }
+
+  useEffect(() => {
+    if (!googleConectado || !logDetalhadoAberto) return
+    carregarFilaDetalhe()
+    const intervalo = setInterval(carregarFilaDetalhe, 4000)
+    return () => clearInterval(intervalo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [googleConectado, logDetalhadoAberto, filtroStatusFila])
+
+  const filaDetalheFiltrada = buscaCustCodeFila.trim()
+    ? filaDetalhe.filter((l) => l.custCode.toLowerCase().includes(buscaCustCodeFila.trim().toLowerCase()))
+    : filaDetalhe
 
   // Gera o código de 6 dígitos pra colar na extensão "Conector P2B" (o
   // mesmo código de pareamento que o painel próprio do P2B mostra) — assim
@@ -632,6 +669,92 @@ export default function P2BPanel() {
           ))}
         </div>
       )}
+
+      <div className="rounded-lg border border-line">
+        <button
+          type="button"
+          className="flex w-full items-center justify-between p-3 text-left text-xs font-semibold text-ink"
+          onClick={() => setLogDetalhadoAberto((v) => !v)}
+        >
+          Log detalhado por CUST CODE (status + motivo de cada um)
+          <span className="text-muted">{logDetalhadoAberto ? '▲' : '▼'}</span>
+        </button>
+        {logDetalhadoAberto && (
+          <div className="flex flex-col gap-2 border-t border-line p-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                Filtrar por status
+                <select
+                  className="field-input"
+                  value={filtroStatusFila}
+                  onChange={(e) => setFiltroStatusFila(e.target.value)}
+                >
+                  <option value="TODOS">Todos</option>
+                  <option value="ERRO">Erro</option>
+                  <option value="NAO_ENCONTRADO">Não encontrado</option>
+                  <option value="SEM_FATURA">Sem fatura em aberto</option>
+                  <option value="CONCLUIDO">Concluído</option>
+                  <option value="PENDENTE">Pendente</option>
+                </select>
+              </label>
+              <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+                Buscar CUST CODE
+                <input
+                  className="field-input"
+                  value={buscaCustCodeFila}
+                  onChange={(e) => setBuscaCustCodeFila(e.target.value)}
+                  placeholder="ex: 7.2223650"
+                />
+              </label>
+              <button type="button" className="btn-ghost btn-sm" onClick={carregarFilaDetalhe} disabled={carregandoFilaDetalhe}>
+                {carregandoFilaDetalhe ? 'Atualizando…' : 'Atualizar'}
+              </button>
+              <span className="text-[11px] text-muted">{filaDetalheFiltrada.length} linha(s)</span>
+            </div>
+
+            {filaDetalheFiltrada.length === 0 ? (
+              <p className="text-xs text-muted">Nada pra mostrar com esse filtro.</p>
+            ) : (
+              <div className="max-h-72 overflow-y-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 bg-paper text-muted">
+                    <tr>
+                      <th className="py-1 pr-2 font-medium">Linha</th>
+                      <th className="py-1 pr-2 font-medium">CUST CODE</th>
+                      <th className="py-1 pr-2 font-medium">Status</th>
+                      <th className="py-1 font-medium">Motivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filaDetalheFiltrada.map((l) => (
+                      <tr key={l.rowNumber} className="border-t border-line">
+                        <td className="py-1 pr-2 text-muted">{l.rowNumber}</td>
+                        <td className="py-1 pr-2 font-mono text-ink">{l.custCode}</td>
+                        <td className="py-1 pr-2">
+                          <span
+                            className={
+                              l.status === 'ERRO'
+                                ? 'font-medium text-red-600'
+                                : l.status === 'NAO_ENCONTRADO' || l.status === 'SEM_FATURA'
+                                ? 'font-medium text-amber-600'
+                                : l.status === 'CONCLUIDO'
+                                ? 'font-medium text-green-600'
+                                : 'text-muted'
+                            }
+                          >
+                            {ROW_STATUS_TEXTO[l.status] || l.status}
+                          </span>
+                        </td>
+                        <td className="py-1 text-muted">{l.error || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
