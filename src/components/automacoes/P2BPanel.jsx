@@ -73,6 +73,13 @@ export default function P2BPanel() {
   const [codigoPareamento, setCodigoPareamento] = useState(null)
   const [segundosRestantes, setSegundosRestantes] = useState(0)
   const [gerandoCodigo, setGerandoCodigo] = useState(false)
+  // Divisão entre contas (02/11/2026): várias matrículas rodando ao mesmo
+  // tempo na MESMA planilha pra acelerar — cada uma só pega a fatia dela
+  // das linhas (configurado no backend como workerIndex/workerCount).
+  const [workerIndex, setWorkerIndex] = useState(0)
+  const [workerCount, setWorkerCount] = useState(1)
+  const [salvandoDivisao, setSalvandoDivisao] = useState(false)
+  const [divisaoSalva, setDivisaoSalva] = useState(false)
   const intervaloRef = useRef(null)
   const cronometroRef = useRef(null)
 
@@ -103,6 +110,12 @@ export default function P2BPanel() {
     if (!googleConectado) return
     chamar('/api/sheets/spreadsheets').then(setPlanilhas).catch((err) => setErro(err.message))
     chamar('/api/automation/extension-status').then((r) => setExtensaoLigada(r.connected)).catch(() => {})
+    chamar('/api/settings')
+      .then((s) => {
+        setWorkerIndex(Number(s.workerIndex) || 0)
+        setWorkerCount(Math.max(1, Number(s.workerCount) || 1))
+      })
+      .catch(() => {})
     carregarEstado()
     carregarLogs()
     intervaloRef.current = setInterval(() => { carregarEstado(); carregarLogs() }, 4000)
@@ -172,6 +185,24 @@ export default function P2BPanel() {
       window.location.href = url
     } catch (err) {
       setErro(err.message)
+    }
+  }
+
+  async function salvarDivisao() {
+    setErro('')
+    setDivisaoSalva(false)
+    setSalvandoDivisao(true)
+    try {
+      await chamar('/api/settings', {
+        method: 'PUT',
+        body: JSON.stringify({ workerIndex: Number(workerIndex) || 0, workerCount: Math.max(1, Number(workerCount) || 1) }),
+      })
+      setDivisaoSalva(true)
+      setTimeout(() => setDivisaoSalva(false), 3000)
+    } catch (err) {
+      setErro(err.message)
+    } finally {
+      setSalvandoDivisao(false)
     }
   }
 
@@ -343,6 +374,51 @@ export default function P2BPanel() {
           </div>
         </div>
       )}
+
+      <div className="rounded-lg border border-line p-3">
+        <p className="text-xs font-medium text-ink">Dividir com outras matrículas (opcional)</p>
+        <p className="mt-1 text-[11px] text-muted">
+          Se várias contas forem rodar a MESMA planilha ao mesmo tempo pra acelerar, cada uma precisa saber qual
+          fatia é a dela — senão todas pegam as mesmas linhas. Ex: com 3 matrículas, uma fica "parte 1 de 3", outra
+          "parte 2 de 3", outra "parte 3 de 3". Deixa em "1 de 1" se só essa conta for usar a planilha.
+        </p>
+        <div className="mt-2 flex flex-wrap items-end gap-2">
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            Esta conta é a parte
+            <select
+              className="field-input"
+              value={workerIndex}
+              onChange={(e) => setWorkerIndex(Number(e.target.value))}
+              disabled={rodando}
+            >
+              {Array.from({ length: workerCount }, (_, i) => (
+                <option key={i} value={i}>{i + 1}</option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-xs font-medium text-muted">
+            de quantas matrículas
+            <input
+              type="number"
+              min={1}
+              max={10}
+              className="field-input w-20"
+              value={workerCount}
+              onChange={(e) => {
+                const novo = Math.max(1, Number(e.target.value) || 1)
+                setWorkerCount(novo)
+                if (workerIndex > novo - 1) setWorkerIndex(0)
+              }}
+              disabled={rodando}
+            />
+          </label>
+          <button type="button" className="btn-ghost btn-sm" onClick={salvarDivisao} disabled={salvandoDivisao || rodando}>
+            {salvandoDivisao ? 'Salvando…' : 'Salvar'}
+          </button>
+          {divisaoSalva && <span className="text-[11px] font-medium text-green-600">Salvo.</span>}
+        </div>
+        {rodando && <p className="mt-1 text-[11px] text-muted">Pausa ou para a automação pra mudar isso.</p>}
+      </div>
 
       <label className="flex flex-col gap-1 text-xs font-medium text-muted">
         O que a automação vai fazer
