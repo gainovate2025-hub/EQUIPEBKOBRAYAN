@@ -17,8 +17,25 @@
 // no rodapé) e funciona em qualquer sistema, não importa o layout.
 // -----------------------------------------------------------------------
 
+// Mesma correção de easyvendas.js — acorda na hora assim que a aba fica
+// visível de novo, em vez de esperar o temporizador (desacelerado pelo
+// Chrome enquanto a aba ficava em segundo plano) terminar sozinho.
 function dormir(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+  return new Promise((resolve) => {
+    let concluido = false
+    const concluir = () => {
+      if (concluido) return
+      concluido = true
+      clearTimeout(temporizador)
+      document.removeEventListener('visibilitychange', aoFicarVisivel)
+      resolve()
+    }
+    const temporizador = setTimeout(concluir, ms)
+    function aoFicarVisivel() {
+      if (document.visibilityState === 'visible') concluir()
+    }
+    document.addEventListener('visibilitychange', aoFicarVisivel)
+  })
 }
 
 // Atraso aleatório dentro de uma faixa — usado pra espaçar os passos da

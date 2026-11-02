@@ -138,8 +138,29 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
   await salvarResultado(consultaId, numeroSistema, dados)
 }
 
+// O Chrome desacelera (ou quase congela) os temporizadores de uma aba
+// enquanto ela fica em segundo plano (ex: foco numa aba do P2B) — por
+// isso a automação "parava do nada" até a pessoa clicar na página de
+// volta (pedido do Brayan em 02/11/2026). Sem o código abaixo, clicar de
+// volta não adiantava na hora: tinha que esperar o temporizador atrasado
+// terminar sozinho, o que podia levar bem mais que o tempo normal. Agora,
+// assim que a aba fica visível de novo, a espera é encerrada na hora.
 function dormir(ms) {
-  return new Promise((r) => setTimeout(r, ms))
+  return new Promise((resolve) => {
+    let concluido = false
+    const concluir = () => {
+      if (concluido) return
+      concluido = true
+      clearTimeout(temporizador)
+      document.removeEventListener('visibilitychange', aoFicarVisivel)
+      resolve()
+    }
+    const temporizador = setTimeout(concluir, ms)
+    function aoFicarVisivel() {
+      if (document.visibilityState === 'visible') concluir()
+    }
+    document.addEventListener('visibilitychange', aoFicarVisivel)
+  })
 }
 
 // Descobre pela URL da própria aba se é o 1º ou o 2º sistema — não
