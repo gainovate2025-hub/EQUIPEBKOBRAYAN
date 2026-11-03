@@ -129,7 +129,7 @@ export default function P2BPanel() {
       .catch(() => {})
     carregarEstado()
     carregarLogs()
-    intervaloRef.current = setInterval(() => { carregarEstado(); carregarLogs() }, 4000)
+    intervaloRef.current = setInterval(() => { carregarEstado(); carregarLogs() }, 1500) // reduzido de 4000 (03/11/2026) — pedido do Brayan pra tela atualizar mais rápido
     return () => clearInterval(intervaloRef.current)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleConectado])
@@ -178,7 +178,7 @@ export default function P2BPanel() {
   useEffect(() => {
     if (!googleConectado || !logDetalhadoAberto) return
     carregarFilaDetalhe()
-    const intervalo = setInterval(carregarFilaDetalhe, 4000)
+    const intervalo = setInterval(carregarFilaDetalhe, 2000)
     return () => clearInterval(intervalo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [googleConectado, logDetalhadoAberto, filtroStatusFila])
