@@ -4,10 +4,12 @@ import { useAuth } from '../../lib/AuthContext'
 import SectionHeading from '../../components/ui/SectionHeading'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
+import { registrarComprovanteFatura } from '../../lib/api'
 
 // Comprovantes de fatura enviada (05/11/2026) — sobe o print/foto do que
-// mandou hoje, aparece no relatório do dia do supervisor. Zera sozinho
-// todo mês (migration_044_comprovantes_fatura.sql).
+// mandou hoje, aparece no relatório do dia do supervisor, e já soma +1
+// fatura e +R$2 na comissão na hora (migration_044 + migration_047).
+// Zera sozinho todo mês.
 
 function inicioDoDia() {
   const d = new Date()
@@ -49,18 +51,12 @@ export default function BkoComprovantes() {
       if (erroUpload) throw erroUpload
 
       const { data: pub } = supabase.storage.from('comprovantes').getPublicUrl(caminho)
-      const { error: erroInsert } = await supabase.from('comprovantes_fatura').insert({
-        user_id: user.id,
-        arquivo_path: caminho,
-        arquivo_url: pub.publicUrl,
-        observacao: observacao.trim() || null,
-      })
-      if (erroInsert) throw erroInsert
+      await registrarComprovanteFatura(caminho, pub.publicUrl, observacao.trim())
 
       setArquivo(null)
       setObservacao('')
       e.target.reset()
-      showToast('Comprovante enviado.')
+      showToast('Comprovante enviado — já contou +R$2 na comissão.')
       carregar()
     } catch (err) {
       showToast(err.message || 'Falha ao enviar o comprovante.', 'error')

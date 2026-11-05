@@ -150,6 +150,17 @@ export async function registrarReagendamentoProprio(quantidade) {
   if (error) throw new Error(error.message || 'Falha ao registrar reagendamento.')
 }
 
+// Comprovante de fatura: cada envio já soma +1 fatura e +R$2 na
+// comissão na hora (igual reagendamento).
+export async function registrarComprovanteFatura(arquivoPath, arquivoUrl, observacao = '') {
+  const { error } = await supabase.rpc('registrar_comprovante_fatura', {
+    p_arquivo_path: arquivoPath,
+    p_arquivo_url: arquivoUrl,
+    p_observacao: observacao,
+  })
+  if (error) throw new Error(error.message || 'Falha ao registrar comprovante.')
+}
+
 
 // Configuração por módulo (fatura / contestacao / reagendamento) — os 3
 // são abas da MESMA planilha "Controle de fatura", cada um com sua
