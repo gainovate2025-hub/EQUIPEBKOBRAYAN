@@ -5,9 +5,6 @@ import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { fetchReagendamentoCasos } from '../../lib/api'
 
-// Reescrito em 05/11/2026 — vira só relatório (BKO manda direto, sem o
-// supervisor designar caso antes). Lista tudo que a equipe mandou.
-
 export default function Reagendamentos() {
   const { team } = useSupervisorData()
   const { toast, showToast } = useToast()
@@ -31,14 +28,14 @@ export default function Reagendamentos() {
     const mapa = new Map()
     for (const c of casosDoTime) {
       const nome = c.profiles?.name || 'Alguém'
-      mapa.set(nome, (mapa.get(nome) || 0) + 1)
+      mapa.set(nome, (mapa.get(nome) || 0) + (c.quantidade || 1))
     }
     return [...mapa.entries()].sort((a, b) => b[1] - a[1])
   }, [casosDoTime])
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Reagendamentos" hint="O que cada BKO já enviou" />
+      <SectionHeading title="Reagendamentos" hint="Quantos cada BKO já enviou" />
 
       {!carregando && porPessoa.length > 0 && (
         <div className="flex flex-wrap gap-3">
@@ -60,8 +57,8 @@ export default function Reagendamentos() {
           {casosDoTime.map((c) => (
             <div key={c.id} className="card flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
               <div>
-                <span className="font-medium text-ink">{c.razao_social}</span>{' '}
-                <span className="text-muted">· {c.profiles?.name} · {c.cnpj}{c.custcode && ` · ${c.custcode}`}</span>
+                <span className="font-medium text-ink">{c.profiles?.name}</span>{' '}
+                <span className="text-muted">· {c.quantidade || 1} reagendamento{(c.quantidade || 1) > 1 ? 's' : ''}</span>
               </div>
               <span className="text-xs text-muted">
                 {c.feito_em ? new Date(c.feito_em).toLocaleString('pt-BR') : ''}

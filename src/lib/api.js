@@ -126,12 +126,10 @@ export async function consultarOperadora(numero) {
   return body
 }
 
-// ---------- reagendamento: BKO manda direto o que já fez ----------
-// Trazido de volta em 05/11/2026, agora sem fila de pendência (Brayan:
-// "quero poder mandar os reagendamento não ver oque tem pra fazer") — o
-// BKO registra um reagendamento já feito (CNPJ + Razão Social), entra
-// direto como concluído e soma na meta/comissão (+R$1) na hora. Mesma
-// tabela reagendamento_casos de antes, só não passa mais por "pendente".
+// ---------- reagendamento: BKO manda direto quantos já fez ----------
+// Simplificado em 05/11/2026 (Brayan: "muda para eles só precisarem
+// mandar quantos eles fizeram") — sem CNPJ/Razão Social, só a
+// quantidade. Cada envio já soma na meta/comissão na hora.
 
 export async function fetchReagendamentoCasos({ bkoId, teamId } = {}) {
   let query = supabase
@@ -145,11 +143,9 @@ export async function fetchReagendamentoCasos({ bkoId, teamId } = {}) {
   return data
 }
 
-export async function registrarReagendamentoProprio(cnpj, razaoSocial, custcode = '') {
+export async function registrarReagendamentoProprio(quantidade) {
   const { error } = await supabase.rpc('registrar_reagendamento_proprio', {
-    p_cnpj: cnpj,
-    p_razao_social: razaoSocial,
-    p_custcode: custcode,
+    p_quantidade: quantidade,
   })
   if (error) throw new Error(error.message || 'Falha ao registrar reagendamento.')
 }

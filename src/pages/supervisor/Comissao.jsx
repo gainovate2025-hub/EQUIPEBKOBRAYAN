@@ -41,13 +41,13 @@ export default function Comissao() {
   )
   const total = rows.reduce((s, r) => s + r.commission, 0)
 
-  async function handleCommit(userId, value) {
+  async function handleCommit(userId, field, value, mensagem) {
     try {
-      await updatePerformance(userId, { commission: value })
-      showToast('Comissão atualizada.')
+      await updatePerformance(userId, { [field]: value })
+      showToast(mensagem)
       reload()
     } catch (err) {
-      showToast(err.message || 'Falha ao atualizar comissão.', 'error')
+      showToast(err.message || 'Falha ao atualizar.', 'error')
     }
   }
 
@@ -58,7 +58,7 @@ export default function Comissao() {
       </div>
 
       <div className="mt-9 flex flex-col gap-4">
-        <SectionHeading title="Comissão por BKO" hint="Contestações/Reagendamentos/Faturas são só contagem — clique no valor da comissão para ajustar" />
+        <SectionHeading title="Comissão por BKO" hint="Contestações/Reagendamentos são só contagem — clique no valor de Faturas ou Comissão para ajustar" />
         {loading ? (
           <p className="text-sm text-muted">Carregando…</p>
         ) : (
@@ -75,7 +75,23 @@ export default function Comissao() {
             renderCell={(row, key) => {
               if (key === 'name') return <span className="font-medium">{row.name}</span>
               if (key === 'commission') {
-                return <InlineEditableNumber value={row.commission} step="0.01" format={fmtMoney} onCommit={(v) => handleCommit(row.id, v)} />
+                return (
+                  <InlineEditableNumber
+                    value={row.commission}
+                    step="0.01"
+                    format={fmtMoney}
+                    onCommit={(v) => handleCommit(row.id, 'commission', v, 'Comissão atualizada.')}
+                  />
+                )
+              }
+              if (key === 'faturas') {
+                return (
+                  <InlineEditableNumber
+                    value={row.faturas}
+                    step="1"
+                    onCommit={(v) => handleCommit(row.id, 'faturas_done', v, 'Faturas atualizadas.')}
+                  />
+                )
               }
               return row[key]
             }}

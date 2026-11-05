@@ -6,15 +6,10 @@ import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { fetchReagendamentoCasos, registrarReagendamentoProprio } from '../../lib/api'
 
-// Reescrito em 05/11/2026 — BKO manda direto o reagendamento que já fez
-// (sem fila de pendência pra marcar depois).
-
 export default function BkoReagendamentos() {
   const { profile } = useAuth()
   const { toast, showToast } = useToast()
-  const [cnpj, setCnpj] = useState('')
-  const [razaoSocial, setRazaoSocial] = useState('')
-  const [custcode, setCustcode] = useState('')
+  const [quantidade, setQuantidade] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [enviados, setEnviados] = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -35,15 +30,14 @@ export default function BkoReagendamentos() {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!cnpj.trim() || !razaoSocial.trim()) {
-      return showToast('Preenche o CNPJ e a Razão Social.', 'error')
+    const qtd = Number(quantidade)
+    if (!qtd || qtd < 1) {
+      return showToast('Informe quantos reagendamentos você fez.', 'error')
     }
     setEnviando(true)
     try {
-      await registrarReagendamentoProprio(cnpj.trim(), razaoSocial.trim(), custcode.trim())
-      setCnpj('')
-      setRazaoSocial('')
-      setCustcode('')
+      await registrarReagendamentoProprio(qtd)
+      setQuantidade('')
       showToast('Reagendamento registrado — já contou na meta e na comissão.')
       carregar()
     } catch (err) {
@@ -53,19 +47,22 @@ export default function BkoReagendamentos() {
     }
   }
 
+  const total = enviados.reduce((soma, c) => soma + (c.quantidade || 1), 0)
+
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Reagendamentos" hint="Manda direto o que você já reagendou — CNPJ e Razão Social" />
+      <SectionHeading title="Reagendamento" hint="Manda direto quantos reagendamentos você já fez" />
 
       <form onSubmit={handleSubmit} className="card flex flex-wrap items-end gap-3 p-4">
-        <Field label="CNPJ">
-          <input className="field-input" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
-        </Field>
-        <Field label="Razão Social">
-          <input className="field-input" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Nome da empresa" />
-        </Field>
-        <Field label="CustCode (opcional)">
-          <input className="field-input" value={custcode} onChange={(e) => setCustcode(e.target.value)} placeholder="Ex: CC-10293" />
+        <Field label="Quantos você fez">
+          <input
+            className="field-input w-28"
+            type="number"
+            min="1"
+            value={quantidade}
+            onChange={(e) => setQuantidade(e.target.value)}
+            placeholder="Ex: 3"
+          />
         </Field>
         <button type="submit" className="btn-primary" disabled={enviando}>
           {enviando ? 'Enviando…' : 'Enviar reagendamento'}
@@ -73,7 +70,7 @@ export default function BkoReagendamentos() {
       </form>
 
       <div className="flex flex-col gap-2">
-        <p className="text-xs font-medium text-muted">Enviados por você ({enviados.length})</p>
+        <p className="text-xs font-medium text-muted">Enviados por você — {total} no total</p>
         {carregando ? (
           <p className="text-sm text-muted">Carregando…</p>
         ) : enviados.length === 0 ? (
@@ -81,10 +78,7 @@ export default function BkoReagendamentos() {
         ) : (
           enviados.map((c) => (
             <div key={c.id} className="card flex items-center justify-between gap-2 p-3 text-sm">
-              <div>
-                <span className="font-medium text-ink">{c.razao_social}</span>{' '}
-                <span className="text-muted">· {c.cnpj}{c.custcode && ` · ${c.custcode}`}</span>
-              </div>
+              <span className="font-medium text-ink">{c.quantidade || 1} reagendamento{(c.quantidade || 1) > 1 ? 's' : ''}</span>
               <span className="text-xs text-muted">
                 {c.feito_em ? new Date(c.feito_em).toLocaleString('pt-BR') : ''}
               </span>
