@@ -1,26 +1,18 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, ShieldCheck, Percent, FileText, CalendarClock,
-  Users, Trophy, Settings, Zap, ClipboardList, BarChart3, PhoneCall, TrendingUp,
+  LayoutDashboard, Percent, Trophy, Settings, Zap, PhoneCall, TrendingUp, Receipt,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
 import { SupervisorDataProvider } from '../../lib/SupervisorDataContext'
-import { useAuth } from '../../lib/AuthContext'
 
 export default function SupervisorLayout() {
-  const { contestacaoLabel } = useAuth()
   const location = useLocation()
 
   const navItems = [
     { to: '/supervisor', label: 'Dashboard', end: true, icon: LayoutDashboard },
-    { to: '/supervisor/aprovacao', label: 'Aprovação', icon: ShieldCheck },
     { to: '/supervisor/comissao', label: 'Comissão', icon: Percent },
-    { to: '/supervisor/contestacoes', label: contestacaoLabel, icon: FileText },
-    { to: '/supervisor/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
-    { to: '/supervisor/relatorio-contestacao-sheet', label: 'Relatório de Contestações', icon: BarChart3 },
-    { to: '/supervisor/relatorios', label: 'Relatórios', icon: ClipboardList },
-    { to: '/supervisor/equipe', label: 'Equipe', icon: Users },
+    { to: '/supervisor/comprovantes', label: 'Comprovantes', icon: Receipt },
     { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
     { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },
     { to: '/supervisor/venda-cnpj', label: 'Consulta CNPJ + Venda', icon: PhoneCall },

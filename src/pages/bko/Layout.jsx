@@ -1,7 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, FileText, CalendarClock, Receipt,
-  Trophy, Percent, ClipboardList,
+  LayoutDashboard, Receipt, FileCheck2, Trophy, Percent,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -12,10 +11,8 @@ export default function BkoLayout() {
 
   const navItems = [
     { to: '/bko', label: 'Meu Dashboard', end: true, icon: LayoutDashboard },
-    { to: '/bko/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
     { to: '/bko/faturas', label: 'Faturas', icon: Receipt },
-    { to: '/bko/fatura-contestacoes', label: 'Contestação (Faturas)', icon: FileText },
-    { to: '/bko/relatorio-diario', label: 'Relatório diário', icon: ClipboardList },
+    { to: '/bko/comprovantes', label: 'Comprovantes', icon: FileCheck2 },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
   ]

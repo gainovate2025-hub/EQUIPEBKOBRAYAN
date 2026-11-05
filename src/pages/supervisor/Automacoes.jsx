@@ -9,7 +9,6 @@ import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import WhatsAppBotPanel from '../../components/automacoes/WhatsAppBotPanel'
-import P2BPanel from '../../components/automacoes/P2BPanel'
 
 const AUTOMACOES = [
   {
@@ -23,9 +22,14 @@ const AUTOMACOES = [
   {
     key: 'p2b',
     nome: 'P2B (CUST CODE)',
-    descricao: 'Automatiza a busca de CUST CODE no Phoenix2Business e joga na planilha.',
+    descricao: 'Automatiza a busca de CUST CODE no Phoenix2Business e joga na planilha. Abre no site próprio do P2B.',
     icon: Workflow,
     to: null,
+    // Virou link pro site separado (05/11/2026, pedido do Brayan) — o
+    // painel embutido (P2BPanel) tinha ficado desatualizado em relação ao
+    // site próprio, que já tem tudo (divisão entre matrículas, log
+    // detalhado, mapeamento).
+    externalUrl: 'https://p2b-automation-frontend.onrender.com',
     status: 'Ativo',
   },
   {
@@ -65,6 +69,13 @@ export default function Automacoes() {
               <p className="text-xs text-muted">{a.descricao}</p>
             </div>
           )
+          if (a.externalUrl) {
+            return (
+              <a key={a.key} href={a.externalUrl} target="_blank" rel="noreferrer" className="block">
+                {Conteudo}
+              </a>
+            )
+          }
           if (a.to) {
             return <Link key={a.key} to={a.to} className="block">{Conteudo}</Link>
           }
@@ -75,16 +86,6 @@ export default function Automacoes() {
           )
         })}
       </div>
-
-      {abrindo === 'p2b' && (
-        <Modal title="P2B — busca de CUST CODE" onClose={() => setAbrindo(null)} width={560}>
-          <div className="flex flex-col gap-3 text-sm">
-            <p>Escolhe a planilha e clica em Iniciar — o trabalho de abrir o Phoenix2Business e consultar cada CUST CODE continua rodando na extensão do Chrome, instalada localmente; essa tela só liga, acompanha e para.</p>
-            <p className="text-muted">Se a extensão do P2B não estiver instalada/aberta nesse navegador ainda, a tela avisa.</p>
-          </div>
-          <P2BPanel />
-        </Modal>
-      )}
 
       {abrindo === 'parcelamento' && (
         <Modal title="Portal Parcelamento" onClose={() => setAbrindo(null)} width={560}>

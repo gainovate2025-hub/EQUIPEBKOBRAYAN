@@ -5,24 +5,17 @@ import Login from './pages/Login'
 import SupervisorLayout from './pages/supervisor/Layout'
 import SupervisorDashboard from './pages/supervisor/Dashboard'
 import SupervisorComissao from './pages/supervisor/Comissao'
-import SupervisorContestacoes from './pages/supervisor/Contestacoes'
-import SupervisorReagendamentos from './pages/supervisor/Reagendamentos'
-import SupervisorEquipe from './pages/supervisor/Equipe'
 import SupervisorConfiguracoes from './pages/supervisor/Configuracoes'
-import SupervisorAprovacao from './pages/supervisor/Aprovacao'
 import SupervisorCrivo from './pages/supervisor/Crivo'
 import SupervisorAutomacoes from './pages/supervisor/Automacoes'
 import SupervisorVendasDesempenho from './pages/supervisor/VendasDesempenho'
-import SupervisorRelatorios from './pages/supervisor/Relatorios'
-import SupervisorRelatorioContestacaoSheet from './pages/supervisor/RelatorioContestacaoSheet'
+import SupervisorComprovantes from './pages/supervisor/Comprovantes'
 
 import BkoLayout from './pages/bko/Layout'
 import BkoDashboard from './pages/bko/Dashboard'
-import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoComissao from './pages/bko/Comissao'
 import BkoFaturas from './pages/bko/Faturas'
-import BkoFaturaContestacoes from './pages/bko/FaturaContestacoes'
-import BkoRelatorioDiario from './pages/bko/RelatorioDiario'
+import BkoComprovantes from './pages/bko/Comprovantes'
 import Ranking from './pages/Ranking'
 
 import OperacaoLayout from './pages/operacao/Layout'
@@ -47,13 +40,8 @@ export default function App() {
         }
       >
         <Route index element={<SupervisorDashboard />} />
-        <Route path="aprovacao" element={<SupervisorAprovacao />} />
         <Route path="comissao" element={<SupervisorComissao />} />
-        <Route path="contestacoes" element={<SupervisorContestacoes />} />
-        <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
-        <Route path="relatorio-contestacao-sheet" element={<SupervisorRelatorioContestacaoSheet />} />
-        <Route path="relatorios" element={<SupervisorRelatorios />} />
-        <Route path="equipe" element={<SupervisorEquipe />} />
+        <Route path="comprovantes" element={<SupervisorComprovantes />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="crivo" element={<SupervisorCrivo />} />
         <Route path="automacoes" element={<SupervisorAutomacoes />} />
@@ -71,10 +59,8 @@ export default function App() {
         }
       >
         <Route index element={<BkoDashboard />} />
-        <Route path="reagendamentos" element={<BkoReagendamentos />} />
         <Route path="faturas" element={<BkoFaturas />} />
-        <Route path="fatura-contestacoes" element={<BkoFaturaContestacoes />} />
-        <Route path="relatorio-diario" element={<BkoRelatorioDiario />} />
+        <Route path="comprovantes" element={<BkoComprovantes />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="comissao" element={<BkoComissao />} />
       </Route>
