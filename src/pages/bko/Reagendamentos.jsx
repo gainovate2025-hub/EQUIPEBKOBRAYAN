@@ -1,110 +1,97 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import SectionHeading from '../../components/ui/SectionHeading'
+import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
-import { fetchReagendamentoCasos, concluirReagendamentoCaso } from '../../lib/api'
+import { fetchReagendamentoCasos, registrarReagendamentoProprio } from '../../lib/api'
 
-function diasDesde(iso) {
-  if (!iso) return 0
-  return Math.floor((Date.now() - new Date(iso).getTime()) / (1000 * 60 * 60 * 24))
-}
+// Reescrito em 05/11/2026 — BKO manda direto o reagendamento que já fez
+// (sem fila de pendência pra marcar depois).
 
 export default function BkoReagendamentos() {
   const { profile } = useAuth()
   const { toast, showToast } = useToast()
-  const [casos, setCasos] = useState([])
+  const [cnpj, setCnpj] = useState('')
+  const [razaoSocial, setRazaoSocial] = useState('')
+  const [custcode, setCustcode] = useState('')
+  const [enviando, setEnviando] = useState(false)
+  const [enviados, setEnviados] = useState([])
   const [carregando, setCarregando] = useState(true)
-  const [concluindoId, setConcluindoId] = useState(null)
 
-  async function carregarCasos() {
+  async function carregar() {
     if (!profile?.id) return
     setCarregando(true)
     try {
-      const dados = await fetchReagendamentoCasos({ bkoId: profile.id })
-      setCasos(dados)
+      setEnviados(await fetchReagendamentoCasos({ bkoId: profile.id }))
     } catch (err) {
-      showToast(err.message || 'Falha ao carregar casos.', 'error')
+      showToast(err.message || 'Falha ao carregar.', 'error')
     } finally {
       setCarregando(false)
     }
   }
 
-  useEffect(() => { carregarCasos() }, [profile?.id])
+  useEffect(() => { carregar() }, [profile?.id])
 
-  async function concluir(id) {
-    setConcluindoId(id)
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!cnpj.trim() || !razaoSocial.trim()) {
+      return showToast('Preenche o CNPJ e a Razão Social.', 'error')
+    }
+    setEnviando(true)
     try {
-      await concluirReagendamentoCaso(id)
-      showToast('Caso concluído — já contou na meta e na comissão.')
-      await carregarCasos()
+      await registrarReagendamentoProprio(cnpj.trim(), razaoSocial.trim(), custcode.trim())
+      setCnpj('')
+      setRazaoSocial('')
+      setCustcode('')
+      showToast('Reagendamento registrado — já contou na meta e na comissão.')
+      carregar()
     } catch (err) {
-      showToast(err.message || 'Falha ao concluir.', 'error')
+      showToast(err.message || 'Falha ao enviar.', 'error')
     } finally {
-      setConcluindoId(null)
+      setEnviando(false)
     }
   }
 
-  if (carregando) return <p className="text-sm text-muted">Carregando…</p>
-
-  const pendentes = casos.filter((c) => c.status === 'pendente')
-  const vencidos = pendentes.filter((c) => diasDesde(c.criado_em) >= 9)
-  const noPrazo = pendentes.filter((c) => diasDesde(c.criado_em) < 9)
-  const feitos = casos.filter((c) => c.status === 'feito')
-
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Reagendamentos a fazer" hint="CNPJ e CustCode dos casos que você precisa reagendar" />
+      <SectionHeading title="Reagendamentos" hint="Manda direto o que você já reagendou — CNPJ e Razão Social" />
 
-      {vencidos.length > 0 && (
-        <div className="rounded-lg border border-bad-text/40 bg-bad-text/10 p-4">
-          <p className="text-sm font-semibold text-bad-text">
-            ⚠️ {vencidos.length} caso{vencidos.length === 1 ? '' : 's'} passou{vencidos.length === 1 ? '' : 'ram'} do prazo (9 dias) — refaça:
-          </p>
-          <div className="mt-3 flex flex-col gap-2">
-            {vencidos.map((c) => (
-              <div key={c.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-paper p-3">
-                <div>
-                  <div className="text-sm font-semibold">{c.razao_social}</div>
-                  <div className="text-xs text-muted">CNPJ: {c.cnpj}{c.custcode && <> · CustCode: <strong>{c.custcode}</strong></>}</div>
-                </div>
-                <button type="button" className="btn-primary btn-sm" disabled={concluindoId === c.id} onClick={() => concluir(c.id)}>
-                  {concluindoId === c.id ? 'Salvando…' : 'Concluir'}
-                </button>
+      <form onSubmit={handleSubmit} className="card flex flex-wrap items-end gap-3 p-4">
+        <Field label="CNPJ">
+          <input className="field-input" value={cnpj} onChange={(e) => setCnpj(e.target.value)} placeholder="00.000.000/0000-00" />
+        </Field>
+        <Field label="Razão Social">
+          <input className="field-input" value={razaoSocial} onChange={(e) => setRazaoSocial(e.target.value)} placeholder="Nome da empresa" />
+        </Field>
+        <Field label="CustCode (opcional)">
+          <input className="field-input" value={custcode} onChange={(e) => setCustcode(e.target.value)} placeholder="Ex: CC-10293" />
+        </Field>
+        <button type="submit" className="btn-primary" disabled={enviando}>
+          {enviando ? 'Enviando…' : 'Enviar reagendamento'}
+        </button>
+      </form>
+
+      <div className="flex flex-col gap-2">
+        <p className="text-xs font-medium text-muted">Enviados por você ({enviados.length})</p>
+        {carregando ? (
+          <p className="text-sm text-muted">Carregando…</p>
+        ) : enviados.length === 0 ? (
+          <p className="text-sm text-muted">Nenhum reagendamento enviado ainda.</p>
+        ) : (
+          enviados.map((c) => (
+            <div key={c.id} className="card flex items-center justify-between gap-2 p-3 text-sm">
+              <div>
+                <span className="font-medium text-ink">{c.razao_social}</span>{' '}
+                <span className="text-muted">· {c.cnpj}{c.custcode && ` · ${c.custcode}`}</span>
               </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-3">
-        <SectionHeading title={`Casos pendentes (${noPrazo.length})`} hint="CNPJ e Razão Social — marca como feito quando resolver" />
-        {noPrazo.length === 0 && <p className="text-sm text-muted">Nenhum caso pendente agora.</p>}
-        {noPrazo.map((c) => (
-          <div key={c.id} className="card flex flex-wrap items-center justify-between gap-2 p-4">
-            <div>
-              <div className="text-sm font-semibold">{c.razao_social}</div>
-              <div className="text-xs text-muted">CNPJ: {c.cnpj}{c.custcode && <> · CustCode: {c.custcode}</>}</div>
+              <span className="text-xs text-muted">
+                {c.feito_em ? new Date(c.feito_em).toLocaleString('pt-BR') : ''}
+              </span>
             </div>
-            <button type="button" className="btn-primary btn-sm" disabled={concluindoId === c.id} onClick={() => concluir(c.id)}>
-              {concluindoId === c.id ? 'Salvando…' : 'Concluir'}
-            </button>
-          </div>
-        ))}
+          ))
+        )}
       </div>
-
-      {feitos.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <SectionHeading title="Concluídos recentemente" />
-          {feitos.slice(0, 10).map((c) => (
-            <div key={c.id} className="card flex items-center justify-between gap-2 p-3 text-sm text-muted">
-              <span>{c.razao_social} · {c.cnpj}</span>
-              <span>{c.feito_em ? new Date(c.feito_em).toLocaleDateString('pt-BR') : ''}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       <Toast toast={toast} />
     </div>
   )
