@@ -13,7 +13,7 @@ export default function BkoLayout() {
     { to: '/bko', label: 'Meu Dashboard', end: true, icon: LayoutDashboard },
     { to: '/bko/faturas', label: 'Faturas', icon: Receipt },
     { to: '/bko/comprovantes', label: 'Comprovantes', icon: FileCheck2 },
-    { to: '/bko/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
+    { to: '/bko/reagendamentos', label: 'Reagendamento', icon: CalendarClock },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
   ]
