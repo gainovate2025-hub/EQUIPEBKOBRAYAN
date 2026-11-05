@@ -126,6 +126,41 @@ export async function consultarOperadora(numero) {
   return body
 }
 
+// ---------- reagendamento: fila de casos (CNPJ + Razão Social) ----------
+// Trazido de volta em 05/11/2026 (Brayan: "preciso de uma aba pra mandar
+// os reagendamentos que fizeram também") — tinha saído junto da limpeza
+// de contestação/aprovação, mas a tabela/RPCs continuaram no banco.
+// Supervisor/líder manda um caso (CNPJ + Razão Social) pro BKO, e o BKO
+// marca como feito quando resolve — aí sim conta na meta e na comissão
+// (+R$1, igual antes).
+
+export async function fetchReagendamentoCasos({ bkoId, teamId } = {}) {
+  let query = supabase
+    .from('reagendamento_casos')
+    .select(`*, profiles!reagendamento_casos_bko_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
+    .order('criado_em', { ascending: false })
+  if (bkoId) query = query.eq('bko_id', bkoId)
+  if (teamId) query = query.eq('profiles.team_id', teamId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+export async function adicionarReagendamentoCaso(bkoId, cnpj, razaoSocial, custcode = '') {
+  const { error } = await supabase.rpc('adicionar_reagendamento_caso', {
+    p_bko_id: bkoId,
+    p_cnpj: cnpj,
+    p_razao_social: razaoSocial,
+    p_custcode: custcode,
+  })
+  if (error) throw new Error(error.message || 'Falha ao adicionar caso.')
+}
+
+export async function concluirReagendamentoCaso(id) {
+  const { error } = await supabase.rpc('concluir_reagendamento_caso', { p_id: id })
+  if (error) throw new Error(error.message || 'Falha ao concluir caso.')
+}
+
 
 // Configuração por módulo (fatura / contestacao / reagendamento) — os 3
 // são abas da MESMA planilha "Controle de fatura", cada um com sua

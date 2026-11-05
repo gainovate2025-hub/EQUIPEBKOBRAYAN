@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Receipt, FileCheck2, Trophy, Percent,
+  LayoutDashboard, Receipt, FileCheck2, CalendarClock, Trophy, Percent,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -13,6 +13,7 @@ export default function BkoLayout() {
     { to: '/bko', label: 'Meu Dashboard', end: true, icon: LayoutDashboard },
     { to: '/bko/faturas', label: 'Faturas', icon: Receipt },
     { to: '/bko/comprovantes', label: 'Comprovantes', icon: FileCheck2 },
+    { to: '/bko/reagendamentos', label: 'Reagendamentos a fazer', icon: CalendarClock },
     { to: '/bko/ranking', label: 'Ranking', icon: Trophy },
     { to: '/bko/comissao', label: 'Minha Comissão', icon: Percent },
   ]

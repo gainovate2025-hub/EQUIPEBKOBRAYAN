@@ -10,12 +10,14 @@ import SupervisorCrivo from './pages/supervisor/Crivo'
 import SupervisorAutomacoes from './pages/supervisor/Automacoes'
 import SupervisorVendasDesempenho from './pages/supervisor/VendasDesempenho'
 import SupervisorComprovantes from './pages/supervisor/Comprovantes'
+import SupervisorReagendamentos from './pages/supervisor/Reagendamentos'
 
 import BkoLayout from './pages/bko/Layout'
 import BkoDashboard from './pages/bko/Dashboard'
 import BkoComissao from './pages/bko/Comissao'
 import BkoFaturas from './pages/bko/Faturas'
 import BkoComprovantes from './pages/bko/Comprovantes'
+import BkoReagendamentos from './pages/bko/Reagendamentos'
 import Ranking from './pages/Ranking'
 
 import OperacaoLayout from './pages/operacao/Layout'
@@ -42,6 +44,7 @@ export default function App() {
         <Route index element={<SupervisorDashboard />} />
         <Route path="comissao" element={<SupervisorComissao />} />
         <Route path="comprovantes" element={<SupervisorComprovantes />} />
+        <Route path="reagendamentos" element={<SupervisorReagendamentos />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="crivo" element={<SupervisorCrivo />} />
         <Route path="automacoes" element={<SupervisorAutomacoes />} />
@@ -61,6 +64,7 @@ export default function App() {
         <Route index element={<BkoDashboard />} />
         <Route path="faturas" element={<BkoFaturas />} />
         <Route path="comprovantes" element={<BkoComprovantes />} />
+        <Route path="reagendamentos" element={<BkoReagendamentos />} />
         <Route path="ranking" element={<Ranking />} />
         <Route path="comissao" element={<BkoComissao />} />
       </Route>

@@ -1,6 +1,6 @@
 import { Outlet, useLocation } from 'react-router-dom'
 import {
-  LayoutDashboard, Percent, Trophy, Settings, Zap, PhoneCall, TrendingUp, Receipt,
+  LayoutDashboard, Percent, Trophy, Settings, Zap, PhoneCall, TrendingUp, Receipt, CalendarClock,
 } from 'lucide-react'
 import Sidebar from '../../components/ui/Sidebar'
 import Topbar from '../../components/ui/Topbar'
@@ -13,6 +13,7 @@ export default function SupervisorLayout() {
     { to: '/supervisor', label: 'Dashboard', end: true, icon: LayoutDashboard },
     { to: '/supervisor/comissao', label: 'Comissão', icon: Percent },
     { to: '/supervisor/comprovantes', label: 'Comprovantes', icon: Receipt },
+    { to: '/supervisor/reagendamentos', label: 'Reagendamentos', icon: CalendarClock },
     { to: '/supervisor/ranking', label: 'Ranking', icon: Trophy },
     { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },
     { to: '/supervisor/venda-cnpj', label: 'Consulta CNPJ + Venda', icon: PhoneCall },
