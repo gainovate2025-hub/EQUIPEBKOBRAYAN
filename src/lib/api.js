@@ -161,6 +161,30 @@ export async function registrarComprovanteFatura(arquivoPath, arquivoUrl, observ
   if (error) throw new Error(error.message || 'Falha ao registrar comprovante.')
 }
 
+// ---------- custcode de fatura: BKO manda, depois de 5 dias sem sair
+// cai numa lista pra o supervisor verificar e marcar Saiu/Refazer ----------
+export async function fetchCustcodesFatura({ bkoId, teamId } = {}) {
+  let query = supabase
+    .from('fatura_custcodes')
+    .select(`*, profiles!fatura_custcodes_bko_id_fkey${teamId ? '!inner' : ''}(name, team_id)`)
+    .order('enviado_em', { ascending: false })
+  if (bkoId) query = query.eq('bko_id', bkoId)
+  if (teamId) query = query.eq('profiles.team_id', teamId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+export async function enviarCustcodeFatura(custcode) {
+  const { error } = await supabase.rpc('enviar_custcode_fatura', { p_custcode: custcode })
+  if (error) throw new Error(error.message || 'Falha ao enviar CustCode.')
+}
+
+export async function verificarCustcodeFatura(id, resultado) {
+  const { error } = await supabase.rpc('verificar_custcode_fatura', { p_id: id, p_resultado: resultado })
+  if (error) throw new Error(error.message || 'Falha ao verificar CustCode.')
+}
+
 
 // Configuração por módulo (fatura / contestacao / reagendamento) — os 3
 // são abas da MESMA planilha "Controle de fatura", cada um com sua

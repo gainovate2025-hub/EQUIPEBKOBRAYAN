@@ -1,57 +1,110 @@
-import { useMemo, useState } from 'react'
-import { Copy } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
 import SectionHeading from '../../components/ui/SectionHeading'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
+import { fetchCustcodesFatura, verificarCustcodeFatura } from '../../lib/api'
+
+const DIA_MS = 86400000
+const PRAZO_DIAS = 5
+
+function diasDesde(data) {
+  return Math.floor((Date.now() - new Date(data).getTime()) / DIA_MS)
+}
+
+const ABAS = [
+  { key: 'verificar', label: 'Pra verificar (5+ dias)' },
+  { key: 'pendente', label: 'Todos pendentes' },
+  { key: 'resolvido', label: 'Já verificados' },
+]
 
 export default function CustCodes() {
-  const { contestacoes, loading } = useSupervisorData()
+  const { team } = useSupervisorData()
   const { toast, showToast } = useToast()
-  const [statusFilter, setStatusFilter] = useState('pendente')
+  const [casos, setCasos] = useState([])
+  const [carregando, setCarregando] = useState(true)
+  const [aba, setAba] = useState('verificar')
 
-  // Casos com mais de 30 dias saem da lista de copiar — já são antigos
-  // demais pra fazer sentido reenviar.
-  const codigos = useMemo(() => {
-    const limite = Date.now() - 30 * 86400000
-    return contestacoes
-      .filter((c) => c.cust_code && (statusFilter === 'all' || c.status === statusFilter))
-      .filter((c) => new Date(c.created_at).getTime() >= limite)
-      .map((c) => c.cust_code)
-  }, [contestacoes, statusFilter])
+  async function carregar() {
+    setCarregando(true)
+    try {
+      setCasos(await fetchCustcodesFatura())
+    } catch (err) {
+      showToast(err.message || 'Falha ao carregar.', 'error')
+    } finally {
+      setCarregando(false)
+    }
+  }
 
-  function copiarTudo() {
-    navigator.clipboard?.writeText(codigos.join('\n'))
-    showToast(`${codigos.length} cust code${codigos.length === 1 ? '' : 's'} copiado${codigos.length === 1 ? '' : 's'}.`)
+  useEffect(() => { carregar() }, [])
+
+  const idsDoTime = useMemo(() => new Set(team.map((b) => b.id)), [team])
+  const casosDoTime = useMemo(
+    () => casos.filter((c) => idsDoTime.has(c.bko_id)).sort((a, b) => new Date(b.enviado_em) - new Date(a.enviado_em)),
+    [casos, idsDoTime]
+  )
+
+  const listados = useMemo(() => {
+    if (aba === 'resolvido') return casosDoTime.filter((c) => c.status !== 'pendente')
+    if (aba === 'pendente') return casosDoTime.filter((c) => c.status === 'pendente')
+    return casosDoTime.filter((c) => c.status === 'pendente' && diasDesde(c.enviado_em) >= PRAZO_DIAS)
+  }, [casosDoTime, aba])
+
+  async function marcar(id, resultado) {
+    try {
+      await verificarCustcodeFatura(id, resultado)
+      showToast(resultado === 'saiu' ? 'Marcado como Saiu.' : 'Marcado pra refazer.')
+      carregar()
+    } catch (err) {
+      showToast(err.message || 'Falha ao verificar.', 'error')
+    }
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Cust Codes" hint="Só os códigos, prontos pra copiar — casos com mais de 30 dias não aparecem aqui" />
+      <SectionHeading title="CustCodes" hint="CustCodes de fatura em contestação — confere quem passou do prazo sem sair" />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <select className="field-input" style={{ maxWidth: 180 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-          <option value="all">Todos</option>
-          <option value="pendente">Pendentes</option>
-          <option value="autorizada">Autorizadas</option>
-          <option value="recusada">Recusadas</option>
-        </select>
-        <button type="button" className="btn-primary" disabled={codigos.length === 0} onClick={copiarTudo}>
-          <Copy size={14} /> Copiar tudo ({codigos.length})
-        </button>
+      <div className="flex gap-2">
+        {ABAS.map((a) => (
+          <button
+            key={a.key}
+            type="button"
+            onClick={() => setAba(a.key)}
+            className={`rounded-full px-3 py-1.5 text-sm font-medium ${aba === a.key ? 'bg-brand-600 text-white' : 'bg-gray-100 text-muted hover:bg-gray-200'}`}
+          >
+            {a.label}
+          </button>
+        ))}
       </div>
 
-      {loading && <p className="text-sm text-muted">Carregando…</p>}
-      {!loading && codigos.length === 0 && (
-        <div className="card p-8 text-center text-sm text-muted">Nenhum cust code com esse filtro.</div>
-      )}
-
-      {!loading && codigos.length > 0 && (
-        <div className="card p-4">
-          <pre className="whitespace-pre-wrap break-all font-mono text-sm">{codigos.join('\n')}</pre>
+      {carregando ? (
+        <p className="text-sm text-muted">Carregando…</p>
+      ) : listados.length === 0 ? (
+        <p className="text-sm text-muted">Nada por aqui.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {listados.map((c) => (
+            <div key={c.id} className="card flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="font-mono font-medium text-ink">{c.custcode}</span>
+                <span className="text-muted">· {c.profiles?.name}</span>
+                <span className="text-xs text-muted">· {diasDesde(c.enviado_em)} dia{diasDesde(c.enviado_em) === 1 ? '' : 's'} atrás</span>
+                {c.status !== 'pendente' && (
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.status === 'saiu' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                    {c.status === 'saiu' ? 'Saiu' : 'Precisa refazer'}
+                  </span>
+                )}
+              </div>
+              {c.status === 'pendente' && (
+                <div className="flex gap-2">
+                  <button type="button" className="btn-secondary" onClick={() => marcar(c.id, 'saiu')}>Saiu</button>
+                  <button type="button" className="btn-secondary" onClick={() => marcar(c.id, 'refazer')}>Refazer</button>
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
-
       <Toast toast={toast} />
     </div>
   )
