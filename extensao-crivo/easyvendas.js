@@ -239,7 +239,24 @@ async function buscarPendente(numeroSistema) {
     `crivo_consultas?select=*&${filtro}&order=created_at.asc&limit=10`
   )
   if (!linhas?.length) return null
-  const consulta = linhas.find((c) => tentativasFeitas(c.id) === 0) || linhas[0]
+
+  // NUNCA processa dois pendentes do MESMO CNPJ ao mesmo tempo (pedido do
+  // Brayan em 06/11/2026) — se o mesmo CNPJ foi mandado mais de uma vez
+  // (dois operadores, ou a mesma pessoa duas vezes) e as duas consultas
+  // ainda estão pendentes juntas, mandar as duas pro EasyVendas quase
+  // junto faz a 2ª cair na tela de Contrato (a negociação da 1ª já existe
+  // — confirmado ao vivo, sobretudo no 2º sistema). Entre as candidatas
+  // com CNPJ repetido, só a MAIS ANTIGA conta nesta rodada; a(s) outra(s)
+  // ficam de fora até a mais antiga sair de "pendente" (aí, na rodada
+  // seguinte, já não tem mais duplicata e ela é processada normalmente).
+  const maisAntigaPorCnpj = new Map()
+  for (const c of linhas) {
+    if (!maisAntigaPorCnpj.has(c.cnpj)) maisAntigaPorCnpj.set(c.cnpj, c.id)
+  }
+  const semCnpjDuplicado = linhas.filter((c) => maisAntigaPorCnpj.get(c.cnpj) === c.id)
+  if (!semCnpjDuplicado.length) return null
+
+  const consulta = semCnpjDuplicado.find((c) => tentativasFeitas(c.id) === 0) || semCnpjDuplicado[0]
 
   const reivindicou = await supaFetch('rpc/crivo_reivindicar', {
     method: 'POST',
