@@ -235,14 +235,24 @@ export default function Crivo() {
   useEffect(() => { load() }, [load])
 
   useEffect(() => {
+    // Debounce: cada consulta passa por várias mudanças seguidas (trava
+    // sistema1 → resultado sistema1 → trava sistema2 → resultado
+    // sistema2), e cada uma delas disparava um reload na hora. Com muita
+    // gente mandando CNPJ ao mesmo tempo isso virava uma rajada de
+    // queries repetidas pro Supabase em CADA navegador aberto — agora
+    // junta mudanças próximas (até 400ms) num reload só.
+    let debounceId = null
     const canal = supabase
       .channel('crivo_consultas_live')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'crivo_consultas' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'crivo_consultas' }, () => {
+        clearTimeout(debounceId)
+        debounceId = setTimeout(load, 400)
+      })
       .subscribe()
     // além do tempo real, atualiza sozinho a cada 4s (funciona mesmo sem
     // o "replication" do Supabase ligado pra essa tabela).
     const intervalo = setInterval(load, 4000)
-    return () => { supabase.removeChannel(canal); clearInterval(intervalo) }
+    return () => { supabase.removeChannel(canal); clearInterval(intervalo); clearTimeout(debounceId) }
   }, [load])
 
   useEffect(() => {
