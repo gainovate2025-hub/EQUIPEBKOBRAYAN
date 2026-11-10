@@ -1,15 +1,10 @@
 import { useEffect, useState } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { CalendarClock, Eye, EyeOff, Percent, ShieldCheck } from 'lucide-react'
+import { Eye, EyeOff } from 'lucide-react'
+import Logo from '../components/ui/Logo'
 import { useAuth } from '../lib/AuthContext'
 import { homeFor } from '../lib/ProtectedRoute'
 import { supabaseConfigured } from '../lib/supabaseClient'
-
-const DESTAQUES = [
-  { icon: ShieldCheck, label: 'Aprovação de contestações' },
-  { icon: CalendarClock, label: 'Reagendamentos em dia' },
-  { icon: Percent, label: 'Comissão acompanhada' },
-]
 
 export default function Login() {
   const { signIn, profile, loading } = useAuth()
@@ -41,48 +36,26 @@ export default function Login() {
 
   return (
     <div className="grid min-h-screen bg-paper font-sans text-ink lg:grid-cols-[45fr_55fr]">
-      {/* painel institucional — some em telas pequenas, vira um cabeçalho compacto */}
-      <div className="hidden flex-col justify-between bg-sidebar px-14 py-12 text-sidebar-text lg:flex">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-sm bg-brand-500" />
-          <span className="text-sm font-semibold tracking-wide text-white">BKO · Supervisão</span>
+      {/* painel azul-marinho na esquerda — some em telas pequenas */}
+      <div className="hidden flex-col justify-between border-r-4 border-brand-400 bg-sidebar px-14 py-12 lg:flex">
+        <Logo size={30} />
+        <div className="flex flex-col gap-2">
+          <h1 className="text-3xl font-bold text-white">Painel BKO</h1>
+          <p className="text-sm text-sidebar-text">Faturas, comprovantes, reagendamentos, CustCode, Crivo e vendas da equipe.</p>
         </div>
-
-        <div className="flex max-w-md flex-col gap-5" style={{ animation: 'bkoRise .5s ease both' }}>
-          <h1 className="text-[32px] font-semibold leading-tight tracking-tight text-white">
-            Controle, acompanhe e faça a diferença.
-          </h1>
-          <p className="text-sm leading-relaxed text-sidebar-text">
-            O painel centraliza o acompanhamento da equipe: contestações, reagendamentos e comissão em um só lugar,
-            com autorização e histórico organizados.
-          </p>
-
-          <div className="mt-2 flex flex-col gap-3 border-t border-sidebar-border pt-5">
-            {DESTAQUES.map(({ icon: Icon, label }) => (
-              <div key={label} className="flex items-center gap-2.5 text-sm text-sidebar-textMuted">
-                <Icon size={15} strokeWidth={2} />
-                {label}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <span className="text-xs font-medium uppercase tracking-wide text-sidebar-textMuted">TIM · BKO Supervisão</span>
+        <span className="text-xs text-sidebar-textMuted">Uso interno da equipe BKO</span>
       </div>
 
       {/* formulário */}
       <div className="flex flex-col items-center justify-center gap-8 px-6 py-12 sm:px-10">
-        <div className="flex items-center gap-2 lg:hidden">
-          <span className="h-2 w-2 rounded-sm bg-brand-500" />
-          <span className="text-sm font-semibold tracking-wide text-ink">BKO · Supervisão</span>
+        <div className="flex w-full max-w-[380px] items-center rounded-md bg-sidebar px-4 py-3 lg:hidden">
+          <Logo size={22} />
         </div>
 
         <form onSubmit={handleSubmit} className="card flex w-full max-w-[380px] flex-col gap-5 p-8">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-subtle">Acesso restrito</span>
-
-          <div className="flex flex-col gap-1">
-            <span className="text-xl font-semibold tracking-tight text-ink">Bem-vindo de volta</span>
-            <span className="text-sm text-muted">Acesse o painel de supervisão.</span>
+          <div className="flex flex-col gap-1 border-l-4 border-brand-400 pl-3">
+            <span className="text-xl font-bold text-sidebar">Entrar</span>
+            <span className="text-sm text-muted">Use o usuário e a senha que o supervisor passou pra você.</span>
           </div>
 
           {!supabaseConfigured && (
@@ -153,7 +126,7 @@ export default function Login() {
           {error && <div className="text-sm font-medium text-bad-text">{error}</div>}
 
           <button type="submit" className="btn-primary" disabled={submitting}>
-            {submitting ? 'Entrando…' : 'Entrar no painel'}
+            {submitting ? 'Entrando…' : 'Entrar'}
           </button>
         </form>
       </div>

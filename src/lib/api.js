@@ -67,6 +67,18 @@ export async function updateProfile(userId, patch) {
   if (error) throw error
 }
 
+// Troca só o nome de um perfil (10/11/2026). Passa pela função
+// atualizar_nome_perfil (migration_049), que deixa o líder renomear BKO do
+// time e cada pessoa renomear a si mesma, sem poder mexer em papel/time.
+// Enquanto a migration_049 não tiver sido rodada no banco, a função não
+// existe (erro PGRST202) e cai no update direto antigo.
+export async function atualizarNomePerfil(userId, nome) {
+  const { error } = await supabase.rpc('atualizar_nome_perfil', { p_user_id: userId, p_nome: nome })
+  if (!error) return
+  if (error.code === 'PGRST202') return updateProfile(userId, { name: nome })
+  throw error
+}
+
 export async function updatePassword(userId, newPassword) {
   return updateLogin(userId, { password: newPassword })
 }
@@ -123,7 +135,28 @@ export async function consultarOperadora(numero) {
   )
   const body = await res.json().catch(() => ({}))
   if (!res.ok) throw new Error(body.error || 'Falha ao consultar operadora.')
-  return body
+  // Reforço do lado do site (10/11/2026): o consultaoperadora.com.br às
+  // vezes devolve o nome da empresa dona da operadora, ex: "Telefônica
+  // Brasil (M&oacute;vel/SMP)" (que é a Vivo), e a função do Supabase não
+  // reconhecia. Decodifica os acentos e reconhece pelo nome da empresa.
+  const bruta = decodificarHtml(body.operadoraBruta || '')
+  return { ...body, operadoraBruta: bruta, operadora: body.operadora || normalizarOperadora(bruta) }
+}
+
+function decodificarHtml(texto) {
+  const el = document.createElement('textarea')
+  el.innerHTML = texto
+  return el.value
+}
+
+export function normalizarOperadora(texto) {
+  const s = (texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
+  if (!s) return null
+  if (s.includes('vivo') || s.includes('telefonica')) return 'VIVO'
+  if (s.includes('claro') || s.includes('nextel')) return 'CLARO'
+  if (/\btim\b/.test(s)) return 'TIM'
+  if (/\boi\b/.test(s) || s.includes('telemar')) return 'OI'
+  return null
 }
 
 // ---------- reagendamento: BKO manda direto quantos já fez ----------
@@ -220,7 +253,7 @@ export function extrairSpreadsheetId(urlOuId) {
 // num dropdown (como a automação do P2B).
 export async function listarAbasPlanilha(sheetUrl) {
   const spreadsheetId = extrairSpreadsheetId(sheetUrl)
-  if (!spreadsheetId) throw new Error('Cola o link da planilha primeiro.')
+  if (!spreadsheetId) throw new Error('Cole o link da planilha primeiro.')
   const { abas } = await chamarSheetsFaturas({ action: 'listar_abas', spreadsheetId })
   return abas
 }
@@ -325,7 +358,7 @@ export async function fetchPlanilhaLinhas(modulo) {
 export async function escreverPlanilhaCampo(config, colunas, linhaPlanilha, campo, valor) {
   const indice = colunas[campo]
   if (indice == null || indice < 0) {
-    throw new Error(`Coluna de "${campo}" não encontrada na planilha — confere a configuração em Automações.`)
+    throw new Error(`Coluna de "${campo}" não encontrada na planilha. Confira a configuração em Configurações.`)
   }
   const celula = `${config.aba_nome}!${indiceParaColuna(indice)}${linhaPlanilha}`
   await chamarSheetsFaturas({
@@ -370,23 +403,6 @@ export async function enviarParcelamentoLogin(userId, { usuario, token }) {
     .update({ usuario, token, criado_por: userId, criado_em: new Date().toISOString() })
     .eq('id', 1)
   if (error) throw error
-}
-
-// ---------- casos do WhatsApp (fila do bot) ----------
-
-export async function fetchCasosWhatsapp() {
-  const { data, error } = await supabase
-    .from('whatsapp_casos')
-    .select('*, profiles!whatsapp_casos_pego_por_fkey(name)')
-    .order('criado_em', { ascending: false })
-  if (error) throw error
-  return data
-}
-
-export async function pegarCasoWhatsapp(id) {
-  const { data, error } = await supabase.rpc('whatsapp_pegar_caso', { p_id: id })
-  if (error) throw new Error(error.message || 'Esse caso já foi pego por outra pessoa.')
-  return data
 }
 
 export { usernameToEmail }

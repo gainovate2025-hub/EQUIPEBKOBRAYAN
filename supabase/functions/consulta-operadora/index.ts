@@ -48,12 +48,18 @@ function textoSemHtml(html: string) {
     .trim()
 }
 
+// O site às vezes devolve o nome da empresa dona da operadora, com acento
+// em HTML (ex: "Telefônica Brasil (M&oacute;vel/SMP)" = Vivo). Visto ao
+// vivo em 10/11/2026. O site do painel também faz esse reforço.
 function normalizarOperadora(textoBruto: string) {
-  const s = textoBruto.toLowerCase()
-  if (s.includes('vivo')) return 'VIVO'
-  if (s.includes('claro')) return 'CLARO'
+  const s = textoBruto
+    .replace(/&([a-z])(acute|grave|circ|tilde|cedil);/gi, '$1')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+  if (s.includes('vivo') || s.includes('telefonica')) return 'VIVO'
+  if (s.includes('claro') || s.includes('nextel')) return 'CLARO'
   if (/\btim\b/.test(s)) return 'TIM'
-  if (s.includes('oi')) return 'OI'
+  if (/\boi\b/.test(s) || s.includes('telemar')) return 'OI'
   return null
 }
 

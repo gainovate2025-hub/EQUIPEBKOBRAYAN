@@ -123,7 +123,7 @@ export default function PlanilhaLista({
 
   async function aplicarRetorno(linha) {
     const data = retornoDatas[linha.linhaPlanilha]
-    if (!data) return showToast('Escolhe a data de retorno.', 'error')
+    if (!data) return showToast('Escolha a data de retorno.', 'error')
     const [, mes, dia] = data.split('-')
     setSalvandoId(linha.linhaPlanilha)
     try {
@@ -149,9 +149,9 @@ export default function PlanilhaLista({
     return (
       <p className="text-sm text-muted">
         {role === 'supervisor' ? (
-          <>Configuração ainda não feita — vá em <Link to="/supervisor/configuracoes" className="underline">Configurações</Link> e escolha a aba e as colunas dessa planilha.</>
+          <>Configuração ainda não feita. Vá em <Link to="/supervisor/configuracoes" className="underline">Configurações</Link> e escolha a aba e as colunas dessa planilha.</>
         ) : (
-          'Configuração ainda não feita — peça pro supervisor configurar em Configurações.'
+          'Configuração ainda não feita. Peça pro supervisor configurar em Configurações.'
         )}
       </p>
     )
@@ -169,7 +169,7 @@ export default function PlanilhaLista({
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div className="text-sm font-semibold">{linha.nome || '(sem nome)'}</div>
-                <div className="text-xs text-muted">CNPJ: {linha.cnpj || '—'} · CustCode: {linha.custcode || '—'}</div>
+                <div className="text-xs text-muted">CNPJ: {linha.cnpj || '-'} · CustCode: {linha.custcode || '-'}</div>
               </div>
               <div className="flex items-center gap-2">
                 {wa && (
@@ -185,6 +185,7 @@ export default function PlanilhaLista({
               {statusOpcoes ? (
                 <select
                   className="field-input w-auto"
+                  aria-label="Marcar status"
                   defaultValue=""
                   disabled={salvando}
                   onChange={(e) => {
@@ -202,6 +203,7 @@ export default function PlanilhaLista({
                 <>
                   <input
                     className="field-input w-auto flex-1"
+                    aria-label="Status"
                     placeholder="Status"
                     value={statusLivre[linha.linhaPlanilha] ?? ''}
                     onChange={(e) => setStatusLivre((p) => ({ ...p, [linha.linhaPlanilha]: e.target.value }))}
@@ -221,6 +223,7 @@ export default function PlanilhaLista({
                 <>
                   <input
                     className="field-input w-auto"
+                    aria-label="Protocolo"
                     placeholder="Protocolo"
                     value={protocolos[linha.linhaPlanilha] || ''}
                     onChange={(e) => setProtocolos((p) => ({ ...p, [linha.linhaPlanilha]: e.target.value }))}
@@ -235,6 +238,7 @@ export default function PlanilhaLista({
                 <>
                   <input
                     type="date"
+                    aria-label="Data de retorno"
                     className="field-input w-auto"
                     value={retornoDatas[linha.linhaPlanilha] || ''}
                     onChange={(e) => setRetornoDatas((p) => ({ ...p, [linha.linhaPlanilha]: e.target.value }))}

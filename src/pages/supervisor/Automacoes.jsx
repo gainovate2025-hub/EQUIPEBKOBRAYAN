@@ -1,52 +1,45 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Search, Workflow, FileText, MessageCircle } from 'lucide-react'
+import { ChevronRight } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { fetchParcelamentoConfig, updateParcelamentoConfig, fetchParcelamentoLogin, enviarParcelamentoLogin } from '../../lib/api'
-import SectionHeading from '../../components/ui/SectionHeading'
 import Modal from '../../components/ui/Modal'
 import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import WhatsAppBotPanel from '../../components/automacoes/WhatsAppBotPanel'
 
+// Cards simples (10/11/2026): sem ícone e sem a pílula de status
+// ("Ativo", "Roda local"...), que eram só enfeite e não mudavam nunca.
 const AUTOMACOES = [
   {
     key: 'crivo',
     nome: 'Crivo TIM',
-    descricao: 'Consulta CNPJ nos dois sistemas do TIM (Easy Vendas) e responde aprovado/reprovado no chat.',
-    icon: Search,
+    descricao: 'Consulta CNPJ nos dois sistemas da TIM (Easy Vendas) e responde aprovado/reprovado no chat.',
     to: '/supervisor/crivo',
-    status: 'Ativo',
   },
   {
     key: 'p2b',
     nome: 'P2B (CUST CODE)',
-    descricao: 'Automatiza a busca de CUST CODE no Phoenix2Business e joga na planilha. Abre no site próprio do P2B.',
-    icon: Workflow,
+    descricao: 'Busca o CUST CODE no Phoenix2Business e preenche a planilha. Abre no site próprio do P2B.',
     to: null,
-    // Virou link pro site separado (05/11/2026, pedido do Brayan) — o
+    // Virou link pro site separado (05/11/2026, pedido do Brayan): o
     // painel embutido (P2BPanel) tinha ficado desatualizado em relação ao
     // site próprio, que já tem tudo (divisão entre matrículas, log
     // detalhado, mapeamento).
     externalUrl: 'https://p2b-automation-frontend.onrender.com',
-    status: 'Ativo',
   },
   {
     key: 'parcelamento',
     nome: 'Portal Parcelamento',
-    descricao: 'Consulta fatura no Portal Parcelamento por Custcode, baixa o PDF e envia pro cliente pelo WhatsApp Web.',
-    icon: FileText,
+    descricao: 'Consulta a fatura no Portal Parcelamento pelo Custcode e envia pro cliente. Roda na extensão do Chrome.',
     to: null,
-    status: 'Roda local',
   },
   {
     key: 'whatsapp',
-    nome: 'Bot de Atendimento (WhatsApp)',
-    descricao: 'Liga o menu automático de atendimento num número — digita o número, escaneia o QR, pronto.',
-    icon: MessageCircle,
+    nome: 'Bot de atendimento (WhatsApp)',
+    descricao: 'Liga o menu automático de atendimento num número de WhatsApp pelo QR code.',
     to: null,
-    status: 'Na nuvem',
   },
 ]
 
@@ -55,18 +48,17 @@ export default function Automacoes() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SectionHeading title="Automações" hint="As ferramentas que fazem trabalho repetitivo por você" />
+      <p className="text-sm text-muted">Robôs e extensões da equipe.</p>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {AUTOMACOES.map((a) => {
           const Conteudo = (
-            <div className="card flex h-full flex-col gap-3 p-6 transition hover:border-brand-500">
-              <div className="flex items-center justify-between">
-                <a.icon size={22} strokeWidth={2} className="text-brand-600" />
-                <span className="rounded-full bg-paper px-2 py-0.5 text-[11px] font-medium text-muted">{a.status}</span>
+            <div className="card flex h-full items-start justify-between gap-3 p-5 transition hover:border-brand-500">
+              <div className="flex flex-col gap-1.5">
+                <div className="text-sm font-semibold text-ink">{a.nome}</div>
+                <p className="text-sm text-muted">{a.descricao}</p>
               </div>
-              <div className="text-sm font-semibold">{a.nome}</div>
-              <p className="text-xs text-muted">{a.descricao}</p>
+              <ChevronRight size={18} className="mt-0.5 shrink-0 text-muted" aria-hidden />
             </div>
           )
           if (a.externalUrl) {
@@ -80,7 +72,7 @@ export default function Automacoes() {
             return <Link key={a.key} to={a.to} className="block">{Conteudo}</Link>
           }
           return (
-            <button key={a.key} type="button" className="block text-left" onClick={() => setAbrindo(a.key)}>
+            <button key={a.key} type="button" className="block w-full text-left" onClick={() => setAbrindo(a.key)}>
               {Conteudo}
             </button>
           )
@@ -90,13 +82,13 @@ export default function Automacoes() {
       {abrindo === 'parcelamento' && (
         <Modal title="Portal Parcelamento" onClose={() => setAbrindo(null)} width={560}>
           <div className="flex flex-col gap-3 text-sm">
-            <p>Essa automação roda direto no Chrome (extensão), um por vez — mas a planilha usada é definida AQUI, pra todo mundo que ligar a extensão usar a mesma.</p>
+            <p>Roda na extensão do Chrome. A planilha é definida aqui e vale pra todos que ligarem a extensão.</p>
             <ol className="list-decimal space-y-1 pl-5">
-              <li>Instala a extensão em <code className="rounded bg-paper px-1 py-0.5">chrome://extensions</code> a partir da pasta <code className="rounded bg-paper px-1 py-0.5">extensao-portal-parcelamento/</code> do repositório</li>
-              <li>Deixa uma aba do Portal Parcelamento aberta e clica em Ligar no ícone da extensão</li>
-              <li>Se a aba do Portal cair numa tela de login, usa o formulário "Login" mais abaixo — ela entra sozinha</li>
+              <li>Instale a extensão em <code className="rounded bg-paper px-1 py-0.5">chrome://extensions</code> a partir da pasta <code className="rounded bg-paper px-1 py-0.5">extensao-portal-parcelamento/</code> do repositório</li>
+              <li>Deixe uma aba do Portal Parcelamento aberta e clique em Ligar no ícone da extensão</li>
+              <li>Se a aba do Portal cair na tela de login, use o formulário "Login" abaixo e ela entra sozinha</li>
             </ol>
-            <p className="text-muted">Ela consulta cada Custcode pendente na planilha abaixo, manda a fatura por e-mail e marca "FATURA ENVIADA POR EMAIL" na coluna de status.</p>
+            <p className="text-muted">Ela consulta cada Custcode pendente, envia a fatura por e-mail e marca "FATURA ENVIADA POR EMAIL" na coluna de status.</p>
           </div>
           <ParcelamentoConfigForm />
           <ParcelamentoLoginForm />
@@ -104,9 +96,9 @@ export default function Automacoes() {
       )}
 
       {abrindo === 'whatsapp' && (
-        <Modal title="Bot de Atendimento no WhatsApp" onClose={() => setAbrindo(null)} width={480}>
+        <Modal title="Bot de atendimento no WhatsApp" onClose={() => setAbrindo(null)} width={480}>
           <div className="flex flex-col gap-3 text-sm">
-            <p>Digita o número que vai atender (com DDI, ex: 55 11 99999-8888) e escaneia o QR pelo celular desse número — como conectar o WhatsApp Web.</p>
+            <p>Digite o número que vai atender (com DDI, ex: 55 11 99999-8888) e escaneie o QR pelo celular desse número, como no WhatsApp Web.</p>
           </div>
           <WhatsAppBotPanel />
         </Modal>
@@ -156,7 +148,7 @@ function ParcelamentoConfigForm() {
         coluna_telefone: colunaTelefone.trim() || 'TELEFONE',
         coluna_status: colunaStatus.trim() || 'DATA DA FATURA',
       })
-      showToast('Planilha atualizada — vale pra quem já tiver a extensão ligada.')
+      showToast('Planilha atualizada. Vale pra quem já tiver a extensão ligada.')
     } catch (err) {
       showToast(err.message || 'Falha ao salvar.', 'error')
     } finally {
@@ -226,7 +218,7 @@ function ParcelamentoConfigForm() {
           />
         </Field>
       </div>
-      <p className="text-xs text-muted">É nessa coluna de status que a extensão escreve "FATURA ENVIADA POR EMAIL" depois de mandar com sucesso.</p>
+      <p className="text-xs text-muted">É nessa coluna que a extensão escreve "FATURA ENVIADA POR EMAIL" depois de enviar.</p>
       <button type="submit" className="btn-primary self-start" disabled={salvando}>
         {salvando ? 'Salvando…' : 'Salvar planilha'}
       </button>
@@ -246,7 +238,7 @@ function ParcelamentoLoginForm() {
   useEffect(() => {
     fetchParcelamentoLogin()
       .then((login) => {
-        if (login?.usuario) setUltimoEnvio({ usuario: login.usuario, criadoEm: login.criado_em })
+        if (login?.usuario) setUltimoEnvio({ usuario: login.usuario, criado_em: login.criado_em })
       })
       .catch(() => {})
   }, [])
@@ -260,7 +252,7 @@ function ParcelamentoLoginForm() {
       await enviarParcelamentoLogin(profile.id, { usuario: usuarioLimpo, token: token.trim() })
       setUltimoEnvio({ usuario: usuarioLimpo, criado_em: new Date().toISOString() })
       setToken('')
-      showToast('Login enviado — a extensão usa isso na próxima vez que travar numa tela de login.')
+      showToast('Login enviado. A extensão usa isso na próxima vez que travar numa tela de login.')
     } catch (err) {
       showToast(err.message || 'Falha ao enviar.', 'error')
     } finally {
@@ -273,9 +265,8 @@ function ParcelamentoLoginForm() {
       <div>
         <p className="text-sm font-semibold">Login (só quando a extensão pedir)</p>
         <p className="text-xs text-muted">
-          Se a aba do Portal cair numa tela de login, cola aqui a matrícula e o código do token (do chaveiro/app,
-          na hora) e envia — a extensão pega isso e entra sozinha. O código vale só por pouco tempo, então só
-          envia quando for usar.
+          Se a aba do Portal cair na tela de login, informe a matrícula e o código do token e envie. A extensão
+          entra sozinha. O código vale por pouco tempo, então envie só na hora de usar.
         </p>
       </div>
       <Field label="Matrícula">

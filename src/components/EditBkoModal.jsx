@@ -2,7 +2,7 @@ import { useState } from 'react'
 import Modal from './ui/Modal'
 import Field from './ui/Field'
 import { useAuth } from '../lib/AuthContext'
-import { updateLogin, updatePerformance, updateProfile } from '../lib/api'
+import { updateLogin, updatePerformance, atualizarNomePerfil } from '../lib/api'
 
 export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
   const { contestacaoLabel } = useAuth()
@@ -27,7 +27,7 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
     e.preventDefault()
     setSaving(true)
     try {
-      await updateProfile(bko.id, { name: form.name })
+      await atualizarNomePerfil(bko.id, form.name)
       await updatePerformance(bko.id, {
         contestation_goal: Number(form.contestation_goal) || 0,
         contestations_done: Number(form.contestations_done) || 0,
@@ -55,9 +55,9 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
   }
 
   return (
-    <Modal title={`Editar — ${bko.name}`} onClose={onClose} width={560}>
+    <Modal title={`Editar ${bko.name}`} onClose={onClose} width={560}>
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="Nome do BKO">
             <input className="field-input" value={form.name} onChange={(e) => update('name', e.target.value)} required />
           </Field>
@@ -65,7 +65,7 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
             <input className="field-input" value={form.username} onChange={(e) => update('username', e.target.value)} required />
           </Field>
           <Field label="Nova senha (opcional)">
-            <input type="password" className="field-input" placeholder="deixe em branco para manter" value={form.password} onChange={(e) => update('password', e.target.value)} />
+            <input type="password" className="field-input" placeholder="Deixe em branco pra manter a atual" value={form.password} onChange={(e) => update('password', e.target.value)} />
           </Field>
           <Field label="Comissão (R$)">
             <input type="number" step="0.01" min="0" className="field-input" value={form.commission} onChange={(e) => update('commission', e.target.value)} />

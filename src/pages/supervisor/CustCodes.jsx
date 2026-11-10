@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
-import SectionHeading from '../../components/ui/SectionHeading'
+import Tabs from '../../components/ui/Tabs'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { fetchCustcodesFatura, verificarCustcodeFatura } from '../../lib/api'
@@ -62,20 +62,9 @@ export default function CustCodes() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="CustCodes" hint="CustCodes de fatura em contestação — confere quem passou do prazo sem sair" />
+      <p className="text-sm text-muted">CustCodes de fatura em contestação. Confira quem passou do prazo sem sair.</p>
 
-      <div className="flex gap-2">
-        {ABAS.map((a) => (
-          <button
-            key={a.key}
-            type="button"
-            onClick={() => setAba(a.key)}
-            className={`rounded-full px-3 py-1.5 text-sm font-medium ${aba === a.key ? 'bg-brand-600 text-white' : 'bg-gray-100 text-muted hover:bg-gray-200'}`}
-          >
-            {a.label}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={ABAS} active={aba} onChange={setAba} />
 
       {carregando ? (
         <p className="text-sm text-muted">Carregando…</p>
@@ -85,20 +74,20 @@ export default function CustCodes() {
         <div className="flex flex-col gap-2">
           {listados.map((c) => (
             <div key={c.id} className="card flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-medium text-ink">{c.custcode}</span>
                 <span className="text-muted">· {c.profiles?.name}</span>
                 <span className="text-xs text-muted">· {diasDesde(c.enviado_em)} dia{diasDesde(c.enviado_em) === 1 ? '' : 's'} atrás</span>
                 {c.status !== 'pendente' && (
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${c.status === 'saiu' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                  <span className={c.status === 'saiu' ? 'badge-ok' : 'badge-bad'}>
                     {c.status === 'saiu' ? 'Saiu' : 'Precisa refazer'}
                   </span>
                 )}
               </div>
               {c.status === 'pendente' && (
                 <div className="flex gap-2">
-                  <button type="button" className="btn-secondary" onClick={() => marcar(c.id, 'saiu')}>Saiu</button>
-                  <button type="button" className="btn-secondary" onClick={() => marcar(c.id, 'refazer')}>Refazer</button>
+                  <button type="button" className="btn-outline btn-sm" onClick={() => marcar(c.id, 'saiu')}>Saiu</button>
+                  <button type="button" className="btn-outline-danger btn-sm" onClick={() => marcar(c.id, 'refazer')}>Refazer</button>
                 </div>
               )}
             </div>

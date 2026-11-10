@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
-import SectionHeading from '../../components/ui/SectionHeading'
+import Secao from '../../components/ui/Secao'
+import { AlertTriangle, Loader2 } from 'lucide-react'
 
 const RESULT_LABEL = { aprovado: 'Aprovado', reprovado: 'Reprovado', nao_encontrado: 'CNPJ errado' }
 const RESULT_COLOR = {
-  aprovado: 'text-green-600',
-  reprovado: 'text-red-600',
-  nao_encontrado: 'text-amber-600',
+  aprovado: 'text-good-text',
+  reprovado: 'text-bad-text',
+  nao_encontrado: 'text-warn-text',
 }
 
 // erro_mensagem sempre começa com "[1º sistema]" ou "[2º sistema]" (veja
@@ -88,13 +89,19 @@ function RespostaCrivoSimples({ consulta: c }) {
   if (c.status === 'erro') {
     const sistema = sistemaDoErro(c.erro_mensagem)
     return (
-      <div className="text-red-600">
-        ⚠️ Erro no {sistema ? `${sistema}º sistema` : 'Crivo'} — manda o CNPJ de novo.
+      <div className="flex items-center gap-1.5 text-bad-text">
+        <AlertTriangle size={15} className="shrink-0" />
+        Erro no {sistema ? `${sistema}º sistema` : 'Crivo'}. Envie o CNPJ de novo.
       </div>
     )
   }
   const resultado = veredito(c)
-  if (!resultado) return <span className="text-muted">⏳ aguardando…</span>
+  if (!resultado)
+    return (
+      <span className="inline-flex items-center gap-1.5 text-muted">
+        <Loader2 size={14} className="animate-spin" /> aguardando…
+      </span>
+    )
   return <span className={`text-base font-bold ${RESULT_COLOR[resultado]}`}>{RESULT_LABEL[resultado]}</span>
 }
 
@@ -107,7 +114,11 @@ function sistema1Terminal(c) {
 
 function RespostaCrivoDetalhada({ consulta: c }) {
   if (c.status === 'erro') {
-    return <div className="text-red-600">⚠️ Erro ao consultar — manda o CNPJ de novo.</div>
+    return (
+      <div className="flex items-center gap-1.5 text-bad-text">
+        <AlertTriangle size={15} className="shrink-0" /> Erro ao consultar. Envie o CNPJ de novo.
+      </div>
+    )
   }
   return (
     <div className="flex flex-col gap-1">
@@ -119,9 +130,11 @@ function RespostaCrivoDetalhada({ consulta: c }) {
             {resultado ? (
               <span className={`font-semibold ${RESULT_COLOR[resultado]}`}>{RESULT_LABEL[resultado]}</span>
             ) : sis === 'sistema2' && sistema1Terminal(c) ? (
-              <span className="text-muted">— não necessário</span>
+              <span className="text-muted">não necessário</span>
             ) : (
-              <span className="text-muted">⏳ aguardando…</span>
+              <span className="inline-flex items-center gap-1.5 text-muted">
+                <Loader2 size={14} className="animate-spin" /> aguardando…
+              </span>
             )}
           </div>
         )
@@ -159,7 +172,10 @@ export default function Crivo() {
       const em = await buscarPrimeiraConsultaHoje()
       if (!cancelado && em) setPrimeiraConsultaHoje(em)
     }, 20000)
-    return () => { cancelado = true; clearInterval(intervalo) }
+    return () => {
+      cancelado = true
+      clearInterval(intervalo)
+    }
   }, [primeiraConsultaHoje])
 
   // Repete sozinho a cada 40min a partir da 1ª consulta do dia — nunca
@@ -204,7 +220,7 @@ export default function Crivo() {
     e?.preventDefault()
     setMsgCepPadrao('')
     const limpo = soCepDigitos(cepPadrao)
-    if (limpo && limpo.length !== 8) return setMsgCepPadrao('CEP inválido (8 números) — ou deixa em branco.')
+    if (limpo && limpo.length !== 8) return setMsgCepPadrao('CEP inválido (8 números). Corrija ou deixe em branco.')
 
     setSalvandoCepPadrao(true)
     const { error } = await supabase
@@ -212,7 +228,7 @@ export default function Crivo() {
       .update({ cep_padrao: limpo ? formatarCep(limpo) : null, atualizado_em: new Date().toISOString() })
       .eq('id', 1)
     setSalvandoCepPadrao(false)
-    setMsgCepPadrao(error ? 'Erro: ' + error.message : 'Salvo!')
+    setMsgCepPadrao(error ? 'Erro: ' + error.message : 'Salvo.')
   }
 
   // Com ~50 logins mandando CNPJ pro mesmo chat, cada operador só deve ver
@@ -221,18 +237,16 @@ export default function Crivo() {
   // líder continua vendo todo mundo (visão de acompanhamento geral).
   const load = useCallback(async () => {
     if (!profile?.id) return
-    let query = supabase
-      .from('crivo_consultas')
-      .select('*, profiles(name)')
-      .order('created_at', { ascending: false })
-      .limit(50)
+    let query = supabase.from('crivo_consultas').select('*, profiles(name)').order('created_at', { ascending: false }).limit(50)
     if (visaoSimples) query = query.eq('solicitado_por', profile.id)
     const { data } = await query
     setConsultas((data || []).slice().reverse())
     setLoading(false)
   }, [profile?.id, visaoSimples])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => {
+    load()
+  }, [load])
 
   useEffect(() => {
     // Debounce: cada consulta passa por várias mudanças seguidas (trava
@@ -252,7 +266,11 @@ export default function Crivo() {
     // além do tempo real, atualiza sozinho a cada 4s (funciona mesmo sem
     // o "replication" do Supabase ligado pra essa tabela).
     const intervalo = setInterval(load, 4000)
-    return () => { supabase.removeChannel(canal); clearInterval(intervalo); clearTimeout(debounceId) }
+    return () => {
+      supabase.removeChannel(canal)
+      clearInterval(intervalo)
+      clearTimeout(debounceId)
+    }
   }, [load])
 
   useEffect(() => {
@@ -263,7 +281,7 @@ export default function Crivo() {
     e?.preventDefault()
     setMsg('')
     const limpo = soCnpjDigitos(cnpj)
-    if (limpo.length !== 14) return setMsg('Digita um CNPJ válido (14 números).')
+    if (limpo.length !== 14) return setMsg('Digite um CNPJ válido (14 números).')
 
     // Se esse CNPJ já foi consultado antes E já tem uma resposta final
     // (aprovado/reprovado/CNPJ errado), não manda de novo pra fila — além
@@ -274,16 +292,18 @@ export default function Crivo() {
     const jaRespondida = [...consultas].reverse().find((c) => soCnpjDigitos(c.cnpj) === limpo && veredito(c))
     if (jaRespondida) {
       const resultado = veredito(jaRespondida)
-      return setMsg(`Esse CNPJ já foi consultado e respondeu: ${RESULT_LABEL[resultado]} (em ${new Date(jaRespondida.created_at).toLocaleString('pt-BR')}).`)
+      return setMsg(
+        `Esse CNPJ já foi consultado e respondeu: ${RESULT_LABEL[resultado]} (em ${new Date(jaRespondida.created_at).toLocaleString('pt-BR')}).`
+      )
     }
 
     const ultima = consultas[consultas.length - 1]
     if (ultima && soCnpjDigitos(ultima.cnpj) === limpo) {
-      return setMsg('Esse CNPJ já foi o último consultado — espera terminar antes de mandar de novo.')
+      return setMsg('Esse CNPJ já foi o último consultado. Aguarde terminar antes de enviar de novo.')
     }
 
     const cepLimpo = soCepDigitos(cep)
-    if (cepLimpo && cepLimpo.length !== 8) return setMsg('CEP inválido (8 números) — ou deixa em branco.')
+    if (cepLimpo && cepLimpo.length !== 8) return setMsg('CEP inválido (8 números). Corrija ou deixe em branco.')
 
     setEnviando(true)
     const { error } = await supabase.from('crivo_consultas').insert({
@@ -302,33 +322,30 @@ export default function Crivo() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Chat do Crivo" hint="Manda o CNPJ aqui embaixo — o Crivo consulta nos dois sistemas do TIM e responde nessa mesma tela" />
+      <p className="text-sm text-muted">Envie o CNPJ no chat abaixo. O Crivo consulta nos dois sistemas da TIM e responde nesta tela.</p>
 
       {segundosRestantes !== null && (
-        <div className={`card flex items-center gap-3 p-4 ${segundosRestantes <= 0 ? 'border-red-400 bg-red-50' : ''}`}>
+        <div className={`card flex items-center gap-3 p-4 ${segundosRestantes <= 0 ? 'border-bad-border bg-bad-bg' : ''}`}>
           {segundosRestantes > 0 ? (
             <p className="text-sm">
               <span className="font-semibold">Relogar as matrículas do Easy Vendas em:</span>{' '}
               <span className="font-mono text-base">{formatarTempo(segundosRestantes)}</span>
             </p>
           ) : (
-            <p className="text-sm font-semibold text-red-700">
-              ⏰ Hora de relogar as matrículas no Easy Vendas (a sessão cai sozinha de 1h em 1h)!
-            </p>
+            <p className="text-sm font-semibold text-bad-text">Hora de relogar as matrículas no Easy Vendas. A sessão cai a cada 1h.</p>
           )}
         </div>
       )}
 
       {!visaoSimples && (
-        <div className="card flex flex-col gap-2 p-4">
-          <p className="text-sm font-semibold">CEP padrão</p>
-          <p className="text-xs text-muted">
-            Usado automaticamente quando uma consulta não vier com um CEP específico — ajuda o Crivo a se recuperar
-            sozinho quando o formulário trava (campo de CNPJ fica cinza) e precisa de CEP de novo pra seguir.
+        <Secao titulo="CEP padrão">
+          <p className="mb-3 text-sm text-muted">
+            Usado quando a consulta vem sem CEP. Ajuda o Crivo a destravar o formulário (campo de CNPJ cinza) sozinho.
           </p>
-          <form onSubmit={salvarCepPadrao} className="flex items-center gap-3">
+          <form onSubmit={salvarCepPadrao} className="flex flex-wrap items-center gap-3">
             <input
               className="field-input w-32"
+              aria-label="CEP padrão"
               placeholder="00000-000"
               value={formatarCep(cepPadrao)}
               onChange={(e) => setCepPadrao(soCepDigitos(e.target.value))}
@@ -339,57 +356,67 @@ export default function Crivo() {
             </button>
             {msgCepPadrao && <span className="text-xs text-muted">{msgCepPadrao}</span>}
           </form>
-        </div>
+        </Secao>
       )}
 
-      <div className="card flex max-h-[520px] min-h-[300px] flex-col gap-4 overflow-y-auto p-5">
-        {loading && <p className="text-sm text-muted">Carregando…</p>}
-        {!loading && consultas.length === 0 && <p className="text-sm text-muted">Nenhuma consulta ainda — manda um CNPJ ali embaixo.</p>}
+      <Secao titulo="Chat do Crivo">
+        <div className="flex max-h-[520px] min-h-[300px] flex-col gap-4 overflow-y-auto">
+          {loading && <p className="text-sm text-muted">Carregando…</p>}
+          {!loading && consultas.length === 0 && (
+            <p className="text-sm text-muted">Nenhuma consulta ainda. Envie um CNPJ no campo abaixo.</p>
+          )}
 
-        {consultas.map((c) => (
-          <div key={c.id} className="flex flex-col gap-2">
-            <div className="flex flex-col items-end gap-0.5 self-end">
-              <div className="flex items-baseline gap-2 text-[11px] text-muted">
-                <span>{c.profiles?.name || 'Alguém'}</span>
-                <span>{new Date(c.created_at).toLocaleString('pt-BR')}</span>
+          {consultas.map((c) => (
+            <div key={c.id} className="flex flex-col gap-2">
+              <div className="flex flex-col items-end gap-0.5 self-end">
+                <div className="flex items-baseline gap-2 text-xs text-muted">
+                  <span>{c.profiles?.name || 'Alguém'}</span>
+                  <span>{new Date(c.created_at).toLocaleString('pt-BR')}</span>
+                </div>
+                <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-brand-600 px-3 py-2 text-sm font-medium text-white">
+                  {formatarCnpj(c.cnpj)}
+                  {c.cep && <div className="mt-0.5 text-xs font-normal text-white/80">CEP: {c.cep}</div>}
+                </div>
               </div>
-              <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-brand-600 px-3 py-2 text-sm font-medium text-white">
-                {formatarCnpj(c.cnpj)}
-                {c.cep && <div className="mt-0.5 text-xs font-normal text-white/80">CEP: {c.cep}</div>}
+
+              <div className="flex flex-col items-start gap-0.5 self-start">
+                <div className="text-xs text-muted">Crivo</div>
+                <div className="max-w-[85%] rounded-lg rounded-tl-sm border border-line bg-paper px-3 py-2 text-xs">
+                  {visaoSimples ? <RespostaCrivoSimples consulta={c} /> : <RespostaCrivoDetalhada consulta={c} />}
+                </div>
               </div>
             </div>
+          ))}
+          <div ref={fimRef} />
+        </div>
 
-            <div className="flex flex-col items-start gap-0.5 self-start">
-              <div className="text-[11px] text-muted">Crivo</div>
-              <div className="max-w-[85%] rounded-lg rounded-tl-sm border border-line bg-paper px-3 py-2 text-xs">
-                {visaoSimples ? <RespostaCrivoSimples consulta={c} /> : <RespostaCrivoDetalhada consulta={c} />}
-              </div>
-            </div>
-          </div>
-        ))}
-        <div ref={fimRef} />
-      </div>
+        <form onSubmit={consultar} className="mt-4 flex flex-wrap items-center gap-3 border-t border-divider pt-4">
+          <input
+            className="field-input min-w-[200px] flex-1"
+            aria-label="CNPJ"
+            placeholder="Digite ou cole o CNPJ (00.000.000/0000-00)"
+            value={formatarCnpj(cnpj)}
+            onChange={(e) => setCnpj(soCnpjDigitos(e.target.value).slice(0, 14))}
+          />
+          <input
+            className="field-input w-32"
+            aria-label="CEP (opcional)"
+            placeholder="CEP (opcional)"
+            value={formatarCep(cep)}
+            onChange={(e) => setCep(soCepDigitos(e.target.value))}
+          />
+          <button type="submit" className="btn-primary" disabled={enviando}>
+            {enviando ? 'Enviando…' : 'Enviar'}
+          </button>
+        </form>
+        <p className="mt-2 text-xs text-muted">CEP é opcional. Só ajuda o Crivo a achar a empresa mais rápido quando você já souber.</p>
 
-      <form onSubmit={consultar} className="flex items-center gap-3">
-        <input
-          className="field-input flex-1"
-          placeholder="Digita ou cola o CNPJ (00.000.000/0000-00)"
-          value={formatarCnpj(cnpj)}
-          onChange={(e) => setCnpj(soCnpjDigitos(e.target.value).slice(0, 14))}
-        />
-        <input
-          className="field-input w-32"
-          placeholder="CEP (opcional)"
-          value={formatarCep(cep)}
-          onChange={(e) => setCep(soCepDigitos(e.target.value))}
-        />
-        <button type="submit" className="btn-primary" disabled={enviando}>
-          {enviando ? 'Enviando…' : 'Enviar'}
-        </button>
-      </form>
-      <p className="text-xs text-muted">CEP é opcional — só ajuda o Crivo a achar a empresa mais rápido quando você já souber.</p>
-
-      {msg && <p className="text-sm font-medium text-red-600">{msg}</p>}
+        {msg && (
+          <p className="mt-2 text-sm font-medium text-bad-text" role="alert">
+            {msg}
+          </p>
+        )}
+      </Secao>
     </div>
   )
 }

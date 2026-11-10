@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
-import SectionHeading from '../../components/ui/SectionHeading'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { fetchReagendamentoCasos } from '../../lib/api'
@@ -35,14 +34,14 @@ export default function Reagendamentos() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Reagendamentos" hint="Quantos cada BKO já enviou" />
+      <p className="text-sm text-muted">Quantos reagendamentos cada BKO já enviou.</p>
 
       {!carregando && porPessoa.length > 0 && (
         <div className="flex flex-wrap gap-3">
           {porPessoa.map(([nome, qtd]) => (
             <div key={nome} className="card px-4 py-2 text-sm">
               <span className="font-medium text-ink">{nome}</span>{' '}
-              <span className="text-muted">— {qtd} no total</span>
+              <span className="text-muted">({qtd} no total)</span>
             </div>
           ))}
         </div>

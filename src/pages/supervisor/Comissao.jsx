@@ -18,7 +18,7 @@ const COLUMNS = [
 ]
 
 // Mostra quantos casos de cada tipo cada BKO já fez (contestação/
-// reagendamento/fatura — contagem histórica, não depende mais das telas
+// reagendamento/fatura, contagem histórica, não depende mais das telas
 // removidas em 05/11/2026) junto com a comissão, que continua 100% manual
 // (clica no valor pra ajustar).
 export default function Comissao() {
@@ -58,7 +58,7 @@ export default function Comissao() {
       </div>
 
       <div className="mt-9 flex flex-col gap-4">
-        <SectionHeading title="Comissão por BKO" hint="Contestações/Reagendamentos são só contagem — clique no valor de Faturas ou Comissão para ajustar" />
+        <SectionHeading title="Comissão por BKO" hint="Contestações e reagendamentos são só contagem. Clique no valor de faturas ou comissão pra ajustar." />
         {loading ? (
           <p className="text-sm text-muted">Carregando…</p>
         ) : (

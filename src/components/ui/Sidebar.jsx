@@ -1,17 +1,22 @@
 import { NavLink } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
+import Logo from './Logo'
 
-export default function Sidebar({ title, items }) {
-  const { profile, signOut } = useAuth()
+// className: o AppShell esconde a sidebar no celular e reaproveita ela
+// como gaveta (10/11/2026).
+export default function Sidebar({ title, items, className = '' }) {
+  const { signOut } = useAuth()
 
   return (
-    <aside className="sidebar">
-      <div className="flex items-center gap-2 px-4 py-4">
-        <span className="h-2 w-2 rounded-sm bg-brand-500" />
-        <span className="text-sm font-semibold text-white">{title}</span>
+    <aside className={`sidebar ${className}`}>
+      <div className="flex h-14 items-center gap-3 border-b border-sidebar-border px-4">
+        <Logo />
+        <span className="h-6 w-px bg-sidebar-border" />
+        <span className="truncate text-sm font-medium text-sidebar-text">{title}</span>
       </div>
 
-      <nav className="flex flex-1 flex-col gap-0.5 px-2 py-2">
+      <nav className="flex flex-1 flex-col gap-0.5 px-2 py-3">
         {items.map((item) => (
           <NavLink
             key={item.to}
@@ -25,9 +30,9 @@ export default function Sidebar({ title, items }) {
         ))}
       </nav>
 
-      <div className="border-t border-sidebar-border px-4 py-3">
-        <div className="mb-2 truncate text-xs text-sidebar-textMuted">{profile?.name}</div>
+      <div className="border-t border-sidebar-border px-2 py-3">
         <button type="button" onClick={signOut} className="sidebar-link w-full justify-start">
+          <LogOut size={16} strokeWidth={2} />
           Sair
         </button>
       </div>

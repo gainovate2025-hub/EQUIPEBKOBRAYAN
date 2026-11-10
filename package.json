@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "seed": "node scripts/seed.mjs",
     "seed:baia": "node scripts/seed_baia.mjs",
+    "seed:op": "node scripts/seed_op_novas.mjs",
+    "senha:op": "node scripts/senha_facil_op.mjs",
     "reset:baia": "node scripts/reset_senhas_baia.mjs",
     "reset:op": "node scripts/reset_senhas_op.mjs"
   },

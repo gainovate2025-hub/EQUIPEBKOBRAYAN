@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { useAuth } from '../../lib/AuthContext'
-import SectionHeading from '../../components/ui/SectionHeading'
+import Secao from '../../components/ui/Secao'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { registrarComprovanteFatura } from '../../lib/api'
 
-// Comprovantes de fatura enviada (05/11/2026) — sobe o print/foto do que
+// Comprovantes de fatura enviada (05/11/2026): sobe o print/foto do que
 // mandou hoje, aparece no relatório do dia do supervisor, e já soma +1
 // fatura e +R$2 na comissão na hora (migration_044 + migration_047).
 // Zera sozinho todo mês.
@@ -38,11 +38,13 @@ export default function BkoComprovantes() {
     setCarregando(false)
   }
 
-  useEffect(() => { if (user) carregar() }, [user])
+  useEffect(() => {
+    if (user) carregar()
+  }, [user])
 
   async function enviar(e) {
     e.preventDefault()
-    if (!arquivo) return showToast('Escolhe um arquivo primeiro.', 'error')
+    if (!arquivo) return showToast('Escolha um arquivo primeiro.', 'error')
     setEnviando(true)
     try {
       const extensao = arquivo.name.split('.').pop()
@@ -56,7 +58,7 @@ export default function BkoComprovantes() {
       setArquivo(null)
       setObservacao('')
       e.target.reset()
-      showToast('Comprovante enviado — já contou +R$2 na comissão.')
+      showToast('Comprovante enviado. Já contou +R$2 na comissão.')
       carregar()
     } catch (err) {
       showToast(err.message || 'Falha ao enviar o comprovante.', 'error')
@@ -67,31 +69,33 @@ export default function BkoComprovantes() {
 
   return (
     <div className="flex flex-col gap-6">
-      <SectionHeading title="Comprovantes" hint="Sobe o print/foto de cada fatura que você mandou hoje" />
+      <p className="text-sm text-muted">Envie o print ou a foto de cada fatura que você mandou hoje.</p>
 
-      <form onSubmit={enviar} className="card flex flex-col gap-3 p-5">
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-          Arquivo (foto ou print)
-          <input
-            type="file"
-            accept="image/*,application/pdf"
-            className="field-input"
-            onChange={(e) => setArquivo(e.target.files?.[0] || null)}
-          />
-        </label>
-        <label className="flex flex-col gap-1 text-xs font-medium text-muted">
-          Observação (opcional)
-          <input
-            className="field-input"
-            value={observacao}
-            onChange={(e) => setObservacao(e.target.value)}
-            placeholder="ex: CUST CODE, nome do cliente…"
-          />
-        </label>
-        <button type="submit" className="btn-primary self-start" disabled={enviando}>
-          {enviando ? 'Enviando…' : 'Enviar comprovante'}
-        </button>
-      </form>
+      <Secao titulo="Enviar comprovante">
+        <form onSubmit={enviar} className="flex flex-col gap-3">
+          <label className="tim-label">
+            Arquivo (foto ou print)
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              className="field-input"
+              onChange={(e) => setArquivo(e.target.files?.[0] || null)}
+            />
+          </label>
+          <label className="tim-label">
+            Observação (opcional)
+            <input
+              className="field-input"
+              value={observacao}
+              onChange={(e) => setObservacao(e.target.value)}
+              placeholder="ex: CUST CODE, nome do cliente…"
+            />
+          </label>
+          <button type="submit" className="btn-primary self-start" disabled={enviando}>
+            {enviando ? 'Enviando…' : 'Enviar comprovante'}
+          </button>
+        </form>
+      </Secao>
 
       <div className="flex flex-col gap-3">
         <p className="text-xs font-medium text-muted">Enviados hoje ({meus.length})</p>
@@ -110,7 +114,12 @@ export default function BkoComprovantes() {
                 className="card flex flex-col gap-1 p-3 text-xs hover:border-brand-300"
               >
                 <span className="truncate font-medium text-ink">{c.observacao || 'Comprovante'}</span>
-                <span className="text-muted">{new Date(c.enviado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                <span className="text-muted">
+                  {new Date(c.enviado_em).toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </span>
               </a>
             ))}
           </div>

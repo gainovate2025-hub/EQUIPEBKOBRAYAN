@@ -7,7 +7,7 @@ export default function StatCard({ label, value, sub, pct, showStatus = false, t
       <div className="flex items-center justify-between gap-2">
         <span className="stat-label">{label}</span>
         {Icon && (
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-900/40 text-brand-300">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brand-50 text-brand-600">
             <Icon size={14} strokeWidth={2} />
           </span>
         )}

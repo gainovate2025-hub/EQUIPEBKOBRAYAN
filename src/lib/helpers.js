@@ -4,20 +4,20 @@ export function pct(done, goal) {
 }
 
 export function statusOf(pctValue) {
-  if (pctValue >= 100) return { emoji: '🟢', label: 'Meta atingida', tone: 'good' }
-  if (pctValue >= 70) return { emoji: '🟡', label: 'Próximo da meta', tone: 'warn' }
-  return { emoji: '🔴', label: 'Abaixo da meta', tone: 'bad' }
+  if (pctValue >= 100) return { label: 'Meta atingida', tone: 'good' }
+  if (pctValue >= 70) return { label: 'Próximo da meta', tone: 'warn' }
+  return { label: 'Abaixo da meta', tone: 'bad' }
 }
 
 export const fmtMoney = (v) =>
   (v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 
 export const fmtDate = (iso) => {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
 export const fmtDateTime = (iso) => {
-  if (!iso) return '—'
+  if (!iso) return '-'
   return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }

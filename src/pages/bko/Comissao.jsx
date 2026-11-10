@@ -3,7 +3,7 @@ import { HeroCardWhite } from '../../components/ui/HeroCard'
 import StatCard from '../../components/ui/StatCard'
 import { fmtMoney } from '../../lib/helpers'
 
-// Simplificado em 05/11/2026 — comissão deixou de somar sozinha (telas de
+// Simplificado em 05/11/2026: comissão deixou de somar sozinha (telas de
 // registro diário removidas); mostra as contagens (contestação/
 // reagendamento/fatura) e a comissão atual, ajustada manualmente pelo
 // supervisor.

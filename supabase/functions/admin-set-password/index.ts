@@ -84,15 +84,21 @@ Deno.serve(async (req) => {
       return resposta({ error: 'Usuário inválido.' }, 400)
     }
 
-    // líder só pode trocar a senha de alguém do próprio time
+    // Líder só pode trocar a senha de alguém do próprio time, e nunca de
+    // um supervisor ou de outro líder (10/11/2026). Antes um líder podia
+    // trocar a senha do supervisor se ele estivesse no mesmo time e assim
+    // entrar na conta dele.
     if (callerProfile.role === 'lider') {
       const { data: targetProfile } = await admin
         .from('profiles')
-        .select('team_id')
+        .select('team_id, role')
         .eq('id', userId)
         .single()
       if (!targetProfile || targetProfile.team_id !== callerProfile.team_id) {
         return resposta({ error: 'Você só pode trocar a senha de alguém do seu time.' }, 403)
+      }
+      if (targetProfile.role === 'supervisor' || targetProfile.role === 'lider') {
+        return resposta({ error: 'Líder não pode trocar a senha de supervisor ou de outro líder.' }, 403)
       }
     }
 

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Pencil } from 'lucide-react'
 
 export default function InlineEditableNumber({ value, format, onCommit, step = '1' }) {
   const [editing, setEditing] = useState(false)
@@ -25,8 +26,7 @@ export default function InlineEditableNumber({ value, format, onCommit, step = '
         type="number"
         step={step}
         value={draft}
-        className="field-input"
-        style={{ width: 110, padding: '6px 10px', textAlign: 'right' }}
+        className="field-input w-[110px] px-2.5 py-1.5 text-right"
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === 'Enter') commit(); if (e.key === 'Escape') setEditing(false) }}
@@ -39,9 +39,9 @@ export default function InlineEditableNumber({ value, format, onCommit, step = '
       type="button"
       className="rounded px-1.5 py-0.5 text-right hover:bg-brand-50 hover:text-brand-700"
       onClick={() => { setDraft(value); setEditing(true) }}
-      title="Clique para editar"
+      title="Clique pra editar"
     >
-      {format ? format(value) : value} <span className="text-muted">✎</span>
+      {format ? format(value) : value} <Pencil size={12} className="inline text-muted" />
     </button>
   )
 }

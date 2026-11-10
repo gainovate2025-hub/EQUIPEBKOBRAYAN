@@ -82,7 +82,6 @@ export default function App() {
         }
       >
         <Route index element={<OperacaoConsultaUnificada />} />
-        <Route path="venda" element={<OperacaoVendaCnpj />} />
         <Route path="configuracoes" element={<OperacaoConfiguracoes />} />
       </Route>
 

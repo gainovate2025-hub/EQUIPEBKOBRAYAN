@@ -1,7 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Wallet } from 'lucide-react'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
-import { HeroCardRed } from '../../components/ui/HeroCard'
 import StatCard from '../../components/ui/StatCard'
 import SectionHeading from '../../components/ui/SectionHeading'
 import DataTable from '../../components/ui/DataTable'
@@ -11,10 +9,10 @@ import { useToast } from '../../lib/useToast'
 import { useAuth } from '../../lib/AuthContext'
 import { fmtMoney, pct } from '../../lib/helpers'
 
-// Dashboard do supervisor — simplificado em 05/11/2026 (Brayan pediu pra
+// Dashboard do supervisor, simplificado em 05/11/2026 (Brayan pediu pra
 // tirar aprovação/contestação/meta de contestação do site). O que ainda
 // existe de contestação é só a CONTAGEM histórica (contestations_done),
-// mostrada ao lado de reagendamentos e comissão — sem fila de aprovação,
+// mostrada ao lado de reagendamentos e comissão, sem fila de aprovação,
 // sem meta, sem pendente/recusada (isso dependia da tabela `contestacoes`,
 // removida).
 export default function SupervisorDashboard() {
@@ -107,37 +105,40 @@ export default function SupervisorDashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="grid flex-1 grid-cols-2 gap-4 sm:grid-cols-3">
-          <StatCard label="Contestações (total)" value={totals.contest} />
-          <StatCard label="Faturas (total)" value={totals.faturas} />
-          <StatCard
-            label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
-            value={fmtMoney(totals.commission)}
-            icon={Wallet}
-          />
-        </div>
-        <HeroCardRed label="Meta de reagendamentos" value={totals.reschedGoal} sub={`${totals.resched} / ${totals.reschedGoal} · ${pctReagendamentos}%`} pct={pctReagendamentos} />
+      {/* Reagendamentos aparece uma vez só (10/11/2026): antes tinha um
+          cartão de meta e outro de realizados mostrando a mesma coisa. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Reagendamentos"
+          value={`${totals.resched} / ${totals.reschedGoal}`}
+          sub={`${pctReagendamentos}% da meta`}
+          pct={pctReagendamentos}
+          showStatus
+        />
+        <StatCard label="Contestações (total)" value={totals.contest} />
+        <StatCard label="Faturas (total)" value={totals.faturas} />
+        <StatCard
+          label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
+          value={fmtMoney(totals.commission)}
+        />
       </div>
 
-      <StatCard label="Reagendamentos" value={totals.resched} sub={`Meta: ${totals.reschedGoal}`} pct={pctReagendamentos} showStatus />
-
       <div className="flex flex-col gap-3">
-        <SectionHeading title="Resultado da equipe" hint="Comissão · Contestações · Reagendamento · Faturas" />
+        <SectionHeading title="Resultado da equipe" />
 
         <div className="flex flex-wrap items-center gap-2">
           <input
-            className="field-input"
-            style={{ maxWidth: 220 }}
+            className="field-input max-w-[220px]"
+            aria-label="Buscar BKO"
             placeholder="Buscar BKO…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <select className="field-input" style={{ maxWidth: 190 }} value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
+          <select className="field-input max-w-[190px]" aria-label="Ordenar por" value={sortKey} onChange={(e) => setSortKey(e.target.value)}>
             {SORTS.map((s) => <option key={s.key} value={s.key}>Ordenar por {s.label}</option>)}
           </select>
           <button type="button" className="btn-ghost" onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}>
-            {sortDir === 'asc' ? 'Crescente ↑' : 'Decrescente ↓'}
+            {sortDir === 'asc' ? 'Crescente' : 'Decrescente'}
           </button>
         </div>
 

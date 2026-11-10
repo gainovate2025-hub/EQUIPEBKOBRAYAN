@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
-import SectionHeading from '../../components/ui/SectionHeading'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 
-// Relatório do dia dos comprovantes de fatura enviados (05/11/2026) — zera
+// Relatório do dia dos comprovantes de fatura enviados (05/11/2026). Zera
 // sozinho todo mês (cron em migration_044); o botão aqui é só pra resetar
 // na mão se precisar antes disso.
 
@@ -61,8 +60,8 @@ export default function SupervisorComprovantes() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <SectionHeading title="Comprovantes — relatório do dia" hint="Zera sozinho todo dia 1 do mês" />
-        <button type="button" className="btn-ghost btn-sm" onClick={resetarMes} disabled={resetando}>
+        <p className="text-sm text-muted">Comprovantes enviados hoje. A contagem zera sozinha todo dia 1 do mês.</p>
+        <button type="button" className="btn-outline-danger btn-sm" onClick={resetarMes} disabled={resetando}>
           {resetando ? 'Resetando…' : 'Resetar mês agora'}
         </button>
       </div>
@@ -72,7 +71,7 @@ export default function SupervisorComprovantes() {
           {porPessoa.map(([nome, qtd]) => (
             <div key={nome} className="card px-4 py-2 text-sm">
               <span className="font-medium text-ink">{nome}</span>{' '}
-              <span className="text-muted">— {qtd} hoje</span>
+              <span className="text-muted">({qtd} hoje)</span>
             </div>
           ))}
         </div>
@@ -83,25 +82,25 @@ export default function SupervisorComprovantes() {
       ) : linhas.length === 0 ? (
         <p className="text-sm text-muted">Nenhum comprovante enviado hoje ainda.</p>
       ) : (
-        <div className="card overflow-hidden p-0">
-          <table className="w-full text-sm">
+        <div className="team-table">
+          <table className="tim-table">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs font-semibold text-muted">
-                <th className="px-4 py-2">Hora</th>
-                <th className="px-4 py-2">Quem</th>
-                <th className="px-4 py-2">Observação</th>
-                <th className="px-4 py-2">Arquivo</th>
+              <tr>
+                <th>Hora</th>
+                <th>Quem</th>
+                <th>Observação</th>
+                <th>Arquivo</th>
               </tr>
             </thead>
             <tbody>
               {linhas.map((l) => (
-                <tr key={l.id} className="border-b border-line last:border-0">
-                  <td className="px-4 py-2 text-muted">
+                <tr key={l.id}>
+                  <td className="text-muted">
                     {new Date(l.enviado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                   </td>
-                  <td className="px-4 py-2 font-medium text-ink">{l.profiles?.name || 'Alguém'}</td>
-                  <td className="px-4 py-2 text-muted">{l.observacao || '—'}</td>
-                  <td className="px-4 py-2">
+                  <td className="font-medium">{l.profiles?.name || 'Alguém'}</td>
+                  <td className="text-muted">{l.observacao || '-'}</td>
+                  <td>
                     <a href={l.arquivo_url} target="_blank" rel="noreferrer" className="font-medium text-brand-600">
                       Ver
                     </a>

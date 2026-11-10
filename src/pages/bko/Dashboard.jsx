@@ -1,9 +1,8 @@
 import { useBkoData } from '../../lib/BkoDataContext'
-import { HeroCardWhite } from '../../components/ui/HeroCard'
 import StatCard from '../../components/ui/StatCard'
 import { fmtMoney, pct } from '../../lib/helpers'
 
-// Simplificado em 05/11/2026 — sem meta/pendência de contestação (tirado
+// Simplificado em 05/11/2026: sem meta/pendência de contestação (tirado
 // do site). Mostra só as contagens (contestação/reagendamento/fatura) e a
 // comissão atual, sem fila de aprovação.
 export default function BkoDashboard() {
@@ -17,11 +16,7 @@ export default function BkoDashboard() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-wrap gap-4">
-        <HeroCardWhite label="Comissão" value={fmtMoney(performance.commission)} sub="Comissão atual" />
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard label="Comissão" value={fmtMoney(performance.commission)} />
         <StatCard label="Contestações" value={performance.contestations_done ?? 0} />
         <StatCard

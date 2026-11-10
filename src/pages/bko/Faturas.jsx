@@ -1,4 +1,3 @@
-import SectionHeading from '../../components/ui/SectionHeading'
 import PlanilhaLista from '../../components/planilha/PlanilhaLista'
 
 const STATUS_OPCOES = [
@@ -13,7 +12,7 @@ const STATUS_OPCOES = [
 export default function BkoFaturas() {
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Faturas" hint="Clientes com fatura em aberto — planilha Controle de fatura" />
+      <p className="text-sm text-muted">Clientes com fatura em aberto (planilha Controle de fatura).</p>
       <PlanilhaLista
         modulo="fatura"
         filtroNomes={null}

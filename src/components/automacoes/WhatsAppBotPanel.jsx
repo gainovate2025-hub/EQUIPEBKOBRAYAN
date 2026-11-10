@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
-// Fala com o whatsapp-bot/qr-server.js (roda separado, no Render — veja
+// Fala com o whatsapp-bot/qr-server.js (roda separado, no Render; veja
 // whatsapp-bot/README ou peça pro Brayan). Sem essa URL configurada, o
 // painel avisa em vez de tentar chamar um servidor que não existe.
 const QR_SERVER_URL = import.meta.env.VITE_WHATSAPP_QR_URL
@@ -78,7 +78,7 @@ export default function WhatsAppBotPanel() {
       try {
         const resp = await chamar(`/status?numero=${numeroLigado}`)
         if (resp.status === 'desconectado' || resp.status === 'sem_sessao') {
-          resetarPraFormulario('A conexão caiu — tenta ligar de novo.')
+          resetarPraFormulario('A conexão caiu. Tente ligar de novo.')
           return
         }
         setStatus(resp.status)
@@ -94,7 +94,7 @@ export default function WhatsAppBotPanel() {
     e.preventDefault()
     setErro('')
     const limpo = soDigitos(numero)
-    if (limpo.length < 10) return setErro('Digita o número com DDI + DDD (ex: 55 11 999998888).')
+    if (limpo.length < 10) return setErro('Digite o número com DDI + DDD (ex: 55 11 999998888).')
 
     setCarregando(true)
     try {
@@ -128,8 +128,8 @@ export default function WhatsAppBotPanel() {
 
   if (!QR_SERVER_URL) {
     return (
-      <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs text-amber-700">
-        Essa tela ainda não foi ligada a um servidor — falta configurar <code>VITE_WHATSAPP_QR_URL</code> (o endereço do
+      <p className="mt-4 rounded-lg border border-warn-border bg-warn-bg p-3 text-xs text-warn-text">
+        Essa tela ainda não foi ligada a um servidor. Falta configurar <code>VITE_WHATSAPP_QR_URL</code> (o endereço do
         whatsapp-bot/qr-server.js publicado, ex: no Render).
       </p>
     )
@@ -141,6 +141,7 @@ export default function WhatsAppBotPanel() {
         <form onSubmit={ligar} className="flex items-center gap-2">
           <input
             className="field-input flex-1"
+            aria-label="Número com DDI"
             placeholder="Número com DDI (ex: 5511999998888)"
             value={numero}
             onChange={(e) => setNumero(soDigitos(e.target.value))}
@@ -162,8 +163,8 @@ export default function WhatsAppBotPanel() {
       )}
 
       {status === 'conectado' && (
-        <div className="flex items-center justify-between rounded-lg bg-green-50 p-3">
-          <span className="text-sm font-medium text-green-700">✅ Conectado ao número {numeroAtivo}</span>
+        <div className="flex items-center justify-between rounded-lg border border-good-border bg-good-bg p-3">
+          <span className="text-sm font-medium text-good-text">Conectado ao número {numeroAtivo}</span>
           <button type="button" className="btn-ghost" onClick={desligar} disabled={carregando}>
             {carregando ? 'Desligando…' : 'Desligar'}
           </button>
@@ -171,10 +172,10 @@ export default function WhatsAppBotPanel() {
       )}
 
       {!['sem_sessao', 'conectando', 'aguardando_qr', 'conectado'].includes(status) && (
-        <p className="text-xs text-muted">Algo travou aqui — feche e abra essa janela de novo.</p>
+        <p className="text-xs text-muted">Algo travou aqui. Feche e abra essa janela de novo.</p>
       )}
 
-      {erro && <p className="text-sm font-medium text-red-600">{erro}</p>}
+      {erro && <p className="text-sm font-medium text-bad-text">{erro}</p>}
     </div>
   )
 }

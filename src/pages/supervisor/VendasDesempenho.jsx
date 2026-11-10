@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
-import SectionHeading from '../../components/ui/SectionHeading'
 
-// RASCUNHO (26/10/2026) — quantas fichas (vendas_feitas) cada operador
-// mandou e de quais UFs, pra o supervisor acompanhar desempenho.
+// Quantas fichas (vendas feitas) cada operador mandou e de quais UFs, pra
+// o supervisor acompanhar o desempenho (desde 26/10/2026).
 
 export default function VendasDesempenho() {
   const [linhas, setLinhas] = useState([])
@@ -32,7 +31,7 @@ export default function VendasDesempenho() {
     }
     const entrada = porOperador.get(chave)
     entrada.total += 1
-    const uf = l.uf || '—'
+    const uf = l.uf || 'sem UF'
     entrada.ufs.set(uf, (entrada.ufs.get(uf) || 0) + 1)
   }
 
@@ -40,26 +39,26 @@ export default function VendasDesempenho() {
 
   return (
     <div className="flex flex-col gap-4">
-      <SectionHeading title="Desempenho — Vendas CNPJ" hint="Quantas fichas cada operador subiu, e de quais UFs" />
+      <p className="text-sm text-muted">Vendas CNPJ por operador: quantas fichas cada um enviou e de quais UFs.</p>
 
       {linhasOrdenadas.length === 0 ? (
         <p className="text-sm text-muted">Nenhuma venda registrada ainda.</p>
       ) : (
-        <div className="card overflow-hidden p-0">
-          <table className="w-full text-sm">
+        <div className="team-table">
+          <table className="tim-table">
             <thead>
-              <tr className="border-b border-line bg-paper text-left text-xs font-semibold text-muted">
-                <th className="px-4 py-2">Operador</th>
-                <th className="px-4 py-2">Total de fichas</th>
-                <th className="px-4 py-2">Por UF</th>
+              <tr>
+                <th>Operador</th>
+                <th>Total de fichas</th>
+                <th>Por UF</th>
               </tr>
             </thead>
             <tbody>
               {linhasOrdenadas.map((op, i) => (
-                <tr key={i} className="border-b border-line last:border-0">
-                  <td className="px-4 py-2 font-medium text-ink">{op.nome}</td>
-                  <td className="px-4 py-2">{op.total}</td>
-                  <td className="px-4 py-2 text-muted">
+                <tr key={i}>
+                  <td className="font-medium">{op.nome}</td>
+                  <td>{op.total}</td>
+                  <td className="text-muted">
                     {[...op.ufs.entries()]
                       .sort((a, b) => b[1] - a[1])
                       .map(([uf, qtd]) => `${uf}: ${qtd}`)

@@ -112,6 +112,17 @@ async function escreverIntervalo(token, spreadsheetId, intervalo, valor) {
   if (!resp.ok) throw new Error(`Sheets API ${resp.status}: ${await resp.text()}`)
 }
 
+// Mesmo jeito do site (src/lib/api.js): aceita o link inteiro ou só o ID.
+function extrairSpreadsheetId(urlOuId) {
+  const texto = (urlOuId || '').trim()
+  const match = texto.match(/\/d\/([a-zA-Z0-9-_]+)/)
+  return match ? match[1] : texto
+}
+
+// Papéis que usam as telas ligadas à planilha (Faturas do BKO e a
+// configuração do supervisor). Operação e cadastro não usam.
+const PAPEIS_PERMITIDOS = ['supervisor', 'lider', 'bko']
+
 async function listarAbas(token, spreadsheetId) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`
   const resp = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
@@ -129,6 +140,7 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization') ?? ''
     const supabaseUrl = Deno.env.get('SUPABASE_URL')
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY')
+    const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
     // Só usuário autenticado no site pode chamar essa função.
     const callerClient = createClient(supabaseUrl, anonKey, {
@@ -137,6 +149,20 @@ Deno.serve(async (req) => {
     const { data: { user }, error: userError } = await callerClient.auth.getUser()
     if (userError || !user) {
       return resposta({ error: 'Não autenticado.' }, 401)
+    }
+
+    // Confere o papel de quem chama (10/11/2026). Antes qualquer conta
+    // logada (até operação/cadastro) podia ler e escrever em QUALQUER
+    // planilha que a conta de serviço do Google tivesse acesso, mandando
+    // o spreadsheetId que quisesse.
+    const admin = createClient(supabaseUrl, serviceKey)
+    const { data: perfil } = await admin
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    if (!perfil || !PAPEIS_PERMITIDOS.includes(perfil.role)) {
+      return resposta({ error: 'Seu usuário não tem acesso à planilha.' }, 403)
     }
 
     const contaServicoTexto = Deno.env.get('GOOGLE_SERVICE_ACCOUNT_JSON')
@@ -149,9 +175,31 @@ Deno.serve(async (req) => {
     const { action, intervalo, valor, spreadsheetId } = await req.json()
     const idPlanilha = spreadsheetId || SPREADSHEET_ID_PADRAO
 
+    // Listar abas é usado só na tela de Configurações do supervisor, ANTES
+    // de salvar a planilha nova (pra escolher a aba). Por isso aceita
+    // qualquer planilha, mas só pro supervisor.
     if (action === 'listar_abas') {
+      if (perfil.role !== 'supervisor') {
+        return resposta({ error: 'Só o supervisor pode configurar a planilha.' }, 403)
+      }
       const abas = await listarAbas(token, idPlanilha)
       return resposta({ abas })
+    }
+
+    // Ler/escrever: só na planilha + aba que o supervisor configurou em
+    // planilha_modulos_config (sheet_url em branco = planilha padrão).
+    if (action === 'ler' || action === 'escrever') {
+      const { data: modulos, error: erroModulos } = await admin
+        .from('planilha_modulos_config')
+        .select('aba_nome, sheet_url')
+      if (erroModulos) return resposta({ error: erroModulos.message }, 500)
+      const permitido = (modulos || []).some((m) => {
+        const idDoModulo = extrairSpreadsheetId(m.sheet_url) || SPREADSHEET_ID_PADRAO
+        return m.aba_nome && idDoModulo === idPlanilha && String(intervalo || '').startsWith(`${m.aba_nome}!`)
+      })
+      if (!permitido) {
+        return resposta({ error: 'Essa planilha ou aba não está configurada no painel.' }, 403)
+      }
     }
 
     if (action === 'ler') {

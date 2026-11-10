@@ -54,7 +54,7 @@ export default function ModuloConfigForm({ modulo }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!abaNome.trim()) return showToast('Preenche o nome da aba.', 'error')
+    if (!abaNome.trim()) return showToast('Preencha o nome da aba.', 'error')
     setSalvando(true)
     try {
       await updateModuloConfig(modulo, profile.id, {
@@ -126,7 +126,7 @@ export default function ModuloConfigForm({ modulo }) {
         </Field>
       </div>
       <p className="text-xs text-muted">
-        Se trocar de planilha, precisa compartilhar ela (Editor) com <strong>painel-bko-sheet@painel-bko.iam.gserviceaccount.com</strong> antes de buscar as abas. Deixando o link em branco, usa a planilha padrão "Controle de fatura".
+        Se trocar de planilha, compartilhe ela (Editor) com <strong>painel-bko-sheet@painel-bko.iam.gserviceaccount.com</strong> antes de buscar as abas. Com o link em branco, o painel usa a planilha padrão "Controle de fatura".
         Os nomes das colunas precisam bater exatamente com o cabeçalho (linha 1) da aba escolhida.
       </p>
       <button type="submit" className="btn-primary self-start" disabled={salvando}>
