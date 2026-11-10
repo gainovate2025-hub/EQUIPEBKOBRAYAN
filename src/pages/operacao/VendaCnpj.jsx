@@ -78,14 +78,59 @@ function montarEndereco(estabelecimento) {
   return partes.join(', ')
 }
 
-// Busca na API pública do cnpj.ws, mesma fonte que gera aquela tela que
-// a operação usava na mão. É de graça, sem chave, mas tem limite de
-// poucas consultas por minuto (uso individual, não em massa).
-async function buscarCnpj(cnpjLimpo) {
+// Busca os dados do CNPJ em DOIS serviços grátis ao mesmo tempo
+// (10/11/2026). O cnpj.ws vem completo (inclusive o CPF do dono do MEI
+// colado na razão social), mas só aceita 3 consultas por minuto por
+// internet, e com a equipe toda no mesmo escritório dava "Muitas consultas
+// seguidas" toda hora. O OpenCNPJ (api.opencnpj.org) não tem esse limite e
+// traz endereço, telefone e e-mail, só não traz o CPF. Usa o cnpj.ws
+// quando ele responde; senão o OpenCNPJ (aí o CPF é digitado na mão).
+// A BrasilAPI e a minhareceita foram testadas e descartadas: escondem
+// telefone, e-mail, rua e o CPF de MEI.
+async function buscarCnpjWs(cnpjLimpo) {
   const res = await fetch(`https://publica.cnpj.ws/cnpj/${cnpjLimpo}`)
-  if (res.status === 429) throw new Error('Muitas consultas seguidas. Aguarde um minuto e tente de novo.')
-  if (!res.ok) throw new Error('CNPJ não encontrado ou serviço fora do ar.')
+  if (res.status === 404) throw Object.assign(new Error('nao_encontrado'), { naoEncontrado: true })
+  if (!res.ok) throw new Error(`cnpj.ws ${res.status}`)
   return res.json()
+}
+
+// Converte a resposta do OpenCNPJ pro mesmo formato do cnpj.ws, que é o
+// que o resto da tela usa.
+async function buscarOpenCnpj(cnpjLimpo) {
+  const res = await fetch(`https://api.opencnpj.org/${cnpjLimpo}`)
+  if (res.status === 404) throw Object.assign(new Error('nao_encontrado'), { naoEncontrado: true })
+  if (!res.ok) throw new Error(`OpenCNPJ ${res.status}`)
+  const d = await res.json()
+  const tel = (d.telefones || []).find((t) => !t.is_fax) || {}
+  const principal = (d.cnaes || []).find((c) => c.is_principal) || {}
+  return {
+    razao_social: d.razao_social,
+    estabelecimento: {
+      cnpj: d.cnpj,
+      nome_fantasia: d.nome_fantasia,
+      tipo_logradouro: d.tipo_logradouro,
+      logradouro: d.logradouro,
+      numero: d.numero,
+      bairro: d.bairro,
+      cep: d.cep,
+      cidade: { nome: d.municipio },
+      estado: { sigla: d.uf },
+      ddd1: tel.ddd || '',
+      telefone1: tel.numero || '',
+      email: d.email || '',
+      situacao_cadastral: d.situacao_cadastral,
+      data_inicio_atividade: d.data_inicio_atividade,
+      atividade_principal: { descricao: principal.descricao || '' },
+    },
+  }
+}
+
+async function buscarCnpj(cnpjLimpo) {
+  const [ws, open] = await Promise.allSettled([buscarCnpjWs(cnpjLimpo), buscarOpenCnpj(cnpjLimpo)])
+  if (ws.status === 'fulfilled') return ws.value
+  if (open.status === 'fulfilled') return open.value
+  if (ws.reason?.naoEncontrado || open.reason?.naoEncontrado) throw new Error('CNPJ não encontrado na Receita.')
+  throw new Error('Os serviços de consulta de CNPJ não responderam. Aguarde um minuto e tente de novo.')
 }
 
 // Qualquer situação diferente de "Ativa" (Suspensa, Inapta, Baixada,
