@@ -1,4 +1,4 @@
-import { supabase, usernameToEmail } from './supabaseClient'
+import { supabase, usernameToEmail, encerrarSeSessaoMorta } from './supabaseClient'
 
 // ---------- leitura ----------
 
@@ -134,6 +134,10 @@ export async function consultarOperadora(numero) {
     }
   )
   const body = await res.json().catch(() => ({}))
+  if (res.status === 401) {
+    // Sessão encerrada no servidor (ex: senha trocada): manda pro login.
+    if (await encerrarSeSessaoMorta()) throw new Error('Sua sessão expirou. Entre de novo.')
+  }
   if (!res.ok) throw new Error(body.error || 'Falha ao consultar operadora.')
   // Reforço do lado do site (10/11/2026): o consultaoperadora.com.br às
   // vezes devolve o nome da empresa dona da operadora, ex: "Telefônica

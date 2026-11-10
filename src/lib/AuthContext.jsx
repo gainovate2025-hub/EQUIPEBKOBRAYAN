@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { supabase, supabaseConfigured, usernameToEmail } from './supabaseClient'
+import { supabase, supabaseConfigured, usernameToEmail, encerrarSeSessaoMorta } from './supabaseClient'
 
 const AuthContext = createContext(null)
 
@@ -43,7 +43,17 @@ export function AuthProvider({ children }) {
       await loadProfile(newSession?.user?.id)
     })
 
-    return () => sub.subscription.unsubscribe()
+    // Confere ao abrir o site, a cada 5 min e quando a pessoa volta pra aba.
+    encerrarSeSessaoMorta()
+    const intervalo = setInterval(encerrarSeSessaoMorta, 5 * 60 * 1000)
+    const aoVoltar = () => { if (document.visibilityState === 'visible') encerrarSeSessaoMorta() }
+    document.addEventListener('visibilitychange', aoVoltar)
+
+    return () => {
+      sub.subscription.unsubscribe()
+      clearInterval(intervalo)
+      document.removeEventListener('visibilitychange', aoVoltar)
+    }
   }, [loadProfile])
 
   async function signIn(username, password) {
