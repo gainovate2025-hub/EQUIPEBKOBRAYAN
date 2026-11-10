@@ -4,8 +4,8 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
-import { consultarOperadora } from '../../lib/api'
-import { soDigitos, formatarCnpj, formatarCpf } from '../../lib/documentos'
+import { consultarOperadora, escreverVendaNaPlanilha } from '../../lib/api'
+import { soDigitos, formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
 import Secao from '../../components/ui/Secao'
 import CampoTim from '../../components/ui/CampoTim'
 import { Campo } from '../../components/vendaCnpj/Campo'
@@ -162,6 +162,7 @@ function linhaVazia() {
     titularRazaoSocial: '',
     titularCnpj: '',
     tipoChip: 'fisico', // 'fisico' | 'esim'
+    operadoraOrigem: '', // só linha nova: de qual operadora o cliente vem
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -170,7 +171,72 @@ function linhaVazia() {
   }
 }
 
+// --- E-mail do cliente (pedido do Brayan em 10/11/2026) -----------------
+// Sem acento, sem espaço e só minúsculas (o sistema da TIM recusa).
+function limparEmail(v) {
+  return (v || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9@._+-]/g, '')
+}
+
+// E-mails de contador/provedor que aparecem no cadastro da Receita no
+// lugar do e-mail do cliente: não podem ser usados.
+const PALAVRAS_PROIBIDAS_EMAIL = ['maismei', 'provedor', 'contabil']
+function emailProibido(email) {
+  return PALAVRAS_PROIBIDAS_EMAIL.some((p) => (email || '').includes(p))
+}
+
+// E-mail que parece de corretora (seguros/imóveis): só AVISA, não
+// bloqueia, porque o próprio cliente pode ser corretor (10/11/2026).
+function emailDeCorretora(email) {
+  return /corretor|seguros/.test(email || '')
+}
+
+function emailValido(email) {
+  return /^[a-z0-9._+-]+@[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(email || '')
+}
+
+// Correção do que vem depois do @ (ex: gmial.com -> gmail.com). Compara
+// com os provedores mais comuns e sugere o mais parecido (até 2 letras
+// de diferença).
+const DOMINIOS_COMUNS = [
+  'gmail.com', 'hotmail.com', 'outlook.com', 'yahoo.com', 'yahoo.com.br', 'icloud.com',
+  'live.com', 'bol.com.br', 'uol.com.br', 'terra.com.br', 'msn.com', 'hotmail.com.br', 'outlook.com.br',
+]
+function distancia(a, b) {
+  const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)])
+  for (let j = 1; j <= b.length; j++) d[0][j] = j
+  for (let i = 1; i <= a.length; i++) {
+    for (let j = 1; j <= b.length; j++) {
+      d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+  }
+  return d[a.length][b.length]
+}
+function sugerirEmailCorrigido(email) {
+  const i = (email || '').lastIndexOf('@')
+  if (i < 1) return null
+  const local = email.slice(0, i)
+  const original = email.slice(i + 1)
+  if (!original || DOMINIOS_COMUNS.includes(original)) return null
+  const ajustado = original.replace(/\.con$/, '.com').replace(/\.co$/, '.com').replace(/\.combr$/, '.com.br').replace(/,/g, '.')
+  if (DOMINIOS_COMUNS.includes(ajustado)) return `${local}@${ajustado}`
+  let melhor = null
+  for (const d of DOMINIOS_COMUNS) {
+    const dist = Math.min(distancia(original, d), distancia(ajustado, d))
+    if (dist <= 2 && (!melhor || dist < melhor.dist)) melhor = { d, dist }
+  }
+  return melhor ? `${local}@${melhor.d}` : null
+}
+
+// Operadoras pra caixa "de qual operadora o cliente vem" (linha nova).
+const OPERADORAS_ORIGEM = ['VIVO', 'CLARO', 'TIM', 'OI', 'OUTRA']
+
 function linhaValida(l) {
+  // Linha nova não pede dado nenhum do titular (pedido do Brayan em
+  // 10/11/2026), só a operadora de onde o cliente vem.
+  if (l.tipo !== 'portabilidade') return Boolean(l.operadoraOrigem)
   const titularOk = l.titularTipo === 'pf'
     ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
     : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
@@ -218,6 +284,66 @@ function OperadoraDoCliente({ info }) {
   )
 }
 
+function StatusPlanilha({ planilha, tentarDeNovo }) {
+  if (!planilha) return null
+  if (planilha.enviando) {
+    return (
+      <p className="tim-info mb-3">
+        <Loader2 size={16} className="mt-0.5 shrink-0 animate-spin text-brand-500" /> Cadastrando na planilha de vendas…
+      </p>
+    )
+  }
+  if (planilha.ok) {
+    return (
+      <p className="mb-3 flex items-start gap-2 rounded-md border border-good-border bg-good-bg px-3 py-2 text-sm font-semibold text-good-text">
+        <Check size={16} className="mt-0.5 shrink-0" /> Cadastrada na planilha de vendas (aba {planilha.aba}, linha {planilha.linha}).
+      </p>
+    )
+  }
+  if (planilha.naoConfigurada) {
+    return (
+      <p className="tim-info mb-3">
+        <Info size={16} className="mt-0.5 shrink-0 text-brand-500" /> A planilha de vendas ainda não foi configurada (Configurações › Planilha de vendas). A venda ficou salva no painel.
+      </p>
+    )
+  }
+  return (
+    <div className="tim-alert mb-3 flex-wrap items-center">
+      <AlertTriangle size={16} className="shrink-0" />
+      <span className="flex-1">A venda foi salva, mas não entrou na planilha: {planilha.erro}</span>
+      <button type="button" className="btn-outline btn-sm" onClick={tentarDeNovo}>Tentar de novo</button>
+    </div>
+  )
+}
+
+function AvisoEmail({ email, faltando, corrigir }) {
+  if (!email && faltando) {
+    return <span className="text-xs font-bold text-bad-text">A consulta não trouxe e-mail do cliente. Pergunte e digite aqui.</span>
+  }
+  if (emailProibido(email)) {
+    return <span className="text-xs font-bold text-bad-text">E-mail de contador/provedor não pode. Use o e-mail do próprio cliente.</span>
+  }
+  if (emailDeCorretora(email)) {
+    return (
+      <span className="text-xs font-bold text-warn-text">
+        Parece e-mail de corretora. Confira se é mesmo o e-mail do cliente antes de salvar.
+      </span>
+    )
+  }
+  const sugestao = sugerirEmailCorrigido(email)
+  if (sugestao) {
+    return (
+      <span className="text-xs font-normal text-muted">
+        Você quis dizer <span className="font-semibold text-ink">{sugestao}</span>?{' '}
+        <button type="button" className="font-semibold text-brand-500 underline" onClick={() => corrigir(sugestao)}>
+          Corrigir
+        </button>
+      </span>
+    )
+  }
+  return null
+}
+
 function DadoEmpresa({ label, valor }) {
   if (!valor) return null
   return (
@@ -232,7 +358,7 @@ function DadoEmpresa({ label, valor }) {
 // tabela; no celular, as colunas empilham (cada campo com seu rótulo).
 const COLUNAS_LINHA = 'lg:grid-cols-[44px_1.1fr_1fr_1.3fr_0.9fr_1.3fr_1.5fr_52px]'
 
-function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover }) {
+function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, operadoraSugerida }) {
   function set(campo, valor) {
     atualizar(linha.id, { [campo]: valor })
   }
@@ -343,6 +469,31 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
         </>)}
       </div>
 
+      {!portabilidade && (
+        <div className="flex flex-col gap-1 lg:col-span-3">
+          <span className="text-xs font-semibold text-muted">De qual operadora o cliente vem</span>
+          <select
+            className="field-input"
+            aria-label="De qual operadora o cliente vem"
+            value={linha.operadoraOrigem || operadoraSugerida || ''}
+            onChange={(e) => set('operadoraOrigem', e.target.value)}
+            onFocus={() => { if (!linha.operadoraOrigem && operadoraSugerida) set('operadoraOrigem', operadoraSugerida) }}
+            required
+          >
+            <option value="">Selecione</option>
+            {OPERADORAS_ORIGEM.map((o) => (
+              <option key={o} value={o}>{o === 'OUTRA' ? 'Outra' : o}</option>
+            ))}
+          </select>
+          {(linha.operadoraOrigem || operadoraSugerida) === 'TIM' && (
+            <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+              <AlertTriangle size={12} /> O cliente já é TIM
+            </p>
+          )}
+        </div>
+      )}
+
+      {portabilidade && (<>
       <div className="flex flex-col gap-1">
         <span className={rotuloCelular}>Titular</span>
         <select className="field-input" aria-label="Titular" value={linha.titularTipo} onChange={(e) => set('titularTipo', e.target.value)}>
@@ -398,6 +549,7 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           />
         )}
       </div>
+      </>)}
 
       <div className="flex lg:justify-center">
         <button
@@ -424,12 +576,28 @@ export default function VendaCnpj() {
 
   const [salvando, setSalvando] = useState(false)
   const [vendaSalva, setVendaSalva] = useState(null) // registro já gravado, pra mostrar a ficha final
+  // Envio da ficha pra planilha de vendas, logo depois de salvar:
+  // null | { enviando } | { ok, linha, aba } | { naoConfigurada } | { erro }
+  const [planilha, setPlanilha] = useState(null)
+
+  async function enviarPraPlanilha(venda) {
+    setPlanilha({ enviando: true })
+    try {
+      const r = await escreverVendaNaPlanilha(venda)
+      setPlanilha(r.configurada ? { ok: true, linha: r.linha, aba: r.aba } : { naoConfigurada: true })
+    } catch (err) {
+      setPlanilha({ erro: err.message || 'Falha ao escrever na planilha.' })
+    }
+  }
 
   const [linhas, setLinhas] = useState(() => [linhaVazia()])
   const [plano, setPlano] = useState(PLANOS[0])
   const [pontoReferencia, setPontoReferencia] = useState('')
   const [nomeCliente, setNomeCliente] = useState('')
   const [emailCliente, setEmailCliente] = useState('')
+  // A consulta do CNPJ não trouxe e-mail (ou trouxe e-mail de contador):
+  // o campo pisca até alguém digitar o e-mail do cliente.
+  const [emailFaltando, setEmailFaltando] = useState(false)
   const [cpfCliente, setCpfCliente] = useState('')
   const [telefoneCliente, setTelefoneCliente] = useState('')
   const [captador, setCaptador] = useState('')
@@ -512,11 +680,13 @@ export default function VendaCnpj() {
     setDados(null)
     setErro('')
     setVendaSalva(null)
+    setPlanilha(null)
     setLinhas([linhaVazia()])
     setPlano(PLANOS[0])
     setPontoReferencia('')
     setNomeCliente('')
     setEmailCliente('')
+    setEmailFaltando(false)
     setCpfCliente('')
     setTelefoneCliente('')
     setCaptador('')
@@ -545,7 +715,10 @@ export default function VendaCnpj() {
       setNomeCliente(nome)
       setCpfCliente(cpf)
       setTelefoneCliente(telefoneComNove(est))
-      setEmailCliente((est?.email || '').toLowerCase())
+      const emailDaConsulta = limparEmail(est?.email)
+      const emailServe = emailDaConsulta && !emailProibido(emailDaConsulta)
+      setEmailCliente(emailServe ? emailDaConsulta : '')
+      setEmailFaltando(!emailServe)
     } catch (err) {
       setErro(err.message)
     } finally {
@@ -560,7 +733,7 @@ export default function VendaCnpj() {
       razao_social: limparPrefixoNumerico(dados?.razao_social),
       nome_fantasia: est?.nome_fantasia || '',
       endereco: montarEndereco(est),
-      telefone: est?.telefone1 ? `(${est.ddd1 || ''}) ${est.telefone1}` : '',
+      telefone: est?.telefone1 ? comNoveDigito(`${est.ddd1 || ''}${est.telefone1}`) : '',
       email: est?.email || '',
       situacao: est?.situacao_cadastral || '',
       data_abertura: formatarDataBr(est?.data_inicio_atividade),
@@ -584,29 +757,45 @@ export default function VendaCnpj() {
     limparTudo()
   }
 
+  // Linha nova sem escolha feita usa a operadora do telefone do cliente
+  // (a mesma que aparece pré-selecionada na caixa).
+  function comOrigem(l) {
+    if (l.tipo === 'portabilidade' || l.operadoraOrigem) return l
+    return { ...l, operadoraOrigem: operadoraCliente?.operadora || '' }
+  }
+
   function linhasParaSalvar() {
-    return linhas.map((l) => ({
-      numero: soDigitos(l.numero) || null,
-      tipo: l.tipo,
-      tipo_chip: l.tipoChip,
-      titular_tipo: l.titularTipo,
-      titular_documento: l.titularTipo === 'pf' ? soDigitos(l.titularCpf) : soDigitos(l.titularCnpj),
-      titular_nome: l.titularTipo === 'pf' ? l.titularNomePf.trim() : l.titularRazaoSocial.trim(),
-      operadora: l.operadora,
-      operadora_bruta: l.operadoraBruta,
-      portado: l.portado,
-    }))
+    return linhas.map(comOrigem).map((l) => {
+      if (l.tipo !== 'portabilidade') {
+        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, operadora_origem: l.operadoraOrigem }
+      }
+      return {
+        numero: soDigitos(l.numero) || null,
+        tipo: l.tipo,
+        tipo_chip: l.tipoChip,
+        titular_tipo: l.titularTipo,
+        titular_documento: l.titularTipo === 'pf' ? soDigitos(l.titularCpf) : soDigitos(l.titularCnpj),
+        titular_nome: l.titularTipo === 'pf' ? l.titularNomePf.trim() : l.titularRazaoSocial.trim(),
+        operadora: l.operadora,
+        operadora_bruta: l.operadoraBruta,
+        portado: l.portado,
+      }
+    })
   }
 
   // Confere o que o "required" do navegador não pega (10/11/2026).
   function problemaNoFormulario() {
     if (soDigitos(cpfCliente).length !== 11) return 'Informe o CPF do cliente com 11 números.'
+    if (emailProibido(emailCliente)) return 'Esse e-mail é de contador/provedor. Informe o e-mail do próprio cliente.'
+    if (!emailValido(emailCliente)) return 'Informe um e-mail válido pro cliente.'
     const tel = soDigitos(telefoneCliente).length
     if (tel !== 10 && tel !== 11) return 'Informe o telefone do cliente com DDD (10 ou 11 números).'
     if (operadoraCliente?.consultando) return 'Aguarde terminar a consulta de operadora do telefone do cliente.'
     if (linhas.some((l) => l.consultando)) return 'Aguarde terminar a consulta de operadora das linhas.'
-    if (!linhas.every(linhaValida)) {
-      return 'Preencha o titular de cada linha (CPF e nome, ou CNPJ e razão social) e o número de quem for portabilidade.'
+    const semOrigem = linhas.map(comOrigem).findIndex((l) => l.tipo !== 'portabilidade' && !l.operadoraOrigem)
+    if (semOrigem >= 0) return `Escolha de qual operadora o cliente vem na linha ${semOrigem + 1}.`
+    if (!linhas.map(comOrigem).every(linhaValida)) {
+      return 'Nas linhas de portabilidade, preencha o número e o titular (CPF e nome, ou CNPJ e razão social).'
     }
     const tim = linhas.findIndex((l) => l.tipo === 'portabilidade' && l.operadora === 'TIM')
     if (tim >= 0) return `A linha ${tim + 1} é um número TIM. Não fazemos portabilidade de TIM pra TIM.`
@@ -630,7 +819,7 @@ export default function VendaCnpj() {
       nome_cliente: nomeCliente.trim() || null,
       email_cliente: emailCliente.trim() || null,
       cpf_cliente: soDigitos(cpfCliente) || null,
-      telefone_cliente: soDigitos(telefoneCliente) || null,
+      telefone_cliente: comNoveDigito(telefoneCliente) || null,
       // Coluna operadora_linha (migration_029, estava reservada sem uso):
       // guarda a operadora do telefone do cliente, pra tela do Cadastro
       // avisar quando for TIM.
@@ -643,6 +832,7 @@ export default function VendaCnpj() {
     setSalvando(false)
     if (error) return setErro('Erro ao salvar: ' + error.message)
     setVendaSalva(data)
+    enviarPraPlanilha(data)
   }
 
   const empresa = dados ? dadosEmpresa() : null
@@ -727,7 +917,7 @@ export default function VendaCnpj() {
                   required
                 />
               </CampoTim>
-              <CampoTim label="Telefone do cliente (o que consta no 3C)" obrigatorio>
+              <CampoTim label="Número" obrigatorio>
                 <input
                   className="field-input"
                   placeholder="Ex: 11999990000"
@@ -739,7 +929,15 @@ export default function VendaCnpj() {
                 <OperadoraDoCliente info={operadoraCliente} />
               </CampoTim>
               <CampoTim label="E-mail" obrigatorio>
-                <input type="email" className="field-input" placeholder="cliente@exemplo.com" value={emailCliente} onChange={(e) => setEmailCliente(e.target.value)} required />
+                <input
+                  type="email"
+                  className={`field-input ${emailFaltando && !emailCliente ? 'piscar-forte' : ''}`}
+                  placeholder="cliente@exemplo.com"
+                  value={emailCliente}
+                  onChange={(e) => setEmailCliente(limparEmail(e.target.value))}
+                  required
+                />
+                <AvisoEmail email={emailCliente} faltando={emailFaltando} corrigir={setEmailCliente} />
               </CampoTim>
               <CampoTim label="Endereço de entrega (o do cartão CNPJ)" className="sm:col-span-2">
                 <input className="field-input" value={empresa.endereco} readOnly disabled />
@@ -804,7 +1002,7 @@ export default function VendaCnpj() {
                 <span>Nova / portab.</span>
                 <span>Tipo de chip</span>
                 <span>Número a portar</span>
-                <span>Titular</span>
+                <span>Titular (portabilidade)</span>
                 <span>CPF/CNPJ do titular</span>
                 <span>Nome do titular</span>
                 <span className="text-center">Ações</span>
@@ -818,6 +1016,7 @@ export default function VendaCnpj() {
                   consultar={consultarOperadoraDaLinha}
                   remover={removerLinha}
                   podeRemover={linhas.length > 1}
+                  operadoraSugerida={operadoraCliente?.operadora && OPERADORAS_ORIGEM.includes(operadoraCliente.operadora) ? operadoraCliente.operadora : ''}
                 />
               ))}
             </div>
@@ -860,6 +1059,7 @@ export default function VendaCnpj() {
       {/* Ficha final, depois de salvar */}
       {vendaSalva && (
         <Secao titulo="Ficha da venda pronta pra cadastrar" icone={Check}>
+          <StatusPlanilha planilha={planilha} tentarDeNovo={() => enviarPraPlanilha(vendaSalva)} />
           <p className="mb-2 text-sm text-muted">Clique no ícone ao lado de cada campo pra copiar o valor.</p>
           <Campo comCopiar label="CNPJ" valor={vendaSalva.cnpj} />
           <Campo comCopiar label="Razão social" valor={vendaSalva.razao_social} />
@@ -873,7 +1073,7 @@ export default function VendaCnpj() {
           <Campo comCopiar label="E-mail (empresa)" valor={vendaSalva.email} />
           <Campo comCopiar label="Nome do cliente" valor={vendaSalva.nome_cliente} />
           <Campo comCopiar label="CPF do cliente" valor={vendaSalva.cpf_cliente ? formatarCpf(vendaSalva.cpf_cliente) : ''} />
-          <Campo comCopiar label="Telefone do cliente (3C)" valor={vendaSalva.telefone_cliente} />
+          <Campo comCopiar label="Número do cliente" valor={vendaSalva.telefone_cliente} />
           <Campo label="Operadora do telefone do cliente" valor={vendaSalva.operadora_linha} />
           <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
@@ -887,6 +1087,8 @@ export default function VendaCnpj() {
               <Campo comCopiar label="Número" valor={l.numero} />
               <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />
               <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
+              <Campo comCopiar label="Operadora de origem do cliente" valor={l.operadora_origem} />
+              {l.tipo === 'portabilidade' && (<>
               <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />
               <Campo
                 comCopiar
@@ -894,6 +1096,7 @@ export default function VendaCnpj() {
                 valor={l.titular_tipo === 'pj' ? formatarCnpj(l.titular_documento) : formatarCpf(l.titular_documento)}
               />
               <Campo comCopiar label={l.titular_tipo === 'pj' ? 'Razão social do titular' : 'Nome do titular'} valor={l.titular_nome} />
+              </>)}
             </div>
           ))}
 

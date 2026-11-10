@@ -410,3 +410,94 @@ export async function enviarParcelamentoLogin(userId, { usuario, token }) {
 }
 
 export { usernameToEmail }
+
+// ---------- planilha de vendas (10/11/2026) ----------
+// Assim que a operação salva a ficha, escreve os dados do cliente numa
+// linha nova da planilha configurada em Configurações > Planilha de
+// vendas. As colunas são achadas pelo NOME no cabeçalho (linha 1), então
+// a ordem das colunas na planilha não importa e colunas extras ficam em
+// branco. Se a aba estiver vazia, cria o cabeçalho padrão abaixo.
+
+const COLUNAS_VENDA = [
+  { cabecalho: 'DATA', apelidos: ['DATA DA VENDA'], valor: (v) => new Date(v.created_at || Date.now()).toLocaleDateString('pt-BR') },
+  { cabecalho: 'CNPJ', apelidos: [], valor: (v) => v.cnpj },
+  { cabecalho: 'RAZÃO SOCIAL', apelidos: ['RAZAO SOCIAL', 'EMPRESA'], valor: (v) => v.razao_social },
+  { cabecalho: 'NOME DO CLIENTE', apelidos: ['CLIENTE', 'NOME'], valor: (v) => v.nome_cliente },
+  { cabecalho: 'CPF', apelidos: ['CPF DO CLIENTE'], valor: (v) => v.cpf_cliente },
+  { cabecalho: 'NÚMERO', apelidos: ['NUMERO', 'TELEFONE', 'TEL', 'CELULAR', 'NUMERO DO CLIENTE'], valor: (v) => v.telefone_cliente },
+  { cabecalho: 'OPERADORA', apelidos: ['OPERADORA DO NUMERO', 'OPERADORA DO CLIENTE'], valor: (v) => v.operadora_linha },
+  { cabecalho: 'E-MAIL', apelidos: ['EMAIL', 'E MAIL'], valor: (v) => v.email_cliente },
+  { cabecalho: 'ENDEREÇO', apelidos: ['ENDERECO', 'ENDERECO DE ENTREGA'], valor: (v) => v.endereco },
+  { cabecalho: 'PONTO DE REFERÊNCIA', apelidos: ['PONTO DE REFERENCIA', 'REFERENCIA'], valor: (v) => v.ponto_referencia },
+  { cabecalho: 'PLANO', apelidos: [], valor: (v) => v.plano },
+  { cabecalho: 'QTD LINHAS', apelidos: ['QUANTIDADE DE LINHAS', 'LINHAS QTD', 'QTD'], valor: (v) => v.quantidade_linhas },
+  { cabecalho: 'LINHAS', apelidos: ['DETALHE DAS LINHAS'], valor: (v) => resumoLinhas(v.linhas) },
+  { cabecalho: 'CAPTADOR', apelidos: ['CAPTADOR DA VENDA'], valor: (v) => v.captador },
+  { cabecalho: 'OPERADOR', apelidos: ['QUEM FECHOU', 'QUEM FECHOU A VENDA', 'VENDEDOR'], valor: (v) => v.fechou_venda },
+]
+
+function resumoLinhas(linhas) {
+  return (linhas || [])
+    .map((l, i) => {
+      const chip = l.tipo_chip === 'esim' ? 'eSIM' : 'chip físico'
+      if (l.tipo === 'portabilidade') {
+        return `${i + 1}) Portabilidade ${l.numero || ''} (${l.operadora || l.operadora_bruta || '?'}), ${chip}, titular ${l.titular_nome || ''} ${l.titular_documento || ''}`.trim()
+      }
+      return `${i + 1}) Linha nova, ${chip}, vem da ${l.operadora_origem || '?'}`
+    })
+    .join(' | ')
+}
+
+function normalizarCabecalho(texto) {
+  return String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim().toUpperCase()
+}
+
+export async function escreverVendaNaPlanilha(venda) {
+  const config = await fetchModuloConfig('vendas').catch(() => null)
+  if (!config?.aba_nome) return { configurada: false }
+  const spreadsheetId = extrairSpreadsheetId(config.sheet_url) || undefined
+  const aba = config.aba_nome
+
+  const { valores } = await chamarSheetsFaturas({ action: 'ler', intervalo: `${aba}!A1:ZZ5000`, spreadsheetId })
+  let cabecalho = (valores && valores[0]) || []
+  let proximaLinha = Math.max((valores || []).length, 1) + 1
+
+  // Aba vazia: escreve o cabeçalho padrão na linha 1.
+  if (!cabecalho.some((c) => String(c || '').trim())) {
+    cabecalho = COLUNAS_VENDA.map((c) => c.cabecalho)
+    await Promise.all(cabecalho.map((titulo, i) =>
+      chamarSheetsFaturas({ action: 'escrever', intervalo: `${aba}!${indiceParaColuna(i)}1`, valor: titulo, spreadsheetId })
+    ))
+    proximaLinha = 2
+  }
+
+  const cabecalhoNorm = cabecalho.map(normalizarCabecalho)
+  const escritas = []
+  for (const col of COLUNAS_VENDA) {
+    const nomes = [col.cabecalho, ...col.apelidos].map(normalizarCabecalho)
+    const indice = cabecalhoNorm.findIndex((c) => nomes.includes(c))
+    if (indice < 0) continue
+    const valor = col.valor(venda)
+    if (valor === null || valor === undefined || valor === '') continue
+    // Apóstrofo na frente de números longos (CPF, CNPJ, telefone) pro
+    // Sheets não transformar em número e comer os zeros da frente.
+    const texto = typeof valor === 'string' && /^[\d.\-/]{8,}$/.test(valor) ? `'${valor}` : valor
+    escritas.push(chamarSheetsFaturas({
+      action: 'escrever',
+      intervalo: `${aba}!${indiceParaColuna(indice)}${proximaLinha}`,
+      valor: texto,
+      spreadsheetId,
+    }))
+  }
+  if (escritas.length === 0) {
+    throw new Error(`Nenhuma coluna da aba "${aba}" bate com os dados da venda (ex: CNPJ, NOME DO CLIENTE, CPF, NÚMERO, E-MAIL).`)
+  }
+  await Promise.all(escritas)
+
+  // Marca a venda como enviada (colunas da migration_050; se ela ainda não
+  // foi rodada, só ignora).
+  if (venda.id) {
+    await supabase.from('vendas_cnpj').update({ na_planilha: true, linha_planilha: proximaLinha }).eq('id', venda.id)
+  }
+  return { configurada: true, linha: proximaLinha, aba }
+}

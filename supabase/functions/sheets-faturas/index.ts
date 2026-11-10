@@ -122,6 +122,9 @@ function extrairSpreadsheetId(urlOuId) {
 // Papéis que usam as telas ligadas à planilha (Faturas do BKO e a
 // configuração do supervisor). Operação e cadastro não usam.
 const PAPEIS_PERMITIDOS = ['supervisor', 'lider', 'bko']
+// Operação e cadastro só mexem na planilha de vendas (10/11/2026): a ficha
+// salva em "Consulta CNPJ e venda" entra numa linha nova dela.
+const PAPEIS_SO_VENDAS = ['operacao', 'cadastro']
 
 async function listarAbas(token, spreadsheetId) {
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`
@@ -161,7 +164,7 @@ Deno.serve(async (req) => {
       .select('role')
       .eq('id', user.id)
       .single()
-    if (!perfil || !PAPEIS_PERMITIDOS.includes(perfil.role)) {
+    if (!perfil || (!PAPEIS_PERMITIDOS.includes(perfil.role) && !PAPEIS_SO_VENDAS.includes(perfil.role))) {
       return resposta({ error: 'Seu usuário não tem acesso à planilha.' }, 403)
     }
 
@@ -191,9 +194,11 @@ Deno.serve(async (req) => {
     if (action === 'ler' || action === 'escrever') {
       const { data: modulos, error: erroModulos } = await admin
         .from('planilha_modulos_config')
-        .select('aba_nome, sheet_url')
+        .select('modulo, aba_nome, sheet_url')
       if (erroModulos) return resposta({ error: erroModulos.message }, 500)
+      const soVendas = PAPEIS_SO_VENDAS.includes(perfil.role)
       const permitido = (modulos || []).some((m) => {
+        if (soVendas && m.modulo !== 'vendas') return false
         const idDoModulo = extrairSpreadsheetId(m.sheet_url) || SPREADSHEET_ID_PADRAO
         return m.aba_nome && idDoModulo === idPlanilha && String(intervalo || '').startsWith(`${m.aba_nome}!`)
       })

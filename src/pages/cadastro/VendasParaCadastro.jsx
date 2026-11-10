@@ -2,7 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { Campo } from '../../components/vendaCnpj/Campo'
-import { formatarCnpj, formatarCpf } from '../../lib/documentos'
+import { formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
 
 // Fila de vendas já feitas pela operação (desde 23/10/2026), esperando
 // alguém do cadastro registrar no sistema de verdade. Some da lista assim
@@ -14,14 +14,14 @@ import { formatarCnpj, formatarCpf } from '../../lib/documentos'
 function AvisoTim({ venda }) {
   const telefoneTim = venda.operadora_linha === 'TIM'
   const linhasTim = (venda.linhas || [])
-    .map((l, i) => (l.operadora === 'TIM' ? i + 1 : null))
+    .map((l, i) => (l.operadora === 'TIM' || l.operadora_origem === 'TIM' ? i + 1 : null))
     .filter(Boolean)
   if (!telefoneTim && linhasTim.length === 0) return null
   return (
     <div className="tim-alert mb-2 font-semibold" role="alert">
       <AlertTriangle size={16} className="mt-0.5 shrink-0" />
       <div>
-        {telefoneTim && <p>Atenção: o telefone do cliente ({venda.telefone_cliente}) já é TIM.</p>}
+        {telefoneTim && <p>Atenção: o telefone do cliente ({comNoveDigito(venda.telefone_cliente)}) já é TIM.</p>}
         {linhasTim.length > 0 && <p>Atenção: {linhasTim.length > 1 ? `as linhas ${linhasTim.join(', ')} são` : `a linha ${linhasTim[0]} é`} número TIM.</p>}
       </div>
     </div>
@@ -95,12 +95,12 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Aberta desde" valor={v.data_abertura} />
           <Campo comCopiar label="Atividade" valor={v.atividade_principal} />
           <Campo comCopiar label="Endereço" valor={v.endereco} />
-          <Campo comCopiar label="Telefone (empresa)" valor={v.telefone} />
+          <Campo comCopiar label="Telefone (empresa)" valor={comNoveDigito(v.telefone)} />
           <Campo comCopiar label="E-mail (empresa)" valor={v.email} />
           <Campo comCopiar label="Ponto de referência" valor={v.ponto_referencia} />
           <Campo comCopiar label="Nome do cliente" valor={v.nome_cliente} />
           <Campo comCopiar label="CPF do cliente" valor={v.cpf_cliente ? formatarCpf(v.cpf_cliente) : ''} />
-          <Campo comCopiar label="Telefone do cliente (3C)" valor={v.telefone_cliente} />
+          <Campo comCopiar label="Número do cliente" valor={comNoveDigito(v.telefone_cliente)} />
           <Campo label="Operadora do telefone do cliente" valor={v.operadora_linha} />
           <Campo comCopiar label="E-mail do cliente" valor={v.email_cliente} />
           <Campo comCopiar label="Plano" valor={v.plano} />
@@ -114,6 +114,9 @@ export default function VendasParaCadastro() {
               <Campo comCopiar label="Número" valor={l.numero} />
               <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />
               <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
+              <Campo comCopiar label="Operadora de origem do cliente" valor={l.operadora_origem} />
+              {/* Linha nova (desde 10/11/2026) não tem titular; vendas antigas têm. */}
+              {l.titular_tipo && (<>
               <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />
               <Campo
                 comCopiar
@@ -125,6 +128,7 @@ export default function VendasParaCadastro() {
                 label={l.titular_tipo === 'pj' ? 'Razão social do titular' : 'Nome do titular'}
                 valor={l.titular_nome}
               />
+              </>)}
             </div>
           ))}
           <button

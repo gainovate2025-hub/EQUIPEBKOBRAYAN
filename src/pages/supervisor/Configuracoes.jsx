@@ -7,6 +7,7 @@ import Field from '../../components/ui/Field'
 import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import ModuloConfigForm from '../../components/automacoes/ModuloConfigForm'
+import PlanilhaVendasForm from '../../components/automacoes/PlanilhaVendasForm'
 
 export default function Configuracoes() {
   const { profile, refreshProfile } = useAuth()
@@ -63,6 +64,9 @@ export default function Configuracoes() {
 
       {profile?.role === 'supervisor' && (
         <>
+          <Secao titulo="Planilha de vendas">
+            <PlanilhaVendasForm />
+          </Secao>
           <Secao titulo="Planilha de fatura">
             <p className="text-sm text-muted">Escolha a aba e as colunas que cada tela puxa da planilha Controle de fatura.</p>
             <div className="mt-4">
