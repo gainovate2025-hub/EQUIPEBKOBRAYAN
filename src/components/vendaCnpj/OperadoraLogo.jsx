@@ -15,13 +15,17 @@ export function OperadoraLogo({ operadora, bruta }) {
   if (!arquivo) {
     return <span className="text-xs font-semibold text-ink">{operadora || bruta || 'não identificada'}</span>
   }
+  // Logo + nome escrito do lado (pedido do Brayan em 11/11/2026).
   return (
-    <span className="inline-flex h-8 items-center rounded-md border border-divider bg-white px-1.5" title={`Operadora: ${operadora}`}>
-      <img
-        src={`${import.meta.env.BASE_URL}operadoras/${arquivo}`}
-        alt={operadora}
-        className="h-6 w-auto max-w-[72px] object-contain"
-      />
+    <span className="inline-flex items-center gap-1.5" title={`Operadora: ${operadora}`}>
+      <span className="inline-flex h-8 items-center rounded-md border border-divider bg-white px-1.5">
+        <img
+          src={`${import.meta.env.BASE_URL}operadoras/${arquivo}`}
+          alt=""
+          className="h-6 w-auto max-w-[72px] object-contain"
+        />
+      </span>
+      <span className="text-sm font-semibold text-ink">{operadora}</span>
     </span>
   )
 }
