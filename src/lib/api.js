@@ -440,8 +440,10 @@ const COLUNAS_VENDA = [
   { cabecalho: 'PLANO', apelidos: [], valor: (v) => v.plano },
   { cabecalho: 'QTD LINHAS', apelidos: ['QUANTIDADE DE LINHAS', 'LINHAS QTD', 'QTD'], valor: (v) => v.quantidade_linhas },
   { cabecalho: 'LINHAS', apelidos: ['DETALHE DAS LINHAS'], valor: (v) => resumoLinhas(v.linhas) },
-  { cabecalho: 'CAPTADOR', apelidos: ['CAPTADOR DA VENDA'], valor: (v) => v.captador },
   { cabecalho: 'OPERADOR', apelidos: ['QUEM FECHOU', 'QUEM FECHOU A VENDA', 'VENDEDOR'], valor: (v) => v.fechou_venda },
+  // Supervisor fica na coluna captador do banco (11/11/2026); uma planilha
+  // antiga com cabeçalho CAPTADOR continua recebendo esse valor.
+  { cabecalho: 'SUPERVISOR', apelidos: ['CAPTADOR', 'CAPTADOR DA VENDA'], valor: (v) => v.captador },
 ]
 
 function resumoLinhas(linhas) {

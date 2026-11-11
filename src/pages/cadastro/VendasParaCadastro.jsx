@@ -128,8 +128,8 @@ export default function VendasParaCadastro() {
           <Campo operadora label="Operadora do telefone do cliente" valor={v.operadora_linha} />
           <Campo comCopiar label="E-mail do cliente" valor={v.email_cliente} />
           <Campo comCopiar label="Plano" valor={v.plano} />
-          <Campo comCopiar label="Captador da venda" valor={v.captador} />
-          <Campo comCopiar label="Quem fechou a venda" valor={v.fechou_venda} />
+          <Campo comCopiar label="Operador" valor={v.fechou_venda} />
+          <Campo comCopiar label="Supervisor" valor={v.captador} />
 
           {(v.linhas || []).map((l, i) => (
             <div key={i} className="mt-2 border-t border-divider pt-2">

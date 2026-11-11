@@ -473,7 +473,7 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           onBlur={aoSairDoNumero}
           required
         />
-        {repeteLinha && (
+        {repeteLinha > 0 && (
           <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
             <AlertTriangle size={12} /> Número repetido: igual ao da linha {repeteLinha}
           </p>
@@ -957,11 +957,13 @@ export default function VendaCnpj() {
 
           <Secao titulo="Equipe">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <CampoTim label="Captador da venda">
-                <input className="field-input" placeholder="Quem captou o cliente" value={captador} onChange={(e) => setCaptador(e.target.value)} />
+              {/* "Operador" e "Supervisor" (Brayan, 11/11/2026). O supervisor
+                  fica guardado na coluna captador (era "Captador da venda"). */}
+              <CampoTim label="Operador" obrigatorio>
+                <input className="field-input" placeholder="Quem fechou a venda" value={fechouVenda} onChange={(e) => setFechouVenda(e.target.value)} required />
               </CampoTim>
-              <CampoTim label="Quem fechou a venda (operador)" obrigatorio>
-                <input className="field-input" value={fechouVenda} onChange={(e) => setFechouVenda(e.target.value)} required />
+              <CampoTim label="Supervisor">
+                <input className="field-input" placeholder="Supervisor do operador" value={captador} onChange={(e) => setCaptador(e.target.value)} />
               </CampoTim>
             </div>
           </Secao>
@@ -1081,8 +1083,8 @@ export default function VendaCnpj() {
           <Campo operadora label="Operadora do telefone do cliente" valor={vendaSalva.operadora_linha} />
           <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
-          <Campo comCopiar label="Captador da venda" valor={vendaSalva.captador} />
-          <Campo comCopiar label="Quem fechou a venda" valor={vendaSalva.fechou_venda} />
+          <Campo comCopiar label="Operador" valor={vendaSalva.fechou_venda} />
+          <Campo comCopiar label="Supervisor" valor={vendaSalva.captador} />
 
           {(vendaSalva.linhas || []).map((l, i) => (
             <div key={i} className="mt-3 rounded-md border border-divider px-3 py-1">
