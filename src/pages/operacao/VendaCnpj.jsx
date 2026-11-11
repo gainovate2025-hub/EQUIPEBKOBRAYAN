@@ -4,11 +4,12 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
-import { consultarOperadora, escreverVendaNaPlanilha } from '../../lib/api'
+import { consultarOperadora, escreverVendaNaPlanilha, dataHoraVenda } from '../../lib/api'
 import { soDigitos, formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
 import Secao from '../../components/ui/Secao'
 import CampoTim from '../../components/ui/CampoTim'
 import { Campo } from '../../components/vendaCnpj/Campo'
+import { OperadoraLogo } from '../../components/vendaCnpj/OperadoraLogo'
 
 // Tela de consulta de CNPJ + registro da venda (operação e supervisor).
 // Grava em vendas_cnpj, que vira a fila da tela do Cadastro. Contexto do
@@ -162,7 +163,6 @@ function linhaVazia() {
     titularRazaoSocial: '',
     titularCnpj: '',
     tipoChip: 'fisico', // 'fisico' | 'esim'
-    operadoraOrigem: '', // só linha nova: de qual operadora o cliente vem
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -231,12 +231,10 @@ function sugerirEmailCorrigido(email) {
 }
 
 // Operadoras pra caixa "de qual operadora o cliente vem" (linha nova).
-const OPERADORAS_ORIGEM = ['VIVO', 'CLARO', 'TIM', 'OI', 'OUTRA']
 
 function linhaValida(l) {
-  // Linha nova não pede dado nenhum do titular (pedido do Brayan em
-  // 10/11/2026), só a operadora de onde o cliente vem.
-  if (l.tipo !== 'portabilidade') return Boolean(l.operadoraOrigem)
+  // Linha nova não pede nada (nem titular, nem operadora de origem).
+  if (l.tipo !== 'portabilidade') return true
   const titularOk = l.titularTipo === 'pf'
     ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
     : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
@@ -246,6 +244,28 @@ function linhaValida(l) {
     if (d.length !== 10 && d.length !== 11) return false
   }
   return true
+}
+
+// Número de portabilidade repetido entre as linhas (pedido do Brayan em
+// 11/11/2026): duas linhas não podem portar o mesmo número. Compara com o
+// 9 na frente, pra "11 9999-0000" e "11 99999-0000" contarem como iguais.
+// Devolve o índice das linhas repetidas (a 1ª de cada número fica de fora).
+function chaveNumero(l) {
+  if (l.tipo !== 'portabilidade') return ''
+  const d = comNoveDigito(l.numero)
+  return d.length === 11 ? d : ''
+}
+
+function linhasComNumeroRepetido(linhas) {
+  const vistos = new Map()
+  const repetidas = new Map() // índice -> número da 1ª linha com o mesmo número
+  linhas.forEach((l, i) => {
+    const k = chaveNumero(l)
+    if (!k) return
+    if (vistos.has(k)) repetidas.set(i, vistos.get(k) + 1)
+    else vistos.set(k, i)
+  })
+  return repetidas
 }
 
 function Aviso({ children }) {
@@ -278,8 +298,8 @@ function OperadoraDoCliente({ info }) {
     )
   }
   return (
-    <span className="text-xs font-normal text-muted">
-      Operadora: <span className="font-semibold text-ink">{info.operadora || info.bruta || 'não identificada'}</span>
+    <span className="flex items-center gap-1.5 text-xs font-normal text-muted">
+      Operadora: <OperadoraLogo operadora={info.operadora} bruta={info.bruta} />
     </span>
   )
 }
@@ -358,7 +378,7 @@ function DadoEmpresa({ label, valor }) {
 // tabela; no celular, as colunas empilham (cada campo com seu rótulo).
 const COLUNAS_LINHA = 'lg:grid-cols-[44px_1.1fr_1fr_1.3fr_0.9fr_1.3fr_1.5fr_52px]'
 
-function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, operadoraSugerida }) {
+function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, repeteLinha }) {
   function set(campo, valor) {
     atualizar(linha.id, { [campo]: valor })
   }
@@ -453,6 +473,11 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           onBlur={aoSairDoNumero}
           required
         />
+        {repeteLinha && (
+          <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+            <AlertTriangle size={12} /> Número repetido: igual ao da linha {repeteLinha}
+          </p>
+        )}
         {linha.consultando && <p className="text-xs text-muted">Consultando operadora…</p>}
         {linha.erroOperadora && <p className="text-xs text-bad-text">{linha.erroOperadora}</p>}
         {linha.operadora === 'TIM' && (
@@ -461,37 +486,18 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           </p>
         )}
         {linha.operadora && linha.operadora !== 'TIM' && (
-          <p className="text-xs text-muted">
-            Operadora: <span className="font-semibold text-ink">{linha.operadora}</span>
-            {linha.portado === true && ' (já portado)'}
+          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+            <OperadoraLogo operadora={linha.operadora} bruta={linha.operadoraBruta} />
+            {linha.portado === true && <span>(já portado)</span>}
           </p>
         )}
         </>)}
       </div>
 
-      {!portabilidade && (
-        <div className="flex flex-col gap-1 lg:col-span-3">
-          <span className="text-xs font-semibold text-muted">De qual operadora o cliente vem</span>
-          <select
-            className="field-input"
-            aria-label="De qual operadora o cliente vem"
-            value={linha.operadoraOrigem || operadoraSugerida || ''}
-            onChange={(e) => set('operadoraOrigem', e.target.value)}
-            onFocus={() => { if (!linha.operadoraOrigem && operadoraSugerida) set('operadoraOrigem', operadoraSugerida) }}
-            required
-          >
-            <option value="">Selecione</option>
-            {OPERADORAS_ORIGEM.map((o) => (
-              <option key={o} value={o}>{o === 'OUTRA' ? 'Outra' : o}</option>
-            ))}
-          </select>
-          {(linha.operadoraOrigem || operadoraSugerida) === 'TIM' && (
-            <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
-              <AlertTriangle size={12} /> O cliente já é TIM
-            </p>
-          )}
-        </div>
-      )}
+      {/* Linha nova não pergunta mais de qual operadora o cliente vem
+          (Brayan, 11/11/2026: "isso não precisa"). A célula vazia só
+          segura as colunas da tabela no lugar. */}
+      {!portabilidade && <div className="hidden lg:col-span-3 lg:block" aria-hidden />}
 
       {portabilidade && (<>
       <div className="flex flex-col gap-1">
@@ -757,17 +763,10 @@ export default function VendaCnpj() {
     limparTudo()
   }
 
-  // Linha nova sem escolha feita usa a operadora do telefone do cliente
-  // (a mesma que aparece pré-selecionada na caixa).
-  function comOrigem(l) {
-    if (l.tipo === 'portabilidade' || l.operadoraOrigem) return l
-    return { ...l, operadoraOrigem: operadoraCliente?.operadora || '' }
-  }
-
   function linhasParaSalvar() {
-    return linhas.map(comOrigem).map((l) => {
+    return linhas.map((l) => {
       if (l.tipo !== 'portabilidade') {
-        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, operadora_origem: l.operadoraOrigem }
+        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip }
       }
       return {
         numero: soDigitos(l.numero) || null,
@@ -792,10 +791,13 @@ export default function VendaCnpj() {
     if (tel !== 10 && tel !== 11) return 'Informe o telefone do cliente com DDD (10 ou 11 números).'
     if (operadoraCliente?.consultando) return 'Aguarde terminar a consulta de operadora do telefone do cliente.'
     if (linhas.some((l) => l.consultando)) return 'Aguarde terminar a consulta de operadora das linhas.'
-    const semOrigem = linhas.map(comOrigem).findIndex((l) => l.tipo !== 'portabilidade' && !l.operadoraOrigem)
-    if (semOrigem >= 0) return `Escolha de qual operadora o cliente vem na linha ${semOrigem + 1}.`
-    if (!linhas.map(comOrigem).every(linhaValida)) {
+    if (!linhas.every(linhaValida)) {
       return 'Nas linhas de portabilidade, preencha o número e o titular (CPF e nome, ou CNPJ e razão social).'
+    }
+    const repetidas = linhasComNumeroRepetido(linhas)
+    if (repetidas.size) {
+      const [i, primeira] = [...repetidas][0]
+      return `A linha ${i + 1} tem o mesmo número da linha ${primeira}. Cada portabilidade precisa de um número diferente.`
     }
     const tim = linhas.findIndex((l) => l.tipo === 'portabilidade' && l.operadora === 'TIM')
     if (tim >= 0) return `A linha ${tim + 1} é um número TIM. Não fazemos portabilidade de TIM pra TIM.`
@@ -835,6 +837,7 @@ export default function VendaCnpj() {
     enviarPraPlanilha(data)
   }
 
+  const numerosRepetidos = linhasComNumeroRepetido(linhas)
   const empresa = dados ? dadosEmpresa() : null
   const bloqueado = empresa ? situacaoBloqueada(empresa.situacao) : false
   // Com a empresa na tela, o erro aparece perto dos botões do rodapé;
@@ -1016,7 +1019,7 @@ export default function VendaCnpj() {
                   consultar={consultarOperadoraDaLinha}
                   remover={removerLinha}
                   podeRemover={linhas.length > 1}
-                  operadoraSugerida={operadoraCliente?.operadora && OPERADORAS_ORIGEM.includes(operadoraCliente.operadora) ? operadoraCliente.operadora : ''}
+                  repeteLinha={numerosRepetidos.get(i) || 0}
                 />
               ))}
             </div>
@@ -1061,6 +1064,7 @@ export default function VendaCnpj() {
         <Secao titulo="Ficha da venda pronta pra cadastrar" icone={Check}>
           <StatusPlanilha planilha={planilha} tentarDeNovo={() => enviarPraPlanilha(vendaSalva)} />
           <p className="mb-2 text-sm text-muted">Clique no ícone ao lado de cada campo pra copiar o valor.</p>
+          <Campo comCopiar label="Feita em" valor={dataHoraVenda(vendaSalva.created_at)} />
           <Campo comCopiar label="CNPJ" valor={vendaSalva.cnpj} />
           <Campo comCopiar label="Razão social" valor={vendaSalva.razao_social} />
           <Campo comCopiar label="Nome fantasia" valor={vendaSalva.nome_fantasia} />

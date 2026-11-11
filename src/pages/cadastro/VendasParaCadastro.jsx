@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../../lib/supabaseClient'
 import { Campo } from '../../components/vendaCnpj/Campo'
+import { dataHoraVenda } from '../../lib/api'
 import { formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
 
 // Fila de vendas já feitas pela operação (desde 23/10/2026), esperando
@@ -84,10 +85,11 @@ export default function VendasParaCadastro() {
           <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
             <p className="text-base font-bold text-ink">{v.razao_social || '(sem razão social)'}</p>
             <span className="text-xs text-muted">
-              {v.profiles?.name || 'Alguém'} · {new Date(v.created_at).toLocaleString('pt-BR')}
+              {v.profiles?.name || 'Alguém'} · {dataHoraVenda(v.created_at)}
             </span>
           </div>
           <AvisoTim venda={v} />
+          <Campo comCopiar label="Feita em" valor={dataHoraVenda(v.created_at)} />
           <Campo comCopiar label="CNPJ" valor={v.cnpj} />
           <Campo comCopiar label="Razão social" valor={v.razao_social} />
           <Campo comCopiar label="Nome fantasia" valor={v.nome_fantasia} />

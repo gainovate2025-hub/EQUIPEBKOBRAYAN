@@ -298,7 +298,10 @@ export default function Crivo() {
     }
 
     const ultima = consultas[consultas.length - 1]
-    if (ultima && soCnpjDigitos(ultima.cnpj) === limpo) {
+    // Só segura enquanto a última ainda está rodando. Se ela deu ERRO, a
+    // própria tela pede "envie o CNPJ de novo" — antes isso era barrado
+    // aqui e a extensão nunca recebia o reenvio (11/11/2026).
+    if (ultima && soCnpjDigitos(ultima.cnpj) === limpo && ultima.status === 'pendente') {
       return setMsg('Esse CNPJ já foi o último consultado. Aguarde terminar antes de enviar de novo.')
     }
 

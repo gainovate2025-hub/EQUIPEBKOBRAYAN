@@ -418,8 +418,16 @@ export { usernameToEmail }
 // a ordem das colunas na planilha não importa e colunas extras ficam em
 // branco. Se a aba estiver vazia, cria o cabeçalho padrão abaixo.
 
+// "11/11/2026 14:35" no horário de Brasília, igual pra todo mundo.
+export function dataHoraVenda(quando) {
+  return new Date(quando || Date.now()).toLocaleString('pt-BR', {
+    timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit',
+  }).replace(',', '')
+}
+
 const COLUNAS_VENDA = [
-  { cabecalho: 'DATA', apelidos: ['DATA DA VENDA'], valor: (v) => new Date(v.created_at || Date.now()).toLocaleDateString('pt-BR') },
+  // Data E hora em que a ficha foi salva (pedido do Brayan em 11/11/2026).
+  { cabecalho: 'DATA', apelidos: ['DATA DA VENDA', 'DATA E HORA', 'DATA/HORA'], valor: (v) => dataHoraVenda(v.created_at) },
   { cabecalho: 'CNPJ', apelidos: [], valor: (v) => v.cnpj },
   { cabecalho: 'RAZÃO SOCIAL', apelidos: ['RAZAO SOCIAL', 'EMPRESA'], valor: (v) => v.razao_social },
   { cabecalho: 'NOME DO CLIENTE', apelidos: ['CLIENTE', 'NOME'], valor: (v) => v.nome_cliente },
@@ -443,7 +451,7 @@ function resumoLinhas(linhas) {
       if (l.tipo === 'portabilidade') {
         return `${i + 1}) Portabilidade ${l.numero || ''} (${l.operadora || l.operadora_bruta || '?'}), ${chip}, titular ${l.titular_nome || ''} ${l.titular_documento || ''}`.trim()
       }
-      return `${i + 1}) Linha nova, ${chip}, vem da ${l.operadora_origem || '?'}`
+      return `${i + 1}) Linha nova, ${chip}${l.operadora_origem ? `, vem da ${l.operadora_origem}` : ''}`
     })
     .join(' | ')
 }
