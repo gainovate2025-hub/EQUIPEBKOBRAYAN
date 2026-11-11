@@ -342,7 +342,7 @@ async function tentarComecarNova(numeroSistema, automation) {
     return null
   }
 
-  const base = { consulta, iniciadoEm: Date.now(), ultimoTextoNovo: '', estavel: 0 }
+  const base = { consulta, iniciadoEm: Date.now(), reservaRenovadaEm: Date.now(), ultimoTextoNovo: '', estavel: 0 }
 
   // Usa o CEP da própria consulta quando tem um; senão cai pro CEP padrão
   // configurado no painel (Crivo > Configurações) — sem nenhum dos dois,
@@ -599,12 +599,32 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   return true
 }
 
+// Renova a reserva da consulta enquanto ela está sendo processada
+// (10/11/2026). A reserva vence em 2 minutos (migration_042) pra outra aba
+// poder assumir se esta travar, mas uma consulta lenta passa disso e
+// outra máquina pegava o MESMO CNPJ. Renovando a cada 30s, cada máquina
+// fica com o seu CNPJ e a reserva só vence se esta aba realmente parar.
+const RENOVAR_RESERVA_MS = 30000
+async function renovarReserva(numeroSistema, andamento) {
+  if (Date.now() - (andamento.reservaRenovadaEm || 0) < RENOVAR_RESERVA_MS) return
+  andamento.reservaRenovadaEm = Date.now()
+  try {
+    await supaFetch('rpc/crivo_reivindicar', {
+      method: 'POST',
+      body: JSON.stringify({ p_id: andamento.consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
+    })
+  } catch {
+    // falha de rede passageira: tenta de novo na próxima renovação
+  }
+}
+
 async function laco(numeroSistema, automation) {
   let andamento = null
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
       if (andamento) {
+        await renovarReserva(numeroSistema, andamento)
         const terminou = await verificarAndamento(numeroSistema, automation, andamento)
         if (terminou) andamento = null
       } else {
