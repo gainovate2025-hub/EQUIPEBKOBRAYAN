@@ -12,6 +12,27 @@ import { formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
 // Aviso em vermelho quando o telefone do cliente (consultado no
 // consultaoperadora.com.br na hora da venda) ou alguma linha já é TIM
 // (pedido do Brayan em 10/11/2026). É só aviso: quem cadastra decide.
+// Mesmo número de portabilidade em duas linhas (11/11/2026). A tela da
+// venda já bloqueia isso; aqui avisa nas vendas antigas, feitas antes.
+function AvisoNumeroRepetido({ venda }) {
+  const vistos = new Map()
+  const avisos = []
+  ;(venda.linhas || []).forEach((l, i) => {
+    if (l.tipo !== 'portabilidade') return
+    const n = comNoveDigito(l.numero)
+    if (n.length !== 11) return
+    if (vistos.has(n)) avisos.push(`A linha ${i + 1} tem o mesmo número da linha ${vistos.get(n) + 1} (${n}).`)
+    else vistos.set(n, i)
+  })
+  if (avisos.length === 0) return null
+  return (
+    <div className="tim-alert mb-2 font-semibold" role="alert">
+      <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+      <div>{avisos.map((a) => <p key={a}>{a}</p>)}</div>
+    </div>
+  )
+}
+
 function AvisoTim({ venda }) {
   const telefoneTim = venda.operadora_linha === 'TIM'
   const linhasTim = (venda.linhas || [])
@@ -89,6 +110,7 @@ export default function VendasParaCadastro() {
             </span>
           </div>
           <AvisoTim venda={v} />
+          <AvisoNumeroRepetido venda={v} />
           <Campo comCopiar label="Feita em" valor={dataHoraVenda(v.created_at)} />
           <Campo comCopiar label="CNPJ" valor={v.cnpj} />
           <Campo comCopiar label="Razão social" valor={v.razao_social} />
@@ -103,7 +125,7 @@ export default function VendasParaCadastro() {
           <Campo comCopiar label="Nome do cliente" valor={v.nome_cliente} />
           <Campo comCopiar label="CPF do cliente" valor={v.cpf_cliente ? formatarCpf(v.cpf_cliente) : ''} />
           <Campo comCopiar label="Número do cliente" valor={comNoveDigito(v.telefone_cliente)} />
-          <Campo label="Operadora do telefone do cliente" valor={v.operadora_linha} />
+          <Campo operadora label="Operadora do telefone do cliente" valor={v.operadora_linha} />
           <Campo comCopiar label="E-mail do cliente" valor={v.email_cliente} />
           <Campo comCopiar label="Plano" valor={v.plano} />
           <Campo comCopiar label="Captador da venda" valor={v.captador} />
@@ -114,9 +136,9 @@ export default function VendasParaCadastro() {
               <p className="mb-1 text-xs font-semibold text-ink">Linha {i + 1}</p>
               <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
               <Campo comCopiar label="Número" valor={l.numero} />
-              <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />
+              <Campo operadora label="Operadora" valor={l.operadora || l.operadora_bruta} />
               <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
-              <Campo comCopiar label="Operadora de origem do cliente" valor={l.operadora_origem} />
+              <Campo operadora label="Operadora de origem do cliente" valor={l.operadora_origem} />
               {/* Linha nova (desde 10/11/2026) não tem titular; vendas antigas têm. */}
               {l.titular_tipo && (<>
               <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />

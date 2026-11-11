@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Copy, Check } from 'lucide-react'
+import { OperadoraLogo } from './OperadoraLogo'
 
 // Botão de copiar usado na ficha da venda (VendaCnpj e fila do Cadastro).
 // try/catch (10/11/2026): o navegador pode negar acesso à área de
@@ -33,13 +34,14 @@ export function BotaoCopiar({ valor }) {
 // copiar nada ainda. comCopiar=true: na "Ficha da venda" (final, ou na
 // fila de quem faz o cadastro), onde faz sentido copiar pra colar no
 // sistema de verdade.
-export function Campo({ label, valor, comCopiar = false }) {
+// operadora: mostra o logo da operadora no lugar do texto (11/11/2026).
+export function Campo({ label, valor, comCopiar = false, operadora = false }) {
   if (!valor) return null
   return (
     <div className="flex items-center justify-between gap-2 border-b border-divider py-1.5 text-sm">
-      <div>
+      <div className="flex flex-wrap items-center gap-1">
         <span className="text-muted">{label}: </span>
-        <span className="font-medium text-ink">{valor}</span>
+        {operadora ? <OperadoraLogo operadora={valor} /> : <span className="font-medium text-ink">{valor}</span>}
       </div>
       {comCopiar && <BotaoCopiar valor={valor} />}
     </div>

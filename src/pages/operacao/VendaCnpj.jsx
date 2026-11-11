@@ -1078,7 +1078,7 @@ export default function VendaCnpj() {
           <Campo comCopiar label="Nome do cliente" valor={vendaSalva.nome_cliente} />
           <Campo comCopiar label="CPF do cliente" valor={vendaSalva.cpf_cliente ? formatarCpf(vendaSalva.cpf_cliente) : ''} />
           <Campo comCopiar label="Número do cliente" valor={vendaSalva.telefone_cliente} />
-          <Campo label="Operadora do telefone do cliente" valor={vendaSalva.operadora_linha} />
+          <Campo operadora label="Operadora do telefone do cliente" valor={vendaSalva.operadora_linha} />
           <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
           <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
           <Campo comCopiar label="Captador da venda" valor={vendaSalva.captador} />
@@ -1089,9 +1089,9 @@ export default function VendaCnpj() {
               <p className="pt-1 text-sm font-semibold text-sidebar">Linha {i + 1}</p>
               <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
               <Campo comCopiar label="Número" valor={l.numero} />
-              <Campo comCopiar label="Operadora" valor={l.operadora || l.operadora_bruta} />
+              <Campo operadora label="Operadora" valor={l.operadora || l.operadora_bruta} />
               <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
-              <Campo comCopiar label="Operadora de origem do cliente" valor={l.operadora_origem} />
+              <Campo operadora label="Operadora de origem do cliente" valor={l.operadora_origem} />
               {l.tipo === 'portabilidade' && (<>
               <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />
               <Campo
