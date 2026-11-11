@@ -156,13 +156,15 @@ function linhaVazia() {
     id: novoId(),
     numero: '',
     numeroConsultado: null, // último número que já foi consultado, evita reconsultar à toa
-    tipo: 'nova', // 'nova' | 'portabilidade'
+    // Começa sem escolha (11/11/2026): a ficha só sobe com cada linha
+    // preenchida de verdade, não com o padrão que veio marcado.
+    tipo: '', // '' | 'nova' | 'portabilidade'
     titularTipo: 'pf', // 'pf' | 'pj'
     titularCpf: '',
     titularNomePf: '',
     titularRazaoSocial: '',
     titularCnpj: '',
-    tipoChip: 'fisico', // 'fisico' | 'esim'
+    tipoChip: '', // '' | 'fisico' | 'esim'
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -233,7 +235,8 @@ function sugerirEmailCorrigido(email) {
 // Operadoras pra caixa "de qual operadora o cliente vem" (linha nova).
 
 function linhaValida(l) {
-  // Linha nova não pede nada (nem titular, nem operadora de origem).
+  if (!l.tipo || !l.tipoChip) return false
+  // Linha nova não pede mais nada (nem titular, nem operadora de origem).
   if (l.tipo !== 'portabilidade') return true
   const titularOk = l.titularTipo === 'pf'
     ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
@@ -412,7 +415,7 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
   // número só existe na portabilidade (pedido do Brayan em 10/11/2026).
   // Voltar pra "Linha nova" apaga o número e a operadora já consultados.
   function mudarTipo(tipo) {
-    if (tipo === 'nova') {
+    if (tipo !== 'portabilidade') {
       atualizar(linha.id, {
         tipo,
         numero: '',
@@ -443,7 +446,8 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
 
       <div className="flex flex-col gap-1">
         <span className={rotuloCelular}>Nova ou portabilidade</span>
-        <select className="field-input" aria-label="Nova ou portabilidade" value={linha.tipo} onChange={(e) => mudarTipo(e.target.value)}>
+        <select className="field-input" aria-label="Nova ou portabilidade" value={linha.tipo} onChange={(e) => mudarTipo(e.target.value)} required>
+          <option value="">Selecione</option>
           <option value="nova">Linha nova</option>
           <option value="portabilidade">Portabilidade</option>
         </select>
@@ -451,7 +455,8 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
 
       <div className="flex flex-col gap-1">
         <span className={rotuloCelular}>Tipo de chip</span>
-        <select className="field-input" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)}>
+        <select className="field-input" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
+          <option value="">Selecione</option>
           <option value="fisico">Chip físico</option>
           <option value="esim">eSIM</option>
         </select>
@@ -791,8 +796,12 @@ export default function VendaCnpj() {
     if (tel !== 10 && tel !== 11) return 'Informe o telefone do cliente com DDD (10 ou 11 números).'
     if (operadoraCliente?.consultando) return 'Aguarde terminar a consulta de operadora do telefone do cliente.'
     if (linhas.some((l) => l.consultando)) return 'Aguarde terminar a consulta de operadora das linhas.'
-    if (!linhas.every(linhaValida)) {
-      return 'Nas linhas de portabilidade, preencha o número e o titular (CPF e nome, ou CNPJ e razão social).'
+    const incompleta = linhas.findIndex((l) => !linhaValida(l))
+    if (incompleta >= 0) {
+      const l = linhas[incompleta]
+      if (!l.tipo) return `Na linha ${incompleta + 1}, escolha se é linha nova ou portabilidade.`
+      if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM).`
+      return `Na linha ${incompleta + 1} (portabilidade), preencha o número e o titular (CPF e nome, ou CNPJ e razão social).`
     }
     const repetidas = linhasComNumeroRepetido(linhas)
     if (repetidas.size) {
