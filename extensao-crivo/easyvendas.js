@@ -256,18 +256,23 @@ async function buscarPendente(numeroSistema) {
   const semCnpjDuplicado = linhas.filter((c) => maisAntigaPorCnpj.get(c.cnpj) === c.id)
   if (!semCnpjDuplicado.length) return null
 
-  const consulta = semCnpjDuplicado.find((c) => tentativasFeitas(c.id) === 0) || semCnpjDuplicado[0]
-
-  const reivindicou = await supaFetch('rpc/crivo_reivindicar', {
-    method: 'POST',
-    body: JSON.stringify({ p_id: consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
-  })
-  if (!reivindicou) {
-    log(numeroSistema, consulta.id, 'Consulta já está sendo processada por outra aba, ignorando por agora:', consulta.cnpj)
-    return null
+  // Tenta reservar uma de cada vez, na ordem: primeiro as que ainda não
+  // falharam aqui, depois as que já falharam. Se a reserva falhar (outra
+  // aba/PC já pegou), passa pra PRÓXIMA da fila (11/11/2026). Antes
+  // desistia e tentava a mesma de novo, e com 2 PCs no mesmo sistema o 2º
+  // ficava parado enquanto o 1º trabalhava, mesmo com outro CNPJ na fila.
+  const candidatas = [
+    ...semCnpjDuplicado.filter((c) => tentativasFeitas(c.id) === 0),
+    ...semCnpjDuplicado.filter((c) => tentativasFeitas(c.id) > 0),
+  ]
+  for (const consulta of candidatas) {
+    const reivindicou = await supaFetch('rpc/crivo_reivindicar', {
+      method: 'POST',
+      body: JSON.stringify({ p_id: consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
+    })
+    if (reivindicou) return consulta
   }
-
-  return consulta
+  return null
 }
 
 // Grava pela função do banco (RPC), não direto na tabela — veja
