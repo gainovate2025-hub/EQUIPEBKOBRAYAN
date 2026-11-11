@@ -171,17 +171,14 @@ function detectarSistemaPelaUrl() {
   return null
 }
 
-// Ordem de decisão (1.4.1, 11/11/2026 — pedido do Brayan: "PC 1 com uma
-// aba no 1º sistema e outra no 2º, PC 2 a mesma coisa"):
+// Ordem de decisão (1.5.0, 11/11/2026 — um PC só, com uma aba no 1º
+// sistema e outra no 2º):
 // 1. Sistema escolhido no ícone PRA ESSA ABA (1º ou 2º). Também fica
 //    guardado na própria aba (sessionStorage), então vale de novo depois
 //    de F5 ou do Chrome reabrir as abas.
 // 2. Endereço da aba (/cliente/ = 1º, /negociacao/primeiravenda = 2º).
 // 3. Sem nada disso: 1º sistema.
-// O número do PC (1 ou 2, escolhido no ícone) só identifica a máquina nos
-// registros; não muda qual consulta a aba pega.
 const CHAVE_SISTEMA_ABA = 'crivo_sistema_aba'
-let NUMERO_PC = null
 
 async function pegarNumeroSistema() {
   let resp = null
@@ -190,7 +187,6 @@ async function pegarNumeroSistema() {
   } catch {
     // extensão atualizada sem F5 nessa aba: segue com o que a aba lembra
   }
-  NUMERO_PC = resp?.pc === 1 || resp?.pc === 2 ? resp.pc : null
   if (resp?.aba === 1 || resp?.aba === 2) {
     sessionStorage.setItem(CHAVE_SISTEMA_ABA, String(resp.aba))
     return resp.aba
@@ -211,9 +207,9 @@ async function pegarNumeroSistema() {
 // terminar (fire-and-forget) nem deixa uma falha de rede quebrar o
 // laço principal.
 function log(numeroSistema, consultaId, ...args) {
-  console.log(`[Crivo/EasyVendas ${NUMERO_PC ? `PC ${NUMERO_PC} ` : ''}#${numeroSistema}]`, ...args)
+  console.log(`[Crivo/EasyVendas #${numeroSistema}]`, ...args)
   if (!consultaId) return
-  const mensagem = (NUMERO_PC ? `[PC ${NUMERO_PC}] ` : '') + args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
+  const mensagem = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
   supaFetch('crivo_logs', {
     method: 'POST',
     body: JSON.stringify({ consulta_id: consultaId, numero_sistema: numeroSistema, mensagem }),

@@ -1,4 +1,3 @@
-const radiosPc = document.querySelectorAll('input[name="pc"]')
 const radiosAba = document.querySelectorAll('input[name="sistema"]')
 const secaoAba = document.getElementById('secaoAba')
 const status = document.getElementById('status')
@@ -29,7 +28,6 @@ async function iniciar() {
 
   try {
     const resp = await chrome.runtime.sendMessage({ tipo: 'crivo:pegarSistemaDaAba', tabId })
-    marcar(radiosPc, resp?.pc ? String(resp.pc) : '')
     // Sem escolha ainda: mostra o que a aba está usando pelo endereço.
     marcar(radiosAba, resp?.aba ? String(resp.aba) : sistemaPelaUrl(tab?.url || ''))
   } catch (err) {
@@ -47,13 +45,6 @@ async function salvar(mensagem, textoOk) {
     aviso.textContent = 'Não consegui salvar (' + (err?.message || 'erro desconhecido') + '). Recarrega a extensão em chrome://extensions.'
   }
 }
-
-radiosPc.forEach((r) => {
-  r.addEventListener('change', () => {
-    if (!r.checked) return
-    salvar({ tipo: 'crivo:definirPc', numero: Number(r.value) }, `Este computador agora é o PC ${r.value}.`)
-  })
-})
 
 radiosAba.forEach((r) => {
   r.addEventListener('change', () => {

@@ -1,20 +1,10 @@
-// Extensão Crivo — guarda o número do PC e o sistema de cada aba.
-//
-// 1.4.1 (11/11/2026): cada computador tem um número (PC 1, PC 2…), salvo
-// no chrome.storage.local (não some ao fechar o Chrome). Dentro do PC,
-// cada aba do Easy Vendas é o 1º ou o 2º sistema — escolha por aba,
-// guardada no chrome.storage.session por tabId (e também na própria aba,
+// Extensão Crivo — guarda se cada aba do Easy Vendas é o 1º ou o 2º
+// sistema. 1.5.0 (11/11/2026): um PC só, sem escolha de PC. A escolha por
+// aba fica no chrome.storage.session por tabId (e também na própria aba,
 // veja pegarNumeroSistema em easyvendas.js).
-
-const CHAVE_PC = 'crivoPc'
 
 function chave(tabId) {
   return `sistema_aba_${tabId}`
-}
-
-async function pegarPc() {
-  const r = await chrome.storage.local.get(CHAVE_PC)
-  return r[CHAVE_PC] === 1 || r[CHAVE_PC] === 2 ? r[CHAVE_PC] : null
 }
 
 // null quando ninguém escolheu nada pra essa aba ainda.
@@ -38,25 +28,10 @@ function manterAbaAcordada(tabId) {
   })
 }
 
-async function recarregarAbasEasyVendas() {
-  const abas = await chrome.tabs.query({ url: 'https://portaleasyvendas.timbrasil.com.br/*' })
-  for (const aba of abas) chrome.tabs.reload(aba.id).catch(() => {})
-}
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.tipo === 'crivo:abaAtiva') {
     if (sender.tab?.id != null) manterAbaAcordada(sender.tab.id)
     return false
-  }
-
-  // Popup: número deste PC. Recarrega as abas pra os registros já saírem
-  // com o número novo.
-  if (msg?.tipo === 'crivo:definirPc') {
-    chrome.storage.local.set({ [CHAVE_PC]: msg.numero === 2 ? 2 : 1 }).then(async () => {
-      await recarregarAbasEasyVendas()
-      sendResponse({ ok: true })
-    })
-    return true
   }
 
   // Popup: sistema desta aba.
@@ -76,13 +51,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 
   // Content script pergunta ao carregar.
   if (msg?.tipo === 'crivo:pegarSistema') {
-    Promise.all([pegarPc(), pegarDaAba(sender.tab?.id)]).then(([pc, aba]) => sendResponse({ pc, aba }))
+    pegarDaAba(sender.tab?.id).then((aba) => sendResponse({ aba }))
     return true
   }
 
   // Popup: mostra o que está escolhido hoje.
   if (msg?.tipo === 'crivo:pegarSistemaDaAba') {
-    Promise.all([pegarPc(), pegarDaAba(msg.tabId)]).then(([pc, aba]) => sendResponse({ pc, aba }))
+    pegarDaAba(msg.tabId).then((aba) => sendResponse({ aba }))
     return true
   }
 })
