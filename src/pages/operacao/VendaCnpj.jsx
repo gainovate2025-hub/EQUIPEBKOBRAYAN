@@ -31,6 +31,45 @@ function semAcento(v) {
 // tinha 3 chutes (R$50/70/100), tirados a pedido dele.
 const PLANOS = ['BLACKFRIDAY 80GB R$53,99']
 const MAX_LINHAS = 10
+// Fidelidade do plano: 2 anos (Brayan, 12/11/2026).
+const MESES_FIDELIDADE = 24
+
+// Pega o preço por linha escrito no nome do plano ("... R$53,99" → 53.99).
+function precoDoPlano(nome) {
+  const m = /R\$\s*([\d.]+,\d{2})/.exec(nome || '')
+  return m ? Number(m[1].replace(/\./g, '').replace(',', '.')) : 0
+}
+
+function reais(valor) {
+  return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
+}
+
+// Soma do plano: preço por linha × quantidade de linhas, por mês, por ano
+// e no total dos 2 anos de fidelidade.
+function SomaDoPlano({ plano, quantidade }) {
+  const porLinha = precoDoPlano(plano)
+  const porMes = porLinha * quantidade
+  return (
+    <div className="rounded-md border border-divider bg-paper p-3">
+      <p className="mb-2 text-sm font-semibold text-ink">Valor do plano</p>
+      <p className="text-xs text-muted">
+        {quantidade} {quantidade === 1 ? 'linha' : 'linhas'} × {reais(porLinha)}
+      </p>
+      <div className="mt-2 flex items-baseline justify-between gap-2">
+        <span className="text-sm text-muted">Por mês</span>
+        <span className="text-lg font-bold text-ink">{reais(porMes)}</span>
+      </div>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm text-muted">Por ano</span>
+        <span className="font-semibold text-ink">{reais(porMes * 12)}</span>
+      </div>
+      <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-divider pt-1">
+        <span className="text-sm text-muted">Fidelidade de 2 anos</span>
+        <span className="font-semibold text-ink">{reais(porMes * MESES_FIDELIDADE)}</span>
+      </div>
+    </div>
+  )
+}
 
 // A Receita Federal coloca o número do CNPJ na frente da "razão social"
 // de MEI/autônomo (ex: "61.351.426 DENISE PEREIRA DOS SANTOS"). Tira
@@ -978,7 +1017,7 @@ export default function VendaCnpj() {
           </Secao>
 
           <Secao titulo="Plano">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <CampoTim label="Quantidade de linhas">
                 <select className="field-input" value={linhas.length} onChange={(e) => atualizarQuantidade(e.target.value)}>
                   {Array.from({ length: MAX_LINHAS }, (_, i) => i + 1).map((n) => (
@@ -993,6 +1032,7 @@ export default function VendaCnpj() {
                   ))}
                 </select>
               </CampoTim>
+              <SomaDoPlano plano={plano} quantidade={linhas.length} />
             </div>
           </Secao>
 
