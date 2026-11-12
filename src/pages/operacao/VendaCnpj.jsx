@@ -31,8 +31,6 @@ function semAcento(v) {
 // tinha 3 chutes (R$50/70/100), tirados a pedido dele.
 const PLANOS = ['BLACKFRIDAY 80GB R$53,99']
 const MAX_LINHAS = 10
-// Fidelidade do plano: 2 anos (Brayan, 12/11/2026).
-const MESES_FIDELIDADE = 24
 
 // Pega o preço por linha escrito no nome do plano ("... R$53,99" → 53.99).
 function precoDoPlano(nome) {
@@ -44,8 +42,8 @@ function reais(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-// Soma do plano: preço por linha × quantidade de linhas, por mês, por ano
-// e no total dos 2 anos de fidelidade.
+// Soma do plano: preço por linha × quantidade de linhas, por mês.
+// "Por ano" e "Fidelidade de 2 anos" foram tirados a pedido do Brayan (12/11/2026).
 function SomaDoPlano({ plano, quantidade }) {
   const porLinha = precoDoPlano(plano)
   const porMes = porLinha * quantidade
@@ -58,14 +56,6 @@ function SomaDoPlano({ plano, quantidade }) {
       <div className="mt-2 flex items-baseline justify-between gap-2">
         <span className="text-sm text-muted">Por mês</span>
         <span className="text-lg font-bold text-ink">{reais(porMes)}</span>
-      </div>
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-sm text-muted">Por ano</span>
-        <span className="font-semibold text-ink">{reais(porMes * 12)}</span>
-      </div>
-      <div className="mt-1 flex items-baseline justify-between gap-2 border-t border-divider pt-1">
-        <span className="text-sm text-muted">Fidelidade de 2 anos</span>
-        <span className="font-semibold text-ink">{reais(porMes * MESES_FIDELIDADE)}</span>
       </div>
     </div>
   )
