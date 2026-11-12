@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import Secao from '../../components/ui/Secao'
+import Tabs from '../../components/ui/Tabs'
+import CrivoLog, { FaixaPcs } from './CrivoLog'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 const RESULT_LABEL = { aprovado: 'Aprovado', reprovado: 'Reprovado', nao_encontrado: 'CNPJ errado' }
@@ -143,6 +145,11 @@ function RespostaCrivoDetalhada({ consulta: c }) {
   )
 }
 
+const ABAS_CRIVO = [
+  { key: 'chat', label: 'Chat' },
+  { key: 'log', label: 'Log' },
+]
+
 export default function Crivo() {
   const { profile } = useAuth()
   const visaoSimples = profile?.role === 'operacao'
@@ -153,6 +160,8 @@ export default function Crivo() {
   const [enviando, setEnviando] = useState(false)
   const [msg, setMsg] = useState('')
   const fimRef = useRef(null)
+  // Supervisor/líder vê também a aba "Log" (PCs, fila, tempos e erros).
+  const [aba, setAba] = useState('chat')
 
   // Timer de relogin das matrículas (veja comentário de buscarPrimeiraConsultaHoje).
   // null enquanto ainda não teve nenhuma consulta hoje (timer parado).
@@ -323,8 +332,18 @@ export default function Crivo() {
     setCep('')
   }
 
+  if (!visaoSimples && aba === 'log') {
+    return (
+      <div className="flex flex-col gap-4">
+        <Tabs tabs={ABAS_CRIVO} active={aba} onChange={setAba} />
+        <CrivoLog />
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-4">
+      {!visaoSimples && <Tabs tabs={ABAS_CRIVO} active={aba} onChange={setAba} />}
       <p className="text-sm text-muted">Envie o CNPJ no chat abaixo. O Crivo consulta nos dois sistemas da TIM e responde nesta tela.</p>
 
       {segundosRestantes !== null && (
@@ -361,6 +380,8 @@ export default function Crivo() {
           </form>
         </Secao>
       )}
+
+      <FaixaPcs />
 
       <Secao titulo="Chat do Crivo">
         <div className="flex max-h-[520px] min-h-[300px] flex-col gap-4 overflow-y-auto">

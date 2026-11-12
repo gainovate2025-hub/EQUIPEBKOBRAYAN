@@ -125,7 +125,7 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
   const feitas = tentativasFeitas(consultaId)
   if (feitas < MAX_TENTATIVAS) {
     sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
-    log(numeroSistema, consultaId, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
+    logErro(numeroSistema, consultaId, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
     automation.voltarUmaPagina()
     await dormir(1200)
     if (automation.detectarEstado().tipo !== 'formulario') {
@@ -171,14 +171,16 @@ function detectarSistemaPelaUrl() {
   return null
 }
 
-// Ordem de decisão (1.5.0, 11/11/2026 — um PC só, com uma aba no 1º
-// sistema e outra no 2º):
+// 1.6.0 (12/11/2026): 3 PCs. Cada PC tem uma aba no 1º sistema (cliente)
+// e outra no 2º (negociação). O número do PC vem do ícone da extensão.
+// Ordem de decisão do sistema da aba:
 // 1. Sistema escolhido no ícone PRA ESSA ABA (1º ou 2º). Também fica
 //    guardado na própria aba (sessionStorage), então vale de novo depois
 //    de F5 ou do Chrome reabrir as abas.
 // 2. Endereço da aba (/cliente/ = 1º, /negociacao/primeiravenda = 2º).
 // 3. Sem nada disso: 1º sistema.
 const CHAVE_SISTEMA_ABA = 'crivo_sistema_aba'
+let NUMERO_PC = null // 1, 2 ou 3 — sem escolha, a aba não pega nada
 
 async function pegarNumeroSistema() {
   let resp = null
@@ -187,6 +189,7 @@ async function pegarNumeroSistema() {
   } catch {
     // extensão atualizada sem F5 nessa aba: segue com o que a aba lembra
   }
+  NUMERO_PC = [1, 2, 3].includes(resp?.pc) ? resp.pc : null
   if (resp?.aba === 1 || resp?.aba === 2) {
     sessionStorage.setItem(CHAVE_SISTEMA_ABA, String(resp.aba))
     return resp.aba
@@ -206,13 +209,20 @@ async function pegarNumeroSistema() {
 // print do console de quem estava testando. Não espera a gravação
 // terminar (fire-and-forget) nem deixa uma falha de rede quebrar o
 // laço principal.
+// logErro: mesma coisa, mas marcado como erro (aparece na aba Log do site).
 function log(numeroSistema, consultaId, ...args) {
-  console.log(`[Crivo/EasyVendas #${numeroSistema}]`, ...args)
+  gravarLog('info', numeroSistema, consultaId, args)
+}
+function logErro(numeroSistema, consultaId, ...args) {
+  gravarLog('erro', numeroSistema, consultaId, args)
+}
+function gravarLog(tipo, numeroSistema, consultaId, args) {
+  console.log(`[Crivo/EasyVendas ${NUMERO_PC ? `PC ${NUMERO_PC} ` : ''}#${numeroSistema}]`, ...args)
   if (!consultaId) return
   const mensagem = args.map((a) => (typeof a === 'string' ? a : JSON.stringify(a))).join(' ')
   supaFetch('crivo_logs', {
     method: 'POST',
-    body: JSON.stringify({ consulta_id: consultaId, numero_sistema: numeroSistema, mensagem }),
+    body: JSON.stringify({ consulta_id: consultaId, numero_sistema: numeroSistema, pc: NUMERO_PC, tipo, mensagem }),
     prefer: 'return=minimal',
   }).catch(() => {})
 }
@@ -232,81 +242,67 @@ async function supaFetch(path, options = {}) {
   return res.status === 204 ? null : res.json()
 }
 
-// O 2º sistema só pode pegar uma consulta depois que o 1º já aprovou —
-// por isso o filtro extra de sistema1_resultado=eq.aprovado. Se o 1º
-// reprovar (ou não encontrar o CNPJ), a consulta nunca aparece pro 2º.
-//
-// Antes de devolver a consulta, REIVINDICA ela (migration_022) — se
-// outra aba já pegou essa mesma consulta há pouco, a reivindicação
-// falha e aqui devolve null (como se não tivesse pendente), evitando
-// que duas abas processem a mesma consulta ao mesmo tempo.
+// Pede pro banco o próximo CNPJ da fila pra este PC (1.6.0, veja
+// migration_053_crivo_3_pcs.sql > crivo_pegar). O banco decide tudo de
+// uma vez, sem duas abas/PCs pegarem o mesmo:
+// * 1º sistema: CNPJ novo da fila (ou o que já é deste PC, num retry).
+// * 2º sistema: CNPJ que este PC aprovou no 1º.
+// * Só entrega se os DOIS sistemas deste PC estiverem conectados.
+// * CNPJ parado há mais de 1m50 em outro PC (ou PC que caiu) volta pra
+//   fila e outro PC pega.
+// * Nunca entrega dois pendentes do mesmo CNPJ ao mesmo tempo.
 async function buscarPendente(numeroSistema) {
-  const campoResultado = `sistema${numeroSistema}_resultado`
-  let filtro = `status=eq.pendente&${campoResultado}=is.null`
-  if (numeroSistema === 2) filtro += `&sistema1_resultado=eq.aprovado`
+  const linhas = await supaFetch('rpc/crivo_pegar', {
+    method: 'POST',
+    body: JSON.stringify({ p_pc: NUMERO_PC, p_sistema: numeroSistema, p_client_id: CLIENT_ID }),
+  })
+  return linhas?.[0] || null
+}
 
-  // Busca várias (não só a mais antiga) — se uma consulta já falhou antes
-  // nesta aba (está em retry, veja finalizarComRetry), ela continua
-  // "pendente" e, sendo a mais antiga, seria sempre escolhida de novo,
-  // travando a fila inteira nela em vez de seguir pras outras (pedido do
-  // Brayan em 29/10/2026: "caso ela der erro, consultar outro CNPJ, e
-  // depois consultar o CNPJ que deu erro também"). Prefere uma que ainda
-  // não falhou nenhuma vez aqui; só volta pra uma que já falhou se não
-  // tiver mais nenhuma "limpa" disponível.
-  const linhas = await supaFetch(
-    `crivo_consultas?select=*&${filtro}&order=created_at.asc&limit=10`
-  )
-  if (!linhas?.length) return null
-
-  // NUNCA processa dois pendentes do MESMO CNPJ ao mesmo tempo (pedido do
-  // Brayan em 06/11/2026) — se o mesmo CNPJ foi mandado mais de uma vez
-  // (dois operadores, ou a mesma pessoa duas vezes) e as duas consultas
-  // ainda estão pendentes juntas, mandar as duas pro EasyVendas quase
-  // junto faz a 2ª cair na tela de Contrato (a negociação da 1ª já existe
-  // — confirmado ao vivo, sobretudo no 2º sistema). Entre as candidatas
-  // com CNPJ repetido, só a MAIS ANTIGA conta nesta rodada; a(s) outra(s)
-  // ficam de fora até a mais antiga sair de "pendente" (aí, na rodada
-  // seguinte, já não tem mais duplicata e ela é processada normalmente).
-  const maisAntigaPorCnpj = new Map()
-  for (const c of linhas) {
-    if (!maisAntigaPorCnpj.has(c.cnpj)) maisAntigaPorCnpj.set(c.cnpj, c.id)
-  }
-  const semCnpjDuplicado = linhas.filter((c) => maisAntigaPorCnpj.get(c.cnpj) === c.id)
-  if (!semCnpjDuplicado.length) return null
-
-  // Tenta reservar uma de cada vez, na ordem: primeiro as que ainda não
-  // falharam aqui, depois as que já falharam. Se a reserva falhar (outra
-  // aba/PC já pegou), passa pra PRÓXIMA da fila (11/11/2026). Antes
-  // desistia e tentava a mesma de novo, e com 2 PCs no mesmo sistema o 2º
-  // ficava parado enquanto o 1º trabalhava, mesmo com outro CNPJ na fila.
-  const candidatas = [
-    ...semCnpjDuplicado.filter((c) => tentativasFeitas(c.id) === 0),
-    ...semCnpjDuplicado.filter((c) => tentativasFeitas(c.id) > 0),
-  ]
-  for (const consulta of candidatas) {
-    const reivindicou = await supaFetch('rpc/crivo_reivindicar', {
+// Sinal de vida: avisa o banco a cada 5s que esta aba (PC + sistema) está
+// aberta. É assim que o site e o ícone sabem se os 2 sistemas do PC estão
+// conectados, e um PC com um sistema fora não recebe CNPJ.
+const SINAL_MS = 5000
+let ultimoSinal = 0
+async function mandarSinal(numeroSistema, consultaId) {
+  if (Date.now() - ultimoSinal < SINAL_MS) return
+  ultimoSinal = Date.now()
+  try {
+    await supaFetch('rpc/crivo_sinal', {
       method: 'POST',
-      body: JSON.stringify({ p_id: consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
+      body: JSON.stringify({
+        p_pc: NUMERO_PC,
+        p_sistema: numeroSistema,
+        p_client_id: CLIENT_ID,
+        p_url: location.href,
+        p_consulta_id: consultaId || null,
+      }),
+      prefer: 'return=minimal',
     })
-    if (reivindicou) return consulta
+  } catch {
+    // falha de rede passageira: manda de novo daqui a 5s
   }
-  return null
 }
 
 // Grava pela função do banco (RPC), não direto na tabela — veja
 // migration_017_crivo_rpc.sql pro motivo.
+// 1.6.0: só grava se o CNPJ ainda for deste PC. Erro não vai direto pro
+// chat: o banco tenta mandar pra outro PC conectado primeiro.
 async function salvarResultado(id, numeroSistema, { resultado = null, motivo = null, erro = null }) {
-  await supaFetch('rpc/crivo_salvar_resultado', {
+  const r = await supaFetch('rpc/crivo_salvar_resultado_pc', {
     method: 'POST',
     body: JSON.stringify({
       p_id: id,
-      p_numero_sistema: numeroSistema,
+      p_pc: NUMERO_PC,
+      p_sistema: numeroSistema,
+      p_client_id: CLIENT_ID,
       p_resultado: resultado,
       p_motivo: motivo,
       p_erro: erro,
     }),
-    prefer: 'return=minimal',
   })
+  if (r === 'repassado') console.log(`[Crivo/EasyVendas PC ${NUMERO_PC} #${numeroSistema}] Deu erro aqui, o CNPJ foi pra outro PC`)
+  if (r === 'ignorado') console.log(`[Crivo/EasyVendas PC ${NUMERO_PC} #${numeroSistema}] Resultado não gravado: o CNPJ já tinha ido pra outro PC`)
 }
 
 function mensagemDiagnostico(estado) {
@@ -627,17 +623,20 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
 // poder assumir se esta travar, mas uma consulta lenta passa disso e
 // outra máquina pegava o MESMO CNPJ. Renovando a cada 30s, cada máquina
 // fica com o seu CNPJ e a reserva só vence se esta aba realmente parar.
-const RENOVAR_RESERVA_MS = 30000
+// 1.6.0: devolve false quando o CNPJ já não é mais deste PC (demorou mais
+// de 1m50 e foi repassado pra outro PC) — aí esta aba larga ele.
+const RENOVAR_RESERVA_MS = 15000
 async function renovarReserva(numeroSistema, andamento) {
-  if (Date.now() - (andamento.reservaRenovadaEm || 0) < RENOVAR_RESERVA_MS) return
+  if (Date.now() - (andamento.reservaRenovadaEm || 0) < RENOVAR_RESERVA_MS) return true
   andamento.reservaRenovadaEm = Date.now()
   try {
-    await supaFetch('rpc/crivo_reivindicar', {
+    const aindaMeu = await supaFetch('rpc/crivo_renovar', {
       method: 'POST',
-      body: JSON.stringify({ p_id: andamento.consulta.id, p_numero_sistema: numeroSistema, p_client_id: CLIENT_ID }),
+      body: JSON.stringify({ p_id: andamento.consulta.id, p_pc: NUMERO_PC, p_sistema: numeroSistema, p_client_id: CLIENT_ID }),
     })
+    return aindaMeu !== false
   } catch {
-    // falha de rede passageira: tenta de novo na próxima renovação
+    return true // falha de rede passageira: tenta de novo na próxima renovação
   }
 }
 
@@ -646,15 +645,20 @@ async function laco(numeroSistema, automation) {
   // eslint-disable-next-line no-constant-condition
   while (true) {
     try {
-      if (andamento) {
-        await renovarReserva(numeroSistema, andamento)
+      await mandarSinal(numeroSistema, andamento?.consulta?.id)
+      if (andamento && !(await renovarReserva(numeroSistema, andamento))) {
+        log(numeroSistema, andamento.consulta.id, `PC ${NUMERO_PC} largou o CNPJ: ele foi repassado pra outro PC`)
+        sessionStorage.removeItem(chaveTentativas(andamento.consulta.id))
+        andamento = null
+        automation.fecharModal()
+      } else if (andamento) {
         const terminou = await verificarAndamento(numeroSistema, automation, andamento)
         if (terminou) andamento = null
       } else {
         andamento = await tentarComecarNova(numeroSistema, automation)
       }
     } catch (err) {
-      log(numeroSistema, andamento?.consulta?.id || null, 'Falha no laço:', err.message)
+      logErro(numeroSistema, andamento?.consulta?.id || null, 'Falha no laço:', err.message)
       andamento = null
     }
     await dormir(andamento ? POLL_ANDAMENTO_MS : POLL_IDLE_MS)
@@ -663,6 +667,17 @@ async function laco(numeroSistema, automation) {
 
 async function iniciar() {
   const numeroSistema = await pegarNumeroSistema()
+
+  // se a pessoa trocar o PC ou o sistema no ícone da extensão, o
+  // background.js manda recarregar pra já começar a valer.
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg?.tipo === 'crivo:recarregar') location.reload()
+  })
+
+  if (!NUMERO_PC) {
+    console.log('[Crivo/EasyVendas] Escolha o número deste PC (1, 2 ou 3) no ícone da extensão. Até lá esta aba não pega CNPJ.')
+    return
+  }
   log(numeroSistema, null, 'Ativo em', location.href)
 
   chrome.runtime.sendMessage({ tipo: 'crivo:abaAtiva' }).catch(() => {})
@@ -672,12 +687,6 @@ async function iniciar() {
 
   const automation = new EasyVendasAutomation(EASYVENDAS_SELECTORS)
   laco(numeroSistema, automation)
-
-  // se a pessoa trocar a escolha dessa aba no ícone da extensão, o
-  // background.js manda recarregar pra já começar a valer.
-  chrome.runtime.onMessage.addListener((msg) => {
-    if (msg?.tipo === 'crivo:recarregar') location.reload()
-  })
 }
 
 iniciar()
