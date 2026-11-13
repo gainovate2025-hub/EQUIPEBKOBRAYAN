@@ -160,6 +160,7 @@ export default function Crivo() {
   const [consultas, setConsultas] = useState([])
   const [loading, setLoading] = useState(true)
   const [enviando, setEnviando] = useState(false)
+  const [confirmarReenvio, setConfirmarReenvio] = useState('') // CNPJ já respondido que a pessoa quer mandar de novo
   const [msg, setMsg] = useState('')
   const fimRef = useRef(null)
   // Supervisor/líder vê também a aba "Log" (PCs, fila, tempos e erros).
@@ -300,13 +301,18 @@ export default function Crivo() {
     // Vendas faz ele cair na tela de Contrato (confirmado ao vivo), o que
     // podia bagunçar a automação. Em vez disso, mostra a resposta que já
     // tinha, igual se tivesse acabado de responder agora.
+    // 13/11/2026 (Brayan): dá pra mandar de novo um CNPJ já respondido.
+    // O 1º envio só avisa; enviar o MESMO CNPJ de novo logo em seguida
+    // manda pra fila (pra quem quer consultar outra vez de propósito).
     const jaRespondida = [...consultas].reverse().find((c) => soCnpjDigitos(c.cnpj) === limpo && veredito(c))
-    if (jaRespondida) {
+    if (jaRespondida && confirmarReenvio !== limpo) {
       const resultado = veredito(jaRespondida)
+      setConfirmarReenvio(limpo)
       return setMsg(
-        `Esse CNPJ já foi consultado e respondeu: ${RESULT_LABEL[resultado]} (em ${new Date(jaRespondida.created_at).toLocaleString('pt-BR')}).`
+        `Esse CNPJ já foi consultado e respondeu: ${RESULT_LABEL[resultado]} (em ${new Date(jaRespondida.created_at).toLocaleString('pt-BR')}). Pra consultar de novo, clique em enviar mais uma vez.`
       )
     }
+    setConfirmarReenvio('')
 
     const ultima = consultas[consultas.length - 1]
     // Só segura enquanto a última ainda está rodando. Se ela deu ERRO, a
