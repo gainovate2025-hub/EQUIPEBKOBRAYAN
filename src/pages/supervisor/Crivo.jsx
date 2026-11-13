@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabaseClient'
 import Secao from '../../components/ui/Secao'
 import Tabs from '../../components/ui/Tabs'
 import CrivoLog, { FaixaPcs } from './CrivoLog'
+import CrivoMandados from './CrivoMandados'
 import { AlertTriangle, Loader2 } from 'lucide-react'
 
 const RESULT_LABEL = { aprovado: 'Aprovado', reprovado: 'Reprovado', nao_encontrado: 'CNPJ errado' }
@@ -147,6 +148,7 @@ function RespostaCrivoDetalhada({ consulta: c }) {
 
 const ABAS_CRIVO = [
   { key: 'chat', label: 'Chat' },
+  { key: 'mandados', label: 'CNPJs mandados' },
   { key: 'log', label: 'Log' },
 ]
 
@@ -332,11 +334,11 @@ export default function Crivo() {
     setCep('')
   }
 
-  if (!visaoSimples && aba === 'log') {
+  if (!visaoSimples && (aba === 'log' || aba === 'mandados')) {
     return (
       <div className="flex flex-col gap-4">
         <Tabs tabs={ABAS_CRIVO} active={aba} onChange={setAba} />
-        <CrivoLog />
+        {aba === 'log' ? <CrivoLog /> : <CrivoMandados />}
       </div>
     )
   }

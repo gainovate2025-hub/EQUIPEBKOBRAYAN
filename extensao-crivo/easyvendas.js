@@ -332,6 +332,24 @@ async function tentarComecarNova(numeroSistema, automation) {
   const consulta = await buscarPendente(numeroSistema)
   if (!consulta) return null
 
+  // 1.6.1 (13/11/2026, pedido do Brayan): no 1º sistema, SEMPRE recarrega
+  // a página antes de cada consulta e refaz todos os passos do zero. O
+  // banco (migration_056) manda consultar 2 vezes; cada leitura começa com
+  // a página recarregada. Uma marca no sessionStorage (sobrevive ao reload)
+  // evita recarregar em loop: depois do reload o mesmo CNPJ volta pra esta
+  // aba e aí segue normal.
+  if (numeroSistema === 1) {
+    const leitura = consulta.sistema1_leitura1 ? 2 : 1
+    const chaveRecarga = `crivo_recarregou_${consulta.id}_${leitura}`
+    if (!sessionStorage.getItem(chaveRecarga)) {
+      sessionStorage.setItem(chaveRecarga, '1')
+      log(numeroSistema, consulta.id, `Recarregando a página antes da ${leitura}ª leitura do CNPJ ${consulta.cnpj}`)
+      await dormir(300)
+      location.reload()
+      return null
+    }
+  }
+
   log(numeroSistema, consulta.id, 'Processando CNPJ', consulta.cnpj)
 
   // fecha qualquer janela de resultado deixada aberta de antes, sem
