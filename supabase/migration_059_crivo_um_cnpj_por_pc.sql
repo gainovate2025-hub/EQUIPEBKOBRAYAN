@@ -67,6 +67,11 @@ begin
       and (c.pc is null or c.pc = p_pc)
       and (c.sistema2_travado_por is null or c.sistema2_travado_por = p_client_id
            or c.sistema2_travado_em < now() - interval '2 minutes')
+      -- 059: CNPJ que veio de outro PC só entra aqui se este PC estiver livre.
+      and (c.pc = p_pc or not exists (
+        select 1 from public.crivo_consultas o
+        where o.status = 'pendente' and o.pc = p_pc and o.id <> c.id
+      ))
       and public.crivo_pode_tentar_de_novo(c.pcs_tentados, c.pc_desde, p_pc)
       and not exists (
         select 1 from public.crivo_consultas o
