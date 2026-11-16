@@ -67,43 +67,6 @@ function formatarCnpj(v) {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
-// Estado e CEP da empresa na Receita (OpenCNPJ, sem limite de consultas).
-// Espera no máximo 4s; sem resposta, devolve null.
-async function buscarCepDaEmpresa(cnpjLimpo) {
-  const controle = new AbortController()
-  const t = setTimeout(() => controle.abort(), 4000)
-  try {
-    const res = await fetch(`https://api.opencnpj.org/${cnpjLimpo}`, { signal: controle.signal })
-    if (!res.ok) return null
-    const d = await res.json()
-    const cep = String(d.cep || '').replace(/\D/g, '')
-    const uf = String(d.uf || '').trim().toUpperCase()
-    return cep.length === 8 && uf ? { cep, uf } : null
-  } catch {
-    return null
-  } finally {
-    clearTimeout(t)
-  }
-}
-
-// Estado de um CEP pelas faixas dos Correios (só pra saber o estado do
-// CEP padrão do painel).
-const FAIXAS_CEP = [
-  ['SP', 1000, 19999], ['RJ', 20000, 28999], ['ES', 29000, 29999], ['MG', 30000, 39999],
-  ['BA', 40000, 48999], ['SE', 49000, 49999], ['PE', 50000, 56999], ['AL', 57000, 57999],
-  ['PB', 58000, 58999], ['RN', 59000, 59999], ['CE', 60000, 63999], ['PI', 64000, 64999],
-  ['MA', 65000, 65999], ['PA', 66000, 68899], ['AP', 68900, 68999], ['AM', 69000, 69299],
-  ['RR', 69300, 69399], ['AM', 69400, 69899], ['AC', 69900, 69999], ['DF', 70000, 72799],
-  ['GO', 72800, 72999], ['DF', 73000, 73699], ['GO', 73700, 76799], ['RO', 76800, 76999],
-  ['TO', 77000, 77999], ['MT', 78000, 78899], ['MS', 79000, 79999], ['PR', 80000, 87999],
-  ['SC', 88000, 89999], ['RS', 90000, 99999],
-]
-function ufDoCep(cepDigitos) {
-  if (!cepDigitos || cepDigitos.length !== 8) return null
-  const n = Number(cepDigitos.slice(0, 5))
-  return FAIXAS_CEP.find(([, ini, fim]) => n >= ini && n <= fim)?.[0] || null
-}
-
 function soCepDigitos(v) {
   return v.replace(/\D/g, '').slice(0, 8)
 }
@@ -404,20 +367,9 @@ export default function Crivo() {
     if (cepLimpo && cepLimpo.length !== 8) return setMsg('CEP inválido (8 números). Corrija ou deixe em branco.')
 
     setEnviando(true)
-    // 16/11/2026 (Brayan): empresa de outro estado usa o CEP dela no 1º
-    // sistema. Com o CEP padrão (MG), o 2º sistema dava "O estado do
-    // endereço informado não pode ser diferente do estado..." e o Crivo
-    // reprovava empresa aprovada. Empresa do mesmo estado do CEP padrão
-    // (ou sem resposta do serviço) continua com o CEP padrão.
-    let cepFinal = cepLimpo
-    if (!cepFinal) {
-      const empresa = await buscarCepDaEmpresa(limpo)
-      const ufPadrao = ufDoCep(soCepDigitos(cepPadrao || ''))
-      if (empresa && ufPadrao && empresa.uf && empresa.uf !== ufPadrao) cepFinal = empresa.cep
-    }
     const { error } = await supabase.from('crivo_consultas').insert({
       cnpj: limpo,
-      cep: cepFinal ? formatarCep(cepFinal) : null,
+      cep: cepLimpo ? formatarCep(cepLimpo) : null,
       solicitado_por: profile.id,
     })
     setEnviando(false)
