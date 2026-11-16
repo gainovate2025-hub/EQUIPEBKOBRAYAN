@@ -69,7 +69,15 @@ let nomeNegociacao = null
 async function atualizarNomeNegociacao() {
   try {
     const linhas = await supaFetch('crivo_configuracoes?select=negociacao_nome&id=eq.1&limit=1')
-    nomeNegociacao = (linhas?.[0]?.negociacao_nome || '').trim() || null
+    const bruto = (linhas?.[0]?.negociacao_nome || '').trim()
+    // 1.6.5: um nome pra cada PC, guardado como {"1":"...","2":"...","3":"..."}.
+    // Texto simples (formato da 1.6.4) vale pra todos os PCs.
+    let nome = bruto
+    try {
+      const obj = JSON.parse(bruto)
+      if (obj && typeof obj === 'object') nome = obj[NUMERO_PC] || ''
+    } catch { /* texto simples */ }
+    nomeNegociacao = String(nome || '').trim() || null
   } catch {
     // coluna ainda não criada ou falha de rede: segue sem o nome
   }
@@ -221,7 +229,7 @@ async function religarSegundoSistema(automation, consultaId) {
     location.reload()
     return false
   }
-  if (!nomeNegociacao) return falhou('nenhum nome de negociação configurado no painel')
+  if (!nomeNegociacao) return falhou(`nenhum nome de negociação configurado no painel pro PC ${NUMERO_PC}`)
   log(2, consultaId, `Religando o 2º sistema pela negociação "${nomeNegociacao}"`)
   automation.fecharModal()
 

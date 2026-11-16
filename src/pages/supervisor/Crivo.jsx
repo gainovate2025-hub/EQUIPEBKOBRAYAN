@@ -218,7 +218,9 @@ export default function Crivo() {
 
   // Nome da negociação que a extensão abre pra religar o 2º sistema
   // quando ele trava (Negociações > Razão Social > EDITAR). 15/11/2026.
-  const [nomeNegociacao, setNomeNegociacao] = useState('')
+  // Um nome pra cada PC (cada PC usa uma matrícula diferente). Fica
+  // guardado como JSON na mesma coluna: {"1":"...","2":"...","3":"..."}.
+  const [nomesNegociacao, setNomesNegociacao] = useState({ 1: '', 2: '', 3: '' })
   const [salvandoNome, setSalvandoNome] = useState(false)
   const [msgNome, setMsgNome] = useState('')
 
@@ -228,16 +230,28 @@ export default function Crivo() {
       .select('negociacao_nome')
       .eq('id', 1)
       .maybeSingle()
-      .then(({ data }) => setNomeNegociacao(data?.negociacao_nome || ''))
+      .then(({ data }) => {
+        const bruto = (data?.negociacao_nome || '').trim()
+        let nomes = { 1: '', 2: '', 3: '' }
+        try {
+          const obj = JSON.parse(bruto)
+          if (obj && typeof obj === 'object') nomes = { 1: obj[1] || '', 2: obj[2] || '', 3: obj[3] || '' }
+        } catch {
+          if (bruto) nomes = { 1: bruto, 2: bruto, 3: bruto } // formato antigo: um nome pra todos
+        }
+        setNomesNegociacao(nomes)
+      })
   }, [])
 
   async function salvarNomeNegociacao(e) {
     e?.preventDefault()
     setMsgNome('')
     setSalvandoNome(true)
+    const limpos = Object.fromEntries([1, 2, 3].map((pc) => [pc, (nomesNegociacao[pc] || '').trim()]))
+    const algum = Object.values(limpos).some(Boolean)
     const { error } = await supabase
       .from('crivo_configuracoes')
-      .update({ negociacao_nome: nomeNegociacao.trim() || null, atualizado_em: new Date().toISOString() })
+      .update({ negociacao_nome: algum ? JSON.stringify(limpos) : null, atualizado_em: new Date().toISOString() })
       .eq('id', 1)
     setSalvandoNome(false)
     setMsgNome(error ? 'Erro: ' + error.message : 'Salvo.')
@@ -420,16 +434,21 @@ export default function Crivo() {
         <Secao titulo="Negociação pra religar o 2º sistema">
           <p className="mb-3 text-sm text-muted">
             Quando o 2º sistema trava ou cai na tela de termos, o Crivo clica em Negociações, procura este nome em Razão Social,
-            abre a negociação e clica em EDITAR. Se não der certo, recarrega a página.
+            abre a negociação e clica em EDITAR. Se não der certo, recarrega a página. Cada PC usa o nome que estiver na caixa dele.
           </p>
-          <form onSubmit={salvarNomeNegociacao} className="flex flex-wrap items-center gap-3">
-            <input
-              className="field-input w-64"
-              aria-label="Nome da negociação"
-              placeholder="Ex: WILL CRIVO 04NOV"
-              value={nomeNegociacao}
-              onChange={(e) => setNomeNegociacao(e.target.value.toUpperCase())}
-            />
+          <form onSubmit={salvarNomeNegociacao} className="flex flex-wrap items-end gap-3">
+            {[1, 2, 3].map((pc) => (
+              <label key={pc} className="flex flex-col">
+                <span className="mb-1.5 block text-xs font-medium text-muted">PC {pc}</span>
+                <input
+                  className="field-input w-56"
+                  aria-label={`Nome da negociação do PC ${pc}`}
+                  placeholder="Ex: WILL CRIVO 04NOV"
+                  value={nomesNegociacao[pc]}
+                  onChange={(e) => setNomesNegociacao((atual) => ({ ...atual, [pc]: e.target.value.toUpperCase() }))}
+                />
+              </label>
+            ))}
             <button type="submit" className="btn-primary" disabled={salvandoNome}>
               {salvandoNome ? 'Salvando…' : 'Salvar'}
             </button>
