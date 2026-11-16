@@ -460,20 +460,23 @@ export default function Crivo() {
 
           {consultas.map((c) => (
             <div key={c.id} className="flex flex-col gap-2">
-              <div className="flex flex-col items-end gap-0.5 self-end">
+              {/* 16/11/2026: o limite de largura fica no bloco de fora. Com o
+                  "max-w-[80%]" no balão, ele ficava menor que o próprio texto
+                  e cortava a resposta ("Aprovado" saindo da caixa). */}
+              <div className="flex max-w-[80%] flex-col items-end gap-0.5 self-end">
                 <div className="flex items-baseline gap-2 text-xs text-muted">
                   <span>{c.profiles?.name || 'Alguém'}</span>
                   <span>{new Date(c.created_at).toLocaleString('pt-BR')}</span>
                 </div>
-                <div className="max-w-[80%] rounded-lg rounded-tr-sm bg-brand-600 px-3 py-2 text-sm font-medium text-white">
+                <div className="rounded-lg rounded-tr-sm bg-brand-600 px-3 py-2 text-sm font-medium text-white">
                   {formatarCnpj(c.cnpj)}
                   {c.cep && <div className="mt-0.5 text-xs font-normal text-white/80">CEP: {c.cep}</div>}
                 </div>
               </div>
 
-              <div className="flex flex-col items-start gap-0.5 self-start">
+              <div className="flex max-w-[85%] flex-col items-start gap-0.5 self-start">
                 <div className="text-xs text-muted">Crivo</div>
-                <div className="max-w-[85%] rounded-lg rounded-tl-sm border border-line bg-paper px-3 py-2 text-xs">
+                <div className="rounded-lg rounded-tl-sm border border-line bg-paper px-3 py-2 text-xs">
                   {visaoSimples ? <RespostaCrivoSimples consulta={c} /> : <RespostaCrivoDetalhada consulta={c} />}
                 </div>
               </div>
