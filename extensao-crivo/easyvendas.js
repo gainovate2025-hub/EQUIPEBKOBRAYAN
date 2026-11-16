@@ -224,7 +224,7 @@ async function digitarTexto(input, texto) {
 
 async function religarSegundoSistema(automation, consultaId) {
   const falhou = async (passo) => {
-    logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Recarregando a página.`)
+    logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Tela: ${location.href.replace(/^.*#!/, '')}. Recarregando a página.`)
     await dormir(300)
     location.reload()
     return false
@@ -233,8 +233,21 @@ async function religarSegundoSistema(automation, consultaId) {
   log(2, consultaId, `Religando o 2º sistema pela negociação "${nomeNegociacao}"`)
   automation.fecharModal()
 
-  const menu = await esperarAte(() => acharPorTexto('Negociações', { exato: true }), 8000)
-  if (!menu) return falhou('não achei "Negociações"')
+  // 1.6.6 (16/11/2026, Brayan): primeiro clica em Cliente(s) no menu,
+  // depois em Negociações — igual a equipe faz na mão.
+  const cliente = automation.acharBotaoPorTexto(EASYVENDAS_SELECTORS.botaoClientesTextos) ||
+    acharPorTexto('Clientes', { exato: true }) || acharPorTexto('Cliente', { exato: true })
+  if (!cliente) return falhou('não achei "Cliente" no menu')
+  await pausaHumana(300, 600)
+  cliente.click()
+  await dormir(1200)
+
+  const menu = await esperarAte(() => {
+    const el = acharPorTexto('Negociações', { exato: true })
+    return el && el.id !== 'negociacaoButton' ? el : null
+  }, 8000)
+  if (!menu) return falhou('cliquei em Cliente mas não achei "Negociações"')
+  await pausaHumana(300, 600)
   menu.click()
 
   // espera sair da tela da 1ª venda e aparecer o campo Razão Social da busca
