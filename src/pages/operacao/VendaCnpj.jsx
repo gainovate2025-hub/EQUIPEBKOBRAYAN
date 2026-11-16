@@ -155,11 +155,44 @@ async function buscarOpenCnpj(cnpjLimpo) {
   }
 }
 
+// 3ª opção (16/11/2026): quando o OpenCNPJ bloqueia a internet do
+// escritório (deu 403) e o cnpj.ws estoura o limite de 3 por minuto, a
+// consulta falhava toda. A BrasilAPI esconde telefone/e-mail em alguns
+// casos, mas traz situação e endereço — dá pra seguir e digitar o resto.
+async function buscarBrasilApi(cnpjLimpo) {
+  const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpjLimpo}`)
+  if (res.status === 404) throw Object.assign(new Error('nao_encontrado'), { naoEncontrado: true })
+  if (!res.ok) throw new Error(`BrasilAPI ${res.status}`)
+  const d = await res.json()
+  const tel = soDigitos(d.ddd_telefone_1 || '')
+  return {
+    razao_social: d.razao_social,
+    estabelecimento: {
+      cnpj: d.cnpj,
+      nome_fantasia: d.nome_fantasia,
+      tipo_logradouro: d.descricao_tipo_de_logradouro,
+      logradouro: d.logradouro,
+      numero: d.numero,
+      bairro: d.bairro,
+      cep: d.cep,
+      cidade: { nome: d.municipio },
+      estado: { sigla: d.uf },
+      ddd1: tel.slice(0, 2),
+      telefone1: tel.slice(2),
+      email: d.email || '',
+      situacao_cadastral: d.descricao_situacao_cadastral,
+      data_inicio_atividade: d.data_inicio_atividade,
+      atividade_principal: { descricao: d.cnae_fiscal_descricao || '' },
+    },
+  }
+}
+
 async function buscarCnpj(cnpjLimpo) {
-  const [ws, open] = await Promise.allSettled([buscarCnpjWs(cnpjLimpo), buscarOpenCnpj(cnpjLimpo)])
+  const [ws, open, brasil] = await Promise.allSettled([buscarCnpjWs(cnpjLimpo), buscarOpenCnpj(cnpjLimpo), buscarBrasilApi(cnpjLimpo)])
   if (ws.status === 'fulfilled') return ws.value
   if (open.status === 'fulfilled') return open.value
-  if (ws.reason?.naoEncontrado || open.reason?.naoEncontrado) throw new Error('CNPJ não encontrado na Receita.')
+  if (brasil.status === 'fulfilled') return brasil.value
+  if (ws.reason?.naoEncontrado || open.reason?.naoEncontrado || brasil.reason?.naoEncontrado) throw new Error('CNPJ não encontrado na Receita.')
   throw new Error('Os serviços de consulta de CNPJ não responderam. Aguarde um minuto e tente de novo.')
 }
 
