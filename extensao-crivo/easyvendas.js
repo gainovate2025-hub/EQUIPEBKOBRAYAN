@@ -116,8 +116,8 @@ const CLIENT_ID = pegarClientId()
 // 1.6.2 (15/11/2026, pedido do Brayan): página limpa a cada CNPJ.
 // Quando um CNPJ vinha logo depois do outro, a mensagem do anterior podia
 // continuar na tela (ou a tela travar) e ser lida como resposta do novo.
-// Agora a aba SEMPRE recarrega antes de cada CNPJ, nos 2 sistemas, e
-// volta pro endereço da tela inicial do sistema (guardado na 1ª vez que a
+// Agora a aba do 1º sistema SEMPRE recarrega antes de cada leitura (o 2º
+// sistema não pode recarregar, veja 1.6.3) e volta pro endereço da tela inicial do sistema (guardado na 1ª vez que a
 // aba achou o formulário), mesmo se tiver parado em outra tela.
 const CHAVE_URL_INICIO = 'crivo_url_inicio'
 const CARREGOU_EM = Date.now()
@@ -147,10 +147,19 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
   if (feitas < MAX_TENTATIVAS) {
     sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
     logErro(numeroSistema, consultaId, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
-    // 1.6.2: sempre recarrega (antes só voltava uma página), pra nenhuma
-    // mensagem da tentativa anterior ficar na tela.
-    await dormir(300)
-    recarregarLimpo()
+    // 1.6.2: no 1º sistema, sempre recarrega pra nenhuma mensagem da
+    // tentativa anterior ficar na tela. 1.6.3: o 2º sistema NÃO pode
+    // recarregar nunca (pedido do Brayan): lá só volta uma página.
+    if (numeroSistema === 1) {
+      await dormir(300)
+      recarregarLimpo()
+      return
+    }
+    automation.voltarUmaPagina()
+    await dormir(1200)
+    if (automation.detectarEstado().tipo !== 'formulario') {
+      log(numeroSistema, consultaId, 'Voltei uma página mas não caí no formulário (2º sistema não recarrega)')
+    }
     return
   }
   sessionStorage.removeItem(chaveTentativas(consultaId))
@@ -352,16 +361,15 @@ async function tentarComecarNova(numeroSistema, automation) {
   if (!consulta) return null
 
   // 1.6.1: no 1º sistema, cada uma das 2 leituras começa com a página
-  // recarregada. 1.6.2: o 2º sistema também recarrega antes de cada CNPJ.
+  // recarregada. 1.6.3: o 2º sistema NÃO recarrega (pedido do Brayan,
+  // 15/11/2026: lá a página não pode ser recarregada).
   // A marca no sessionStorage (sobrevive ao reload) evita recarregar em
   // loop: depois do reload o mesmo CNPJ volta pra esta aba e segue normal.
   const leitura = numeroSistema === 1 && consulta.sistema1_leitura1 ? 2 : 1
   const chaveRecarga = `crivo_recarregou_${consulta.id}_s${numeroSistema}_${leitura}`
-  if (!sessionStorage.getItem(chaveRecarga)) {
+  if (numeroSistema === 1 && !sessionStorage.getItem(chaveRecarga)) {
     sessionStorage.setItem(chaveRecarga, '1')
-    log(numeroSistema, consulta.id, numeroSistema === 1
-      ? `Recarregando a página antes da ${leitura}ª leitura do CNPJ ${consulta.cnpj}`
-      : `Recarregando a página antes de consultar o CNPJ ${consulta.cnpj}`)
+    log(numeroSistema, consulta.id, `Recarregando a página antes da ${leitura}ª leitura do CNPJ ${consulta.cnpj}`)
     await dormir(300)
     recarregarLimpo()
     return null
