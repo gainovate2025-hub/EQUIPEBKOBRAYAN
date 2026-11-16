@@ -104,7 +104,7 @@ const EASYVENDAS_SELECTORS = {
   // nenhuma palavra de reprovado nem de aprovado — sem esse padrão, a
   // extensão tratava isso como um resultado normal (aprovado por
   // padrão), o que tava saindo errado no chat.
-  padraoFormularioIncompleto: /formulario com pend|favor rever o preenchimento/,
+  padraoFormularioIncompleto: /formulario com pend|favor rever o preenchimento|e obrigatori/, // 1.7.6: "Endereço é obrigatório" também é campo faltando, não resposta
 
   // Tela de Contrato ("Termo de Contratação" / "Contrato de Permanência",
   // com os botões Cancelar/Salvar/Enviar por e-mail) — não é uma tela de

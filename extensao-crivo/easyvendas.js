@@ -233,6 +233,11 @@ const PADRAO_ERRO_ESTADO = /estado do endereco[\s\S]{0,80}diferente/
 function ehErroDeEstado(texto) {
   return PADRAO_ERRO_ESTADO.test(semAcento(texto || ''))
 }
+function precisaEnderecoDaEmpresa(texto) {
+  const t = semAcento(texto || '')
+  if (/telefone invalido/.test(t)) return false
+  return PADRAO_ERRO_ESTADO.test(t) || /formulario com pend|favor rever o preenchimento|e obrigatori/.test(t)
+}
 function chaveCepEmpresa(consultaId) {
   return `crivo_cep_empresa_${consultaId}`
 }
@@ -979,8 +984,16 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
           return true
         }
       }
-      if (numeroSistema === 2 && !andamento.cepEmpresaTentado) {
+    }
+    // 1.7.6 (Brayan): no 2º sistema, "Formulário com pendências", erro de
+    // estado ou "Endereço/Bairro... é obrigatório" → coloca o CEP e o
+    // endereço do cartão CNPJ da empresa e avança de novo (uma vez).
+    // "Telefone inválido" segue a regra própria (logo abaixo).
+    if (numeroSistema === 2 && precisaEnderecoDaEmpresa(textoNovo)) {
+      const consulta = andamento.consulta
+      if (!andamento.cepEmpresaTentado) {
         andamento.cepEmpresaTentado = true
+        log(2, consulta.id, `Aviso de endereço/pendência: colocando CEP e endereço do cartão CNPJ (${textoNovo.slice(0, 80)})`)
         const empresa = await buscarCepDaEmpresa(consulta.cnpj, consulta.id, 2, { comUf: true })
         if (empresa && (await trocarCepNoSegundoSistema(automation, consulta.id, empresa.cep, empresa))) {
           andamento.fase = 'aguardando_dados'
