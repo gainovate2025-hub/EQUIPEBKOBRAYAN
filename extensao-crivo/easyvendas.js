@@ -237,19 +237,20 @@ function chaveCepEmpresa(consultaId) {
   return `crivo_cep_empresa_${consultaId}`
 }
 
-async function buscarCepDaEmpresa(cnpj) {
+async function buscarCepDaEmpresa(cnpj, consultaId, numeroSistema) {
+  let resp = null
   try {
-    const controle = new AbortController()
-    const t = setTimeout(() => controle.abort(), 5000)
-    const res = await fetch(`https://api.opencnpj.org/${String(cnpj).replace(/\D/g, '')}`, { signal: controle.signal })
-    clearTimeout(t)
-    if (!res.ok) return null
-    const d = await res.json()
-    const cep = String(d.cep || '').replace(/\D/g, '')
-    return cep.length === 8 ? cep.replace(/^(\d{5})(\d{3})$/, '$1-$2') : null
-  } catch {
-    return null
+    resp = await chrome.runtime.sendMessage({ tipo: 'crivo:cepEmpresa', cnpj })
+  } catch (err) {
+    resp = { erro: err.message }
   }
+  const cep = String(resp?.cep || '').replace(/\D/g, '')
+  if (cep.length === 8) {
+    log(numeroSistema, consultaId, `CEP da empresa na Receita: ${cep} (${resp.uf || '?'})`)
+    return cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')
+  }
+  logErro(numeroSistema, consultaId, `Erro de estado: não consegui o CEP da empresa (${resp?.erro || 'sem CEP na Receita'})`)
+  return null
 }
 
 function camposDeCepVisiveis() {
@@ -285,39 +286,63 @@ async function trocarCepNoSegundoSistema(automation, consultaId, cep) {
   return true
 }
 
+function naTelaDeNegociacoes() {
+  return location.href.includes('/negociacao') && !location.href.includes('/primeiravenda')
+}
+
+function acharLinkNegociacoes() {
+  const el = acharPorTexto('Negociações', { exato: true })
+  return el && el.id !== 'negociacaoButton' ? el : null
+}
+
+async function irParaNegociacoes(automation, consultaId) {
+  const clicarCliente = async () => {
+    const c = acharPorTexto('Cliente', { exato: true }) || acharPorTexto('Clientes', { exato: true }) ||
+      automation.acharBotaoPorTexto(EASYVENDAS_SELECTORS.botaoClientesTextos)
+    if (!c) return 'Cliente não achado'
+    c.click()
+    await dormir(1200)
+    return 'cliquei em Cliente'
+  }
+  const abrirMenu = async () => {
+    const m = automation.acharBotaoPorTexto(['menu'])
+    if (!m) return 'menu não achado'
+    m.click()
+    await dormir(900)
+    return 'abri o menu'
+  }
+  for (const passo of [clicarCliente, abrirMenu, clicarCliente]) {
+    const feito = await passo()
+    const neg = await esperarAte(acharLinkNegociacoes, 2500)
+    log(2, consultaId, `Religar: ${feito}; Negociações ${neg ? 'achado, clicando' : 'não apareceu'}`)
+    if (!neg) continue
+    neg.click()
+    if (await esperarAte(() => naTelaDeNegociacoes() || null, 6000)) return true
+  }
+  return false
+}
+
 async function religarSegundoSistema(automation, consultaId) {
   const falhou = async (passo) => {
     logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Tela: ${location.href.replace(/^.*#!/, '')}. Recarregando a página.`)
     await dormir(300)
-    location.reload()
+    recarregarLimpo() // 1.6.8: volta pro endereço da tela da 1ª venda, não recarrega a tela onde parou
     return false
   }
   if (!nomeNegociacao) return falhou(`nenhum nome de negociação configurado no painel pro PC ${NUMERO_PC}`)
   log(2, consultaId, `Religando o 2º sistema pela negociação "${nomeNegociacao}"`)
   automation.fecharModal()
 
-  // 1.6.6 (16/11/2026, Brayan): primeiro clica em Cliente(s) no menu,
-  // depois em Negociações — igual a equipe faz na mão.
-  const cliente = automation.acharBotaoPorTexto(EASYVENDAS_SELECTORS.botaoClientesTextos) ||
-    acharPorTexto('Clientes', { exato: true }) || acharPorTexto('Cliente', { exato: true })
-  if (!cliente) return falhou('não achei "Cliente" no menu')
-  await pausaHumana(300, 600)
-  cliente.click()
-  await dormir(1200)
-
-  const menu = await esperarAte(() => {
-    const el = acharPorTexto('Negociações', { exato: true })
-    return el && el.id !== 'negociacaoButton' ? el : null
-  }, 8000)
-  if (!menu) return falhou('cliquei em Cliente mas não achei "Negociações"')
-  await pausaHumana(300, 600)
-  menu.click()
+  // 1.6.6: Cliente e depois Negociações. 1.6.8: só segue quando a tela
+  // de Negociações abriu de verdade (antes digitava o nome na busca de
+  // Clientes). Se "Negociações" não aparecer depois de Cliente, abre o
+  // menu (☰) e tenta de novo.
+  if (!(await irParaNegociacoes(automation, consultaId))) {
+    return falhou(`não consegui abrir Negociações — botões na tela: ${automation.listarBotoesVisiveis(30).join(' | ')}`)
+  }
 
   // espera sair da tela da 1ª venda e aparecer o campo Razão Social da busca
-  const campo = await esperarAte(
-    () => (!location.href.includes('/primeiravenda') ? acharInputPorRotulo('Razão Social') : null),
-    12000
-  )
+  const campo = await esperarAte(() => (naTelaDeNegociacoes() ? acharInputPorRotulo('Razão Social') : null), 12000)
   if (!campo) return falhou('não achei o campo "Razão Social" em Negociações')
   await pausaHumana(300, 600)
   await digitarTexto(campo, nomeNegociacao)
@@ -865,7 +890,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     if (ehErroDeEstado(textoNovo)) {
       const consulta = andamento.consulta
       if (numeroSistema === 1 && !sessionStorage.getItem(chaveCepEmpresa(consulta.id))) {
-        const cep = await buscarCepDaEmpresa(consulta.cnpj)
+        const cep = await buscarCepDaEmpresa(consulta.cnpj, consulta.id, 1)
         if (cep) {
           sessionStorage.setItem(chaveCepEmpresa(consulta.id), cep)
           log(1, consulta.id, `Erro de estado no 1º sistema: refazendo com o CEP da empresa (${cep})`)
@@ -876,7 +901,7 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
       }
       if (numeroSistema === 2 && !andamento.cepEmpresaTentado) {
         andamento.cepEmpresaTentado = true
-        const cep = await buscarCepDaEmpresa(consulta.cnpj)
+        const cep = await buscarCepDaEmpresa(consulta.cnpj, consulta.id, 2)
         if (cep && (await trocarCepNoSegundoSistema(automation, consulta.id, cep))) {
           andamento.fase = 'aguardando_dados'
           andamento.ultimoTextoNovo = ''

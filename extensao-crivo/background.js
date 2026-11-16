@@ -43,6 +43,20 @@ async function recarregarAbasEasyVendas() {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  // 1.6.8: CEP da empresa (OpenCNPJ) buscado aqui, fora da página do Easy
+  // Vendas, pra não depender das regras de segurança do site da TIM.
+  if (msg?.tipo === 'crivo:cepEmpresa') {
+    const cnpj = String(msg.cnpj || '').replace(/\D/g, '')
+    fetch(`https://api.opencnpj.org/${cnpj}`)
+      .then(async (res) => {
+        if (!res.ok) return sendResponse({ erro: `OpenCNPJ respondeu ${res.status}` })
+        const d = await res.json()
+        sendResponse({ cep: String(d.cep || '').replace(/\D/g, ''), uf: d.uf || '' })
+      })
+      .catch((err) => sendResponse({ erro: err.message }))
+    return true
+  }
+
   if (msg?.tipo === 'crivo:abaAtiva') {
     if (sender.tab?.id != null) manterAbaAcordada(sender.tab.id)
     return false
