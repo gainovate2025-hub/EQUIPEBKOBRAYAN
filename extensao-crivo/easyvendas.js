@@ -949,6 +949,41 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     }
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, andamento.consulta.id, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
+    if (numeroSistema === 2 && /telefone invalido/.test(semAcento(textoNovo)) &&
+        (andamento.consulta.repasses || 0) > 0 && !andamento.cliquouTelefone) {
+      // 1.7.2 (16/11/2026, Brayan): o CNPJ já veio de outro PC e deu
+      // "Telefone inválido" de novo: clica no campo Telefone e avança de
+      // novo (uma vez). Se der o erro outra vez, segue a regra de baixo.
+      andamento.cliquouTelefone = true
+      automation.fecharModal()
+      await dormir(800)
+      const telefones = [...document.querySelectorAll('input')].filter((i) => {
+        if (!visivel(i)) return false
+        const label = i.parentElement?.querySelector('label')
+        const attrs = semAcento([i.name, i.id, i.getAttribute('ng-model'), label?.textContent].filter(Boolean).join(' '))
+        return /telefone/.test(attrs)
+      })
+      const alvo = telefones.find((i) => i.matches('.ng-invalid, [aria-invalid="true"]')) || telefones[0]
+      log(2, andamento.consulta.id, `Telefone inválido no 2º PC: clicando no campo Telefone${alvo ? '' : ' (campo não achado)'} e avançando de novo`)
+      if (alvo) {
+        alvo.scrollIntoView({ block: 'center' })
+        alvo.dispatchEvent(new MouseEvent('mousedown', { bubbles: true }))
+        alvo.focus()
+        alvo.click()
+        alvo.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }))
+        await dormir(600)
+        alvo.dispatchEvent(new Event('change', { bubbles: true }))
+        alvo.dispatchEvent(new Event('blur', { bubbles: true }))
+        alvo.blur()
+      }
+      await dormir(800)
+      andamento.fase = 'aguardando_dados'
+      andamento.estadoConferido = true
+      andamento.ultimoTextoNovo = ''
+      andamento.estavel = 0
+      andamento.iniciadoEm = Date.now() - 2000
+      return false
+    }
     if (numeroSistema === 2 && /telefone invalido/.test(semAcento(textoNovo))) {
       // 1.7.0 (16/11/2026, Brayan): "Telefone inválido" no 2º sistema
       // passa o CNPJ pra outro PC (o banco guarda o 1º sistema e só refaz o
