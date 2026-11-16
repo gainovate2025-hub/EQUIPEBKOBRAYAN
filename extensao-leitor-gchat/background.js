@@ -5,6 +5,16 @@ const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsI
 let contador = 0
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.tipo === 'gchat:vendo') {
+    // "v" + quantas respostas (CNPJ + APROVADO/REPROVADO) estão na tela;
+    // depois de mandar, o número vira o total mandado.
+    if (!contador) {
+      chrome.action.setBadgeText({ text: `v${msg.pares}` })
+      chrome.action.setBadgeBackgroundColor({ color: msg.pares ? '#1f6feb' : '#9a6700' })
+    }
+    chrome.action.setTitle({ title: `Leitor do Google Chat: ${msg.cnpjs} CNPJ(s) na tela, ${msg.pares} com resposta` })
+    return false
+  }
   if (msg?.tipo !== 'gchat:registrar') return false
   fetch(`${SUPABASE_URL}/rest/v1/rpc/crivo_gchat_registrar`, {
     method: 'POST',

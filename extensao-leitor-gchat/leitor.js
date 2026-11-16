@@ -32,14 +32,26 @@ function lerPares() {
   for (let i = 0; i < linhas.length - 1; i++) {
     const cnpj = cnpjDaLinha(linhas[i])
     if (!cnpj) continue
-    const resposta = respostaDaLinha(linhas[i + 1])
-    if (resposta) pares.push({ cnpj, resposta, texto: `${linhas[i - 1] || ''} | ${linhas[i]} | ${linhas[i + 1]}` })
+    // 1.0.1: a resposta pode vir até 3 linhas abaixo (ícone, "citação" etc.),
+    // desde que não apareça outro CNPJ no meio.
+    for (let j = i + 1; j <= i + 3 && j < linhas.length; j++) {
+      if (cnpjDaLinha(linhas[j])) break
+      const resposta = respostaDaLinha(linhas[j])
+      if (resposta) {
+        pares.push({ cnpj, resposta, texto: `${linhas[i - 1] || ''} | ${linhas[i]} | ${linhas[j]}` })
+        break
+      }
+    }
   }
   return pares
 }
 
 async function rodada() {
   const pares = lerPares()
+  // 1.0.1: mostra no ícone que o leitor está rodando nesta tela e quantas
+  // respostas está vendo agora (ex: "v12"). Sem nada no ícone = não rodou.
+  const cnpjsNaTela = (document.body?.innerText || '').split('\n').filter((l) => cnpjDaLinha(l.trim())).length
+  if (cnpjsNaTela) chrome.runtime.sendMessage({ tipo: 'gchat:vendo', pares: pares.length, cnpjs: cnpjsNaTela }).catch(() => {})
   if (!pares.length) return
   const dia = new Date().toLocaleDateString('pt-BR')
   const { enviados = {} } = await chrome.storage.local.get('enviados')
