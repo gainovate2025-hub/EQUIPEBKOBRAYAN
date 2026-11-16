@@ -113,6 +113,27 @@ function pegarClientId() {
 }
 const CLIENT_ID = pegarClientId()
 
+// 1.6.2 (15/11/2026, pedido do Brayan): página limpa a cada CNPJ.
+// Quando um CNPJ vinha logo depois do outro, a mensagem do anterior podia
+// continuar na tela (ou a tela travar) e ser lida como resposta do novo.
+// Agora a aba SEMPRE recarrega antes de cada CNPJ, nos 2 sistemas, e
+// volta pro endereço da tela inicial do sistema (guardado na 1ª vez que a
+// aba achou o formulário), mesmo se tiver parado em outra tela.
+const CHAVE_URL_INICIO = 'crivo_url_inicio'
+const CARREGOU_EM = Date.now()
+
+function guardarUrlInicio(numeroSistema) {
+  if (detectarSistemaPelaUrl() === numeroSistema) sessionStorage.setItem(CHAVE_URL_INICIO, location.href)
+}
+
+function recarregarLimpo() {
+  const inicio = sessionStorage.getItem(CHAVE_URL_INICIO)
+  if (inicio && inicio !== location.href) {
+    try { history.replaceState(history.state, '', inicio) } catch { /* segue com o reload normal */ }
+  }
+  location.reload()
+}
+
 // Decide entre tentar de novo ou salvar o resultado/erro de vez — usado
 // tanto pra "não encontrado" quanto pra QUALQUER erro (timeout, serviço
 // indisponível, formulário não achado, campo inválido etc.).
@@ -126,12 +147,10 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
   if (feitas < MAX_TENTATIVAS) {
     sessionStorage.setItem(chaveTentativas(consultaId), String(feitas + 1))
     logErro(numeroSistema, consultaId, `Tentativa ${feitas + 1}/${MAX_TENTATIVAS} falhou (${dados.erro || dados.resultado}), voltando pra tela pra tentar de novo`)
-    automation.voltarUmaPagina()
-    await dormir(1200)
-    if (automation.detectarEstado().tipo !== 'formulario') {
-      log(numeroSistema, consultaId, 'Voltar não foi suficiente, recarregando a página')
-      location.reload()
-    }
+    // 1.6.2: sempre recarrega (antes só voltava uma página), pra nenhuma
+    // mensagem da tentativa anterior ficar na tela.
+    await dormir(300)
+    recarregarLimpo()
     return
   }
   sessionStorage.removeItem(chaveTentativas(consultaId))
@@ -332,23 +351,26 @@ async function tentarComecarNova(numeroSistema, automation) {
   const consulta = await buscarPendente(numeroSistema)
   if (!consulta) return null
 
-  // 1.6.1 (13/11/2026, pedido do Brayan): no 1º sistema, SEMPRE recarrega
-  // a página antes de cada consulta e refaz todos os passos do zero. O
-  // banco (migration_056) manda consultar 2 vezes; cada leitura começa com
-  // a página recarregada. Uma marca no sessionStorage (sobrevive ao reload)
-  // evita recarregar em loop: depois do reload o mesmo CNPJ volta pra esta
-  // aba e aí segue normal.
-  if (numeroSistema === 1) {
-    const leitura = consulta.sistema1_leitura1 ? 2 : 1
-    const chaveRecarga = `crivo_recarregou_${consulta.id}_${leitura}`
-    if (!sessionStorage.getItem(chaveRecarga)) {
-      sessionStorage.setItem(chaveRecarga, '1')
-      log(numeroSistema, consulta.id, `Recarregando a página antes da ${leitura}ª leitura do CNPJ ${consulta.cnpj}`)
-      await dormir(300)
-      location.reload()
-      return null
-    }
+  // 1.6.1: no 1º sistema, cada uma das 2 leituras começa com a página
+  // recarregada. 1.6.2: o 2º sistema também recarrega antes de cada CNPJ.
+  // A marca no sessionStorage (sobrevive ao reload) evita recarregar em
+  // loop: depois do reload o mesmo CNPJ volta pra esta aba e segue normal.
+  const leitura = numeroSistema === 1 && consulta.sistema1_leitura1 ? 2 : 1
+  const chaveRecarga = `crivo_recarregou_${consulta.id}_s${numeroSistema}_${leitura}`
+  if (!sessionStorage.getItem(chaveRecarga)) {
+    sessionStorage.setItem(chaveRecarga, '1')
+    log(numeroSistema, consulta.id, numeroSistema === 1
+      ? `Recarregando a página antes da ${leitura}ª leitura do CNPJ ${consulta.cnpj}`
+      : `Recarregando a página antes de consultar o CNPJ ${consulta.cnpj}`)
+    await dormir(300)
+    recarregarLimpo()
+    return null
   }
+
+  // Página acabou de carregar: dá um tempo pro site montar a tela toda
+  // antes de mexer (senão pode pegar a tela ainda pela metade).
+  const desdeQueCarregou = Date.now() - CARREGOU_EM
+  if (desdeQueCarregou < 1500) await dormir(1500 - desdeQueCarregou)
 
   log(numeroSistema, consulta.id, 'Processando CNPJ', consulta.cnpj)
 
@@ -378,6 +400,8 @@ async function tentarComecarNova(numeroSistema, automation) {
     }, automation)
     return null
   }
+
+  guardarUrlInicio(numeroSistema)
 
   const base = { consulta, iniciadoEm: Date.now(), reservaRenovadaEm: Date.now(), ultimoTextoNovo: '', estavel: 0 }
 
