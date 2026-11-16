@@ -323,19 +323,23 @@ async function irParaNegociacoes(automation, consultaId) {
       return true
     }
   }
-  // 2º: endereço da lista de Negociações (mesmo padrão de /cliente/list)
-  for (const rota of ['#!/master/negociacao/list', '#!/master/negociacao']) {
-    location.hash = rota.slice(1)
-    if (await esperarAte(() => (naTelaDeNegociacoes() && acharInputPorRotulo('Razão Social')) || null, 4000)) {
-      log(2, consultaId, `Religar: abri Negociações pelo endereço ${rota}`)
-      return true
-    }
-  }
+  // 1.7.1: tirado o atalho pelo endereço (#!/master/negociacao): no teste
+  // ele deixou a aba numa tela sem nada, só com "Entrar".
   logErro(2, consultaId, `Religar: não achei como abrir Negociações. Links vistos: ${descreverLinksDeNegociacoes()}`)
   return false
 }
 
+function telaDeLogin() {
+  return !document.querySelector('input[name="cnpj"]') && /^entrar$/.test(semAcento(acharPorTexto('Entrar', { exato: true })?.innerText || '').trim())
+}
+
 async function religarSegundoSistema(automation, consultaId) {
+  // 1.7.1: Easy Vendas pediu login (sessão da matrícula caiu): não mexe em
+  // nada, só avisa. Alguém precisa entrar de novo nessa aba.
+  if (telaDeLogin()) {
+    logErro(2, consultaId, 'O Easy Vendas pediu login nesta aba (a sessão caiu). Entre de novo na matrícula e volte pra tela da 1ª venda.')
+    return false
+  }
   const falhou = async (passo) => {
     // 1.6.9 (Brayan): o 2º sistema nunca recarrega a página.
     logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Tela: ${location.href.replace(/^.*#!/, '')}`)
