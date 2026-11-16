@@ -317,7 +317,10 @@ async function irParaNegociacoes(automation, consultaId) {
   // 1º: link de Negociações que já esteja na tela (menu aberto ou atalho)
   const candidatos = linksDeNegociacoes().sort((a, b) => (visivel(b) ? 1 : 0) - (visivel(a) ? 1 : 0))
   for (const el of candidatos.slice(0, 3)) {
-    el.click()
+    // 1.7.3: no menu da esquerda (Clientes / Negociações / Pedidos) o
+    // clique vale no botão de dentro do item, não no item.
+    const alvo = el.querySelector('button, a, [ng-click], [ui-sref]') || el
+    alvo.click()
     if (await esperarAte(() => naTelaDeNegociacoes() || null, 3000)) {
       log(2, consultaId, 'Religar: abri Negociações pelo link do menu')
       return true
@@ -793,25 +796,8 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     const tempoMinimoPassou = decorrido >= 2000 // reduzido de 4000 — a checagem de campos inválidos logo abaixo já é a garantia real, esse tempo é só pra não checar cedo demais
     const invalidos = tempoMinimoPassou ? automation.camposInvalidosVisiveis() : null
 
-    // 1.6.9: a tela da 1ª venda é a negociação do painel (ex: WILL CRIVO,
-    // endereço de MG) com o CNPJ trocado. Empresa de outro estado dava
-    // "O estado do endereço ... diferente do estado de cadastro do CNPJ".
-    // Antes de avançar, se o Estado da tela for outro, coloca o CEP da
-    // empresa (como a equipe faz na mão).
-    if (numeroSistema === 2 && tempoMinimoPassou && !andamento.estadoConferido) {
-      andamento.estadoConferido = true
-      const empresa = await buscarCepDaEmpresa(andamento.consulta.cnpj, andamento.consulta.id, 2, { comUf: true })
-      const campoEstado = acharInputPorRotulo('Estado')
-      const ufTela = semAcento(campoEstado?.value || '').trim().toUpperCase()
-      if (empresa?.uf && ufTela && empresa.uf !== ufTela) {
-        log(2, andamento.consulta.id, `Estado da tela (${ufTela}) diferente do da empresa (${empresa.uf}): trocando o CEP antes de avançar`)
-        await trocarCepNoSegundoSistema(automation, andamento.consulta.id, empresa.cep)
-        await esperarAte(() => (semAcento(acharInputPorRotulo('Estado')?.value || '').trim().toUpperCase() === empresa.uf ? true : null), 5000)
-        andamento.cepEmpresaTentado = true
-        andamento.iniciadoEm = Date.now() - 2000
-        return false
-      }
-    }
+    // 1.7.3 (Brayan): não troca mais o CEP antes de avançar. Só troca
+    // pelo CEP da empresa se a TIM der o erro de estado (veja mais abaixo).
 
     if (tempoMinimoPassou && invalidos.length === 0) {
       const estadoAgora = automation.detectarEstado()
