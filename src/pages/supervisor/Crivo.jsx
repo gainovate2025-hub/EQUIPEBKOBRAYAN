@@ -216,6 +216,33 @@ export default function Crivo() {
   const [salvandoCepPadrao, setSalvandoCepPadrao] = useState(false)
   const [msgCepPadrao, setMsgCepPadrao] = useState('')
 
+  // Nome da negociação que a extensão abre pra religar o 2º sistema
+  // quando ele trava (Negociações > Razão Social > EDITAR). 15/11/2026.
+  const [nomeNegociacao, setNomeNegociacao] = useState('')
+  const [salvandoNome, setSalvandoNome] = useState(false)
+  const [msgNome, setMsgNome] = useState('')
+
+  useEffect(() => {
+    supabase
+      .from('crivo_configuracoes')
+      .select('negociacao_nome')
+      .eq('id', 1)
+      .maybeSingle()
+      .then(({ data }) => setNomeNegociacao(data?.negociacao_nome || ''))
+  }, [])
+
+  async function salvarNomeNegociacao(e) {
+    e?.preventDefault()
+    setMsgNome('')
+    setSalvandoNome(true)
+    const { error } = await supabase
+      .from('crivo_configuracoes')
+      .update({ negociacao_nome: nomeNegociacao.trim() || null, atualizado_em: new Date().toISOString() })
+      .eq('id', 1)
+    setSalvandoNome(false)
+    setMsgNome(error ? 'Erro: ' + error.message : 'Salvo.')
+  }
+
   useEffect(() => {
     supabase
       .from('crivo_configuracoes')
@@ -385,6 +412,28 @@ export default function Crivo() {
               {salvandoCepPadrao ? 'Salvando…' : 'Salvar'}
             </button>
             {msgCepPadrao && <span className="text-xs text-muted">{msgCepPadrao}</span>}
+          </form>
+        </Secao>
+      )}
+
+      {!visaoSimples && (
+        <Secao titulo="Negociação pra religar o 2º sistema">
+          <p className="mb-3 text-sm text-muted">
+            Quando o 2º sistema trava ou cai na tela de termos, o Crivo clica em Negociações, procura este nome em Razão Social,
+            abre a negociação e clica em EDITAR. Se não der certo, recarrega a página.
+          </p>
+          <form onSubmit={salvarNomeNegociacao} className="flex flex-wrap items-center gap-3">
+            <input
+              className="field-input w-64"
+              aria-label="Nome da negociação"
+              placeholder="Ex: WILL CRIVO 04NOV"
+              value={nomeNegociacao}
+              onChange={(e) => setNomeNegociacao(e.target.value.toUpperCase())}
+            />
+            <button type="submit" className="btn-primary" disabled={salvandoNome}>
+              {salvandoNome ? 'Salvando…' : 'Salvar'}
+            </button>
+            {msgNome && <span className="text-xs text-muted">{msgNome}</span>}
           </form>
         </Secao>
       )}

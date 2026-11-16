@@ -63,6 +63,18 @@ async function atualizarCepPadrao() {
 }
 const ATUALIZAR_CEP_PADRAO_MS = 60000
 
+// 1.6.4: nome da negociação que o 2º sistema abre pra se religar quando
+// trava (Crivo > Negociação pra religar o 2º sistema, no painel).
+let nomeNegociacao = null
+async function atualizarNomeNegociacao() {
+  try {
+    const linhas = await supaFetch('crivo_configuracoes?select=negociacao_nome&id=eq.1&limit=1')
+    nomeNegociacao = (linhas?.[0]?.negociacao_nome || '').trim() || null
+  } catch {
+    // coluna ainda não criada ou falha de rede: segue sem o nome
+  }
+}
+
 const POLL_IDLE_MS = 500 // sem consulta em andamento: procura pendente de tanto em tanto. Reduzido de 1500 pra 500 (29/10/2026) — pedido do Brayan pra melhorar o tempo de resposta: era o tempo que um CNPJ novo mandado pelo chat ficava esperando até a extensão nem percebido que tinha chegado.
 const POLL_ANDAMENTO_MS = 150 // com consulta em andamento: checa a tela rápido. Reduzido de 400 pra 150 (26/10/2026) — pedido do Brayan pra responder mais rápido; os casos já reconhecidos (reprovado/negado/não encontrado) são aceitos na hora, sem esperar rodada nenhuma (veja mais abaixo), então esse valor só afeta a granularidade de QUANDO a extensão percebe que o texto novo apareceu.
 const TIMEOUT_ANDAMENTO_MS = 90000 // tempo máximo esperando a mensagem de resultado antes de desistir (buscas de CNPJ podem demorar) — aumentado de 45s pra 90s (29/10/2026) — com 3 pessoas usando ao mesmo tempo, o EasyVendas fica mais lento pra responder, e 45s tava curto: a extensão desistia achando que tinha travado, recarregava a página e mandava o MESMO CNPJ de novo enquanto a resposta de verdade ainda tava a caminho (visto ao vivo: "consulta duas vezes o mesmo cnpj"). Quanto mais gente usando ao mesmo tempo, maior esse tempo precisa ser.
@@ -75,6 +87,7 @@ const ESTAVEL_MIN = 2 // rodadas seguidas com o mesmo texto novo antes de aceita
 // memória (a extensão reinicia do zero e pega essa MESMA consulta de
 // novo, já que ela continua "pendente").
 const MAX_TENTATIVAS = 2
+const TIMEOUT_DADOS_S2_MS = 20000
 const chaveTentativas = (consultaId) => `crivo_tentativas_${consultaId}`
 
 function tentativasFeitas(consultaId) {
@@ -134,6 +147,121 @@ function recarregarLimpo() {
   location.reload()
 }
 
+// 1.6.4 (15/11/2026, pedido do Brayan): religa o 2º sistema quando ele
+// trava ou cai na tela de termos, do jeito que a equipe faz na mão:
+//   1. clica em "Negociações" no menu;
+//   2. digita o nome configurado no painel no campo "Razão Social";
+//   3. clica na negociação com esse nome;
+//   4. clica em EDITAR e espera a tela da 1ª venda com o campo CNPJ.
+// Se qualquer passo falhar (ou não tiver nome configurado), recarrega a
+// página. Devolve true quando voltou pro formulário.
+function visivel(el) {
+  return Boolean(el && (el.offsetParent || el.getClientRects().length))
+}
+
+async function esperarAte(achar, ms) {
+  const fim = Date.now() + ms
+  while (Date.now() < fim) {
+    const achado = achar()
+    if (achado) return achado
+    await dormir(300)
+  }
+  return null
+}
+
+function acharPorTexto(alvo, { exato = false, ignorar = null } = {}) {
+  const t = semAcento(alvo).trim()
+  let melhor = null
+  for (const el of document.querySelectorAll('a, button, [role="button"], [ng-click], [ui-sref], md-list-item, li, tr, td, span, div, p, h1, h2, h3, h4')) {
+    if (el === ignorar || !visivel(el)) continue
+    const texto = semAcento(el.innerText || '').trim()
+    if (!texto || (exato ? texto !== t : !texto.includes(t))) continue
+    if (!melhor || texto.length < melhor.texto.length) melhor = { el, texto }
+  }
+  if (!melhor) return null
+  return melhor.el.closest('a, button, [role="button"], [ng-click], [ui-sref], md-list-item, tr') || melhor.el
+}
+
+function acharInputPorRotulo(rotulo) {
+  const t = semAcento(rotulo)
+  for (const input of document.querySelectorAll('input')) {
+    if (!visivel(input) || input.type === 'hidden') continue
+    const attrs = semAcento([input.placeholder, input.getAttribute('aria-label'), input.name, input.id].filter(Boolean).join(' '))
+    if (attrs.includes(t) || attrs.includes(t.replace(/\s/g, ''))) return input
+    let c = input.parentElement
+    for (let n = 0; c && n < 3; n++, c = c.parentElement) {
+      const label = c.querySelector('label')
+      if (label && semAcento(label.textContent).includes(t)) return input
+    }
+  }
+  return null
+}
+
+async function digitarTexto(input, texto) {
+  const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set
+  input.focus()
+  setter.call(input, '')
+  input.dispatchEvent(new Event('input', { bubbles: true }))
+  let atual = ''
+  for (const ch of texto) {
+    atual += ch
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: ch, bubbles: true }))
+    setter.call(input, atual)
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+    input.dispatchEvent(new KeyboardEvent('keyup', { key: ch, bubbles: true }))
+    await pausaHumana(40, 90)
+  }
+  input.dispatchEvent(new Event('change', { bubbles: true }))
+}
+
+async function religarSegundoSistema(automation, consultaId) {
+  const falhou = async (passo) => {
+    logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Recarregando a página.`)
+    await dormir(300)
+    location.reload()
+    return false
+  }
+  if (!nomeNegociacao) return falhou('nenhum nome de negociação configurado no painel')
+  log(2, consultaId, `Religando o 2º sistema pela negociação "${nomeNegociacao}"`)
+  automation.fecharModal()
+
+  const menu = await esperarAte(() => acharPorTexto('Negociações', { exato: true }), 8000)
+  if (!menu) return falhou('não achei "Negociações"')
+  menu.click()
+
+  // espera sair da tela da 1ª venda e aparecer o campo Razão Social da busca
+  const campo = await esperarAte(
+    () => (!location.href.includes('/primeiravenda') ? acharInputPorRotulo('Razão Social') : null),
+    12000
+  )
+  if (!campo) return falhou('não achei o campo "Razão Social" em Negociações')
+  await pausaHumana(300, 600)
+  await digitarTexto(campo, nomeNegociacao)
+  campo.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }))
+  campo.dispatchEvent(new KeyboardEvent('keyup', { key: 'Enter', keyCode: 13, which: 13, bubbles: true }))
+  const lupa = automation.acharBotaoPertoDe(campo, EASYVENDAS_SELECTORS.botaoBuscarTextos)
+  if (lupa) lupa.click()
+
+  const item = await esperarAte(() => acharPorTexto(nomeNegociacao, { ignorar: campo }), 12000)
+  if (!item) return falhou(`não achei a negociação "${nomeNegociacao}" na lista`)
+  await pausaHumana(300, 600)
+  item.click()
+
+  const editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 12000)
+  if (!editar) return falhou('não achei o botão EDITAR')
+  await pausaHumana(300, 600)
+  editar.click()
+
+  const voltou = await esperarAte(
+    () => (location.href.includes('/primeiravenda') && automation.detectarEstado().tipo === 'formulario' ? true : null),
+    15000
+  )
+  if (!voltou) return falhou('cliquei em EDITAR mas a tela da 1ª venda não voltou')
+  log(2, consultaId, '2º sistema religado: de volta na tela da 1ª venda')
+  await dormir(1000)
+  return true
+}
+
 // Decide entre tentar de novo ou salvar o resultado/erro de vez — usado
 // tanto pra "não encontrado" quanto pra QUALQUER erro (timeout, serviço
 // indisponível, formulário não achado, campo inválido etc.).
@@ -155,11 +283,9 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
       recarregarLimpo()
       return
     }
-    automation.voltarUmaPagina()
-    await dormir(1200)
-    if (automation.detectarEstado().tipo !== 'formulario') {
-      log(numeroSistema, consultaId, 'Voltei uma página mas não caí no formulário (2º sistema não recarrega)')
-    }
+    // 1.6.4: o 2º sistema se religa pela negociação (e só recarrega se
+    // isso falhar).
+    await religarSegundoSistema(automation, consultaId)
     return
   }
   sessionStorage.removeItem(chaveTentativas(consultaId))
@@ -557,7 +683,9 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
       }
     }
 
-    if (decorrido < TIMEOUT_ANDAMENTO_MS) return false
+    // 1.6.4: os dados da empresa carregam em ~2s; 20s sem carregar é
+    // tela travada (antes esperava 90s e o CNPJ ia pra outro PC antes).
+    if (decorrido < TIMEOUT_DADOS_S2_MS) return false
     const dicaInvalidos = invalidos?.length ? ` — campos ainda inválidos: ${invalidos.join(' | ')}` : ''
     await finalizarComRetry(numeroSistema, andamento.consulta.id, {
       erro: `[${numeroSistema}º sistema] digitei o CNPJ mas não consegui clicar Avançar — url: ${location.href}${dicaInvalidos}`,
@@ -633,6 +761,14 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
       await salvarResultado(andamento.consulta.id, numeroSistema, {
         erro: `[${numeroSistema}º sistema] caiu na tela de Contrato depois de reenviar o mesmo CNPJ — provavelmente já tinha sido processado antes. Confere manualmente em vez de mandar de novo.`,
       })
+      if (numeroSistema === 2) await religarSegundoSistema(automation, andamento.consulta.id)
+      return true
+    }
+    if (numeroSistema === 2) {
+      // 1.6.4: na tela de termos o 2º sistema se religa e consulta de novo.
+      sessionStorage.setItem(chaveTentativas(andamento.consulta.id), String(tentativasFeitas(andamento.consulta.id) + 1))
+      log(numeroSistema, andamento.consulta.id, 'Caiu na tela de termos — religando o 2º sistema pela negociação')
+      await religarSegundoSistema(automation, andamento.consulta.id)
       return true
     }
     log(numeroSistema, andamento.consulta.id, 'Caiu na tela de Contrato — voltando uma página e esperando o resultado')
@@ -734,6 +870,8 @@ async function iniciar() {
 
   await atualizarCepPadrao()
   setInterval(atualizarCepPadrao, ATUALIZAR_CEP_PADRAO_MS)
+  await atualizarNomeNegociacao()
+  setInterval(atualizarNomeNegociacao, ATUALIZAR_CEP_PADRAO_MS)
 
   const automation = new EasyVendasAutomation(EASYVENDAS_SELECTORS)
   laco(numeroSistema, automation)
