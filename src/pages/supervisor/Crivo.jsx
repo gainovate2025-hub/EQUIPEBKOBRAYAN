@@ -397,18 +397,8 @@ export default function Crivo() {
       {!visaoSimples && <Tabs tabs={ABAS_CRIVO} active={aba} onChange={setAba} />}
       <p className="text-sm text-muted">Envie o CNPJ no chat abaixo. O Crivo consulta nos dois sistemas da TIM e responde nesta tela.</p>
 
-      {segundosRestantes !== null && (
-        <div className={`card flex items-center gap-3 p-4 ${segundosRestantes <= 0 ? 'border-bad-border bg-bad-bg' : ''}`}>
-          {segundosRestantes > 0 ? (
-            <p className="text-sm">
-              <span className="font-semibold">Relogar as matrículas do Easy Vendas em:</span>{' '}
-              <span className="font-mono text-base">{formatarTempo(segundosRestantes)}</span>
-            </p>
-          ) : (
-            <p className="text-sm font-semibold text-bad-text">Hora de relogar as matrículas no Easy Vendas. A sessão cai a cada 1h.</p>
-          )}
-        </div>
-      )}
+      {/* Aviso "Relogar as matrículas do Easy Vendas em" tirado a pedido do
+          Brayan (16/11/2026). */}
 
       {!visaoSimples && (
         <Secao titulo="CEP padrão">
