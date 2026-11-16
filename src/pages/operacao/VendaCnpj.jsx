@@ -535,8 +535,8 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
 
       {portabilidade && (<>
       <div className="flex flex-col gap-1">
-        <span className={rotuloCelular}>Titular</span>
-        <select className="field-input" aria-label="Titular" value={linha.titularTipo} onChange={(e) => set('titularTipo', e.target.value)}>
+        <span className={rotuloCelular}>Titular do número</span>
+        <select className="field-input" aria-label="Titular do número" value={linha.titularTipo} onChange={(e) => set('titularTipo', e.target.value)}>
           <option value="pf">Pessoa física</option>
           <option value="pj">Pessoa jurídica</option>
         </select>
@@ -607,12 +607,29 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
   )
 }
 
+// 16/11/2026 (Brayan): não deixa subir ficha de CNPJ que o Crivo
+// reprovou. Vale a última resposta do Crivo pra esse CNPJ (mesma regra do
+// chat: reprovado em qualquer um dos 2 sistemas é reprovado).
+async function crivoReprovou(cnpjLimpo) {
+  const { data } = await supabase
+    .from('crivo_consultas')
+    .select('created_at, sistema1_resultado, sistema2_resultado')
+    .eq('cnpj', cnpjLimpo)
+    .eq('status', 'concluido')
+    .order('created_at', { ascending: false })
+    .limit(1)
+  const c = data?.[0]
+  if (!c) return null
+  return c.sistema1_resultado === 'reprovado' || c.sistema2_resultado === 'reprovado' ? c.created_at : null
+}
+
 export default function VendaCnpj() {
   const { profile } = useAuth()
   const [cnpj, setCnpj] = useState('')
   const [buscando, setBuscando] = useState(false)
   const [erro, setErro] = useState('')
   const [dados, setDados] = useState(null) // resposta crua do cnpj.ws
+  const [reprovadoNoCrivo, setReprovadoNoCrivo] = useState(null) // data da resposta do Crivo, quando reprovou
 
   const [salvando, setSalvando] = useState(false)
   const [vendaSalva, setVendaSalva] = useState(null) // registro já gravado, pra mostrar a ficha final
@@ -718,6 +735,7 @@ export default function VendaCnpj() {
   // CNPJ novo, pra não misturar dados do cliente anterior).
   function limparFormulario() {
     setDados(null)
+    setReprovadoNoCrivo(null)
     setErro('')
     setVendaSalva(null)
     setPlanilha(null)
@@ -746,7 +764,8 @@ export default function VendaCnpj() {
 
     setBuscando(true)
     try {
-      const resposta = await buscarCnpj(limpo)
+      const [resposta, reprovou] = await Promise.all([buscarCnpj(limpo), crivoReprovou(limpo)])
+      setReprovadoNoCrivo(reprovou)
       setDados(resposta)
       // Já preenche os dados do cliente com o que veio da empresa (dá pra
       // corrigir à mão depois).
@@ -830,7 +849,7 @@ export default function VendaCnpj() {
       const l = linhas[incompleta]
       if (!l.tipo) return `Na linha ${incompleta + 1}, escolha se é linha nova ou portabilidade.`
       if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM).`
-      return `Na linha ${incompleta + 1} (portabilidade), preencha o número e o titular (CPF e nome, ou CNPJ e razão social).`
+      return `Na linha ${incompleta + 1} (portabilidade), preencha o número e o titular do número (CPF e nome, ou CNPJ e razão social).`
     }
     const repetidas = linhasComNumeroRepetido(linhas)
     if (repetidas.size) {
@@ -848,6 +867,12 @@ export default function VendaCnpj() {
     if (problema) return setErro(problema)
     setSalvando(true)
     setErro('')
+    const reprovou = await crivoReprovou(soDigitos(dadosEmpresa().cnpj))
+    if (reprovou) {
+      setSalvando(false)
+      setReprovadoNoCrivo(reprovou)
+      return setErro('Esse CNPJ foi REPROVADO no Crivo. Não dá pra subir a ficha.')
+    }
     const empresa = dadosEmpresa()
     const payload = {
       ...empresa,
@@ -877,7 +902,8 @@ export default function VendaCnpj() {
 
   const numerosRepetidos = linhasComNumeroRepetido(linhas)
   const empresa = dados ? dadosEmpresa() : null
-  const bloqueado = empresa ? situacaoBloqueada(empresa.situacao) : false
+  const bloqueadoSituacao = empresa ? situacaoBloqueada(empresa.situacao) : false
+  const bloqueado = bloqueadoSituacao || Boolean(empresa && reprovadoNoCrivo)
   // Com a empresa na tela, o erro aparece perto dos botões do rodapé;
   // sem ela (erro da consulta de CNPJ), logo abaixo da busca.
   const erroNoRodape = Boolean(empresa && !vendaSalva)
@@ -912,7 +938,14 @@ export default function VendaCnpj() {
           <p className="text-lg font-bold text-sidebar">{empresa.razao_social || '(sem razão social)'}</p>
           {empresa.nome_fantasia && <p className="text-sm text-muted">{empresa.nome_fantasia}</p>}
 
-          {bloqueado && (
+          {reprovadoNoCrivo && (
+            <div className="tim-alert mt-2 text-base font-bold">
+              <XCircle size={18} className="mt-0.5 shrink-0" />
+              REPROVADO NO CRIVO em {new Date(reprovadoNoCrivo).toLocaleString('pt-BR')}. Não dá pra subir a ficha desse CNPJ.
+            </div>
+          )}
+
+          {bloqueadoSituacao && (
             <div className="tim-alert mt-2 text-base font-bold">
               <XCircle size={18} className="mt-0.5 shrink-0" />
               REPROVADO: CNPJ com situação {empresa.situacao?.toUpperCase()}. Não venda pra esse cliente.
@@ -921,7 +954,7 @@ export default function VendaCnpj() {
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <DadoEmpresa label="CNPJ" valor={empresa.cnpj} />
-            {bloqueado ? (
+            {bloqueadoSituacao ? (
               <div className="flex flex-col gap-0.5 rounded-md border border-bad-border bg-bad-bg px-3 py-2">
                 <span className="text-xs font-semibold text-bad-text">Situação</span>
                 <span className="text-sm font-bold text-bad-text">{empresa.situacao} · REPROVADO</span>
@@ -1046,7 +1079,7 @@ export default function VendaCnpj() {
                 <span>Nova / portab.</span>
                 <span>Tipo de chip</span>
                 <span>Número a portar</span>
-                <span>Titular (portabilidade)</span>
+                <span>Titular do número</span>
                 <span>CPF/CNPJ do titular</span>
                 <span>Nome do titular</span>
                 <span className="text-center">Ações</span>
@@ -1134,7 +1167,7 @@ export default function VendaCnpj() {
               <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
               <Campo operadora label="Operadora de origem do cliente" valor={l.operadora_origem} />
               {l.tipo === 'portabilidade' && (<>
-              <Campo comCopiar label="Titular" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />
+              <Campo comCopiar label="Titular do número" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />
               <Campo
                 comCopiar
                 label={l.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
