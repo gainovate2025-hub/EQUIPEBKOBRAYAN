@@ -67,24 +67,6 @@ function formatarCnpj(v) {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
-// CEP da empresa na Receita (OpenCNPJ, sem limite de consultas). Espera
-// no máximo 4s; sem resposta, devolve null e o Crivo usa o CEP padrão.
-async function buscarCepDaEmpresa(cnpjLimpo) {
-  const controle = new AbortController()
-  const t = setTimeout(() => controle.abort(), 4000)
-  try {
-    const res = await fetch(`https://api.opencnpj.org/${cnpjLimpo}`, { signal: controle.signal })
-    if (!res.ok) return null
-    const d = await res.json()
-    const cep = String(d.cep || '').replace(/\D/g, '')
-    return cep.length === 8 ? cep : null
-  } catch {
-    return null
-  } finally {
-    clearTimeout(t)
-  }
-}
-
 function soCepDigitos(v) {
   return v.replace(/\D/g, '').slice(0, 8)
 }
@@ -344,14 +326,9 @@ export default function Crivo() {
     if (cepLimpo && cepLimpo.length !== 8) return setMsg('CEP inválido (8 números). Corrija ou deixe em branco.')
 
     setEnviando(true)
-    // Sem CEP digitado, usa o CEP da própria empresa (15/11/2026). Com o
-    // CEP padrão do painel, o 2º sistema dava "O estado do endereço
-    // informado não pode ser diferente do estado..." quando a empresa é de
-    // outro estado. Se o serviço não responder, cai pro CEP padrão.
-    const cepFinal = cepLimpo || (await buscarCepDaEmpresa(limpo))
     const { error } = await supabase.from('crivo_consultas').insert({
       cnpj: limpo,
-      cep: cepFinal ? formatarCep(cepFinal) : null,
+      cep: cepLimpo ? formatarCep(cepLimpo) : null,
       solicitado_por: profile.id,
     })
     setEnviando(false)
