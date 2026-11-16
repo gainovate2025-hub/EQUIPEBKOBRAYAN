@@ -248,7 +248,7 @@ async function buscarCepDaEmpresa(cnpj, consultaId, numeroSistema, { comUf = fal
   if (cep.length === 8) {
     log(numeroSistema, consultaId, `CEP da empresa na Receita: ${cep} (${resp.uf || '?'})`)
     const formatado = cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')
-    return comUf ? { cep: formatado, uf: String(resp.uf || '').toUpperCase() } : formatado
+    return comUf ? { ...resp, cep: formatado, uf: String(resp.uf || '').toUpperCase() } : formatado
   }
   logErro(numeroSistema, consultaId, `Erro de estado: não consegui o CEP da empresa (${resp?.erro || 'sem CEP na Receita'})`)
   return null
@@ -265,7 +265,33 @@ function camposDeCepVisiveis() {
   return [...new Set(lista)]
 }
 
-async function trocarCepNoSegundoSistema(automation, consultaId, cep) {
+// 1.7.4 (Brayan): depois de trocar o CEP, preenche o endereço da empresa
+// (buscado pelo CNPJ) nos campos da Empresa que estiverem vazios ou
+// inválidos. CEP geral da cidade não traz rua/bairro e a tela travava em
+// "CEP | Complemento" inválidos.
+async function preencherEnderecoDaEmpresa(consultaId, empresa) {
+  const valores = [
+    ['Endereço', empresa.rua],
+    ['Número', empresa.numero || 'SN'],
+    ['Bairro', empresa.bairro],
+    ['Complemento', empresa.complemento || 'SN'],
+  ]
+  const feitos = []
+  for (const [rotulo, valor] of valores) {
+    if (!valor) continue
+    const campo = acharInputPorRotulo(rotulo)
+    if (!campo || campo.disabled || campo.readOnly) continue
+    const invalido = campo.matches('.ng-invalid, [aria-invalid="true"]')
+    if (campo.value.trim() && !invalido && rotulo !== 'Endereço' && rotulo !== 'Bairro') continue
+    await digitarTexto(campo, String(valor).toUpperCase())
+    campo.dispatchEvent(new Event('blur', { bubbles: true }))
+    feitos.push(`${rotulo}: ${String(valor).toUpperCase()}`)
+    await pausaHumana(200, 400)
+  }
+  log(2, consultaId, feitos.length ? `Endereço da empresa preenchido — ${feitos.join(' | ')}` : 'Endereço da empresa: nenhum campo pra preencher (vazio na Receita ou travado na tela)')
+}
+
+async function trocarCepNoSegundoSistema(automation, consultaId, cep, empresa = null) {
   automation.fecharModal()
   await dormir(600)
   // 1.6.9: só o CEP da Empresa (o 1º da tela). Os de sócios ficam como estão.
@@ -285,6 +311,7 @@ async function trocarCepNoSegundoSistema(automation, consultaId, cep) {
     }
     await dormir(1500)
   }
+  if (empresa) await preencherEnderecoDaEmpresa(consultaId, empresa)
   return true
 }
 
@@ -923,8 +950,8 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
       }
       if (numeroSistema === 2 && !andamento.cepEmpresaTentado) {
         andamento.cepEmpresaTentado = true
-        const cep = await buscarCepDaEmpresa(consulta.cnpj, consulta.id, 2)
-        if (cep && (await trocarCepNoSegundoSistema(automation, consulta.id, cep))) {
+        const empresa = await buscarCepDaEmpresa(consulta.cnpj, consulta.id, 2, { comUf: true })
+        if (empresa && (await trocarCepNoSegundoSistema(automation, consulta.id, empresa.cep, empresa))) {
           andamento.fase = 'aguardando_dados'
           andamento.ultimoTextoNovo = ''
           andamento.estavel = 0

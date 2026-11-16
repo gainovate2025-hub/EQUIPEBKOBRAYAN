@@ -47,27 +47,33 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // Vendas, pra não depender das regras de segurança do site da TIM.
   if (msg?.tipo === 'crivo:cepEmpresa') {
     // 1.6.9: OpenCNPJ respondeu 403 pra extensão; tenta 3 fontes.
+    // 1.7.4: traz também o endereço (rua, número, bairro, complemento);
+    // se a 1ª fonte vier sem rua, completa com a próxima.
     const cnpj = String(msg.cnpj || '').replace(/\D/g, '')
+    const junta = (...partes) => partes.map((x) => String(x || '').trim()).filter(Boolean).join(' ')
     const fontes = [
-      [`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, (d) => ({ cep: d.cep, uf: d.uf })],
-      [`https://api.opencnpj.org/${cnpj}`, (d) => ({ cep: d.cep, uf: d.uf })],
-      [`https://publica.cnpj.ws/cnpj/${cnpj}`, (d) => ({ cep: d.estabelecimento?.cep, uf: d.estabelecimento?.estado?.sigla })],
+      [`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, (d) => ({ cep: d.cep, uf: d.uf, rua: junta(d.descricao_tipo_de_logradouro, d.logradouro), numero: d.numero, bairro: d.bairro, complemento: d.complemento, cidade: d.municipio })],
+      [`https://api.opencnpj.org/${cnpj}`, (d) => ({ cep: d.cep, uf: d.uf, rua: junta(d.tipo_logradouro, d.logradouro), numero: d.numero, bairro: d.bairro, complemento: d.complemento, cidade: d.municipio })],
+      [`https://publica.cnpj.ws/cnpj/${cnpj}`, (d) => { const e = d.estabelecimento || {}; return { cep: e.cep, uf: e.estado?.sigla, rua: junta(e.tipo_logradouro, e.logradouro), numero: e.numero, bairro: e.bairro, complemento: e.complemento, cidade: e.cidade?.nome } }],
     ]
     ;(async () => {
       const erros = []
+      let achado = null
       for (const [url, ler] of fontes) {
         try {
           const res = await fetch(url)
           if (!res.ok) { erros.push(`${new URL(url).host} ${res.status}`); continue }
           const r = ler(await res.json())
-          const cep = String(r.cep || '').replace(/\D/g, '')
-          if (cep.length === 8) return sendResponse({ cep, uf: r.uf || '' })
-          erros.push(`${new URL(url).host} sem CEP`)
+          r.cep = String(r.cep || '').replace(/\D/g, '')
+          if (r.cep.length !== 8) { erros.push(`${new URL(url).host} sem CEP`); continue }
+          if (!achado) achado = r
+          else for (const k of ['rua', 'numero', 'bairro', 'complemento', 'cidade']) if (!achado[k] && r[k]) achado[k] = r[k]
+          if (achado.rua && achado.bairro) break
         } catch (err) {
           erros.push(`${new URL(url).host} ${err.message}`)
         }
       }
-      sendResponse({ erro: erros.join('; ') })
+      sendResponse(achado || { erro: erros.join('; ') })
     })()
     return true
   }
