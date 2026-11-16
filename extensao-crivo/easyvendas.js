@@ -222,6 +222,69 @@ async function digitarTexto(input, texto) {
   input.dispatchEvent(new Event('change', { bubbles: true }))
 }
 
+// 1.6.7 (16/11/2026, Brayan): erro "O estado do endereço informado não
+// pode ser diferente do estado de cadastro do CNPJ". Acontece com empresa
+// de outro estado. Nesses casos o Crivo usa o CEP da própria empresa:
+//   - erro só no 2º sistema: coloca o CEP da empresa só no 2º e avança de novo;
+//   - erro já no 1º sistema: refaz o 1º com o CEP da empresa (e o 2º, se
+//     der o mesmo erro, também troca sozinho).
+// Uma tentativa por CNPJ; se o erro continuar, segue a regra de sempre.
+const PADRAO_ERRO_ESTADO = /estado do endereco[\s\S]{0,80}diferente/
+function ehErroDeEstado(texto) {
+  return PADRAO_ERRO_ESTADO.test(semAcento(texto || ''))
+}
+function chaveCepEmpresa(consultaId) {
+  return `crivo_cep_empresa_${consultaId}`
+}
+
+async function buscarCepDaEmpresa(cnpj) {
+  try {
+    const controle = new AbortController()
+    const t = setTimeout(() => controle.abort(), 5000)
+    const res = await fetch(`https://api.opencnpj.org/${String(cnpj).replace(/\D/g, '')}`, { signal: controle.signal })
+    clearTimeout(t)
+    if (!res.ok) return null
+    const d = await res.json()
+    const cep = String(d.cep || '').replace(/\D/g, '')
+    return cep.length === 8 ? cep.replace(/^(\d{5})(\d{3})$/, '$1-$2') : null
+  } catch {
+    return null
+  }
+}
+
+function camposDeCepVisiveis() {
+  const lista = [...document.querySelectorAll('input')].filter((input) => {
+    if (!visivel(input) || input.type === 'hidden' || input.disabled) return false
+    const attrs = semAcento([input.name, input.id, input.placeholder, input.getAttribute('aria-label'), input.getAttribute('ng-model')].filter(Boolean).join(' '))
+    if (/\bcep\b|\.cep\b/.test(attrs)) return true
+    const label = input.parentElement?.querySelector('label')
+    return Boolean(label && /^cep\b/.test(semAcento(label.textContent).trim()))
+  })
+  return [...new Set(lista)]
+}
+
+async function trocarCepNoSegundoSistema(automation, consultaId, cep) {
+  automation.fecharModal()
+  await dormir(600)
+  const campos = camposDeCepVisiveis()
+  if (!campos.length) {
+    logErro(2, consultaId, 'Erro de estado: não achei campo de CEP na tela do 2º sistema')
+    return false
+  }
+  log(2, consultaId, `Erro de estado: colocando o CEP da empresa (${cep}) em ${campos.length} campo(s) de CEP do 2º sistema`)
+  for (const campo of campos) {
+    await digitarTexto(campo, cep)
+    campo.dispatchEvent(new Event('blur', { bubbles: true }))
+    const lupa = automation.acharBotaoBuscarCep(campo)
+    if (lupa) {
+      await pausaHumana(300, 600)
+      lupa.click()
+    }
+    await dormir(1500)
+  }
+  return true
+}
+
 async function religarSegundoSistema(automation, consultaId) {
   const falhou = async (passo) => {
     logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Tela: ${location.href.replace(/^.*#!/, '')}. Recarregando a página.`)
@@ -564,7 +627,7 @@ async function tentarComecarNova(numeroSistema, automation) {
   // configurado no painel (Crivo > Configurações) — sem nenhum dos dois,
   // esse campo (obrigatório na tela) fica vazio e o Avançar/Solicitar
   // nunca funciona.
-  const cepParaUsar = consulta.cep || cepPadrao
+  const cepParaUsar = (numeroSistema === 1 && sessionStorage.getItem(chaveCepEmpresa(consulta.id))) || consulta.cep || cepPadrao
   if (numeroSistema === 1) {
     log(numeroSistema, consulta.id, 'CEP a usar:', cepParaUsar || '(nenhum — consulta sem CEP e nenhum CEP padrão configurado)')
   }
@@ -799,6 +862,30 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
   }
 
   if (reconhecido || (textoNovo && andamento.estavel >= ESTAVEL_MIN)) {
+    if (ehErroDeEstado(textoNovo)) {
+      const consulta = andamento.consulta
+      if (numeroSistema === 1 && !sessionStorage.getItem(chaveCepEmpresa(consulta.id))) {
+        const cep = await buscarCepDaEmpresa(consulta.cnpj)
+        if (cep) {
+          sessionStorage.setItem(chaveCepEmpresa(consulta.id), cep)
+          log(1, consulta.id, `Erro de estado no 1º sistema: refazendo com o CEP da empresa (${cep})`)
+          await dormir(300)
+          recarregarLimpo()
+          return true
+        }
+      }
+      if (numeroSistema === 2 && !andamento.cepEmpresaTentado) {
+        andamento.cepEmpresaTentado = true
+        const cep = await buscarCepDaEmpresa(consulta.cnpj)
+        if (cep && (await trocarCepNoSegundoSistema(automation, consulta.id, cep))) {
+          andamento.fase = 'aguardando_dados'
+          andamento.ultimoTextoNovo = ''
+          andamento.estavel = 0
+          andamento.iniciadoEm = Date.now()
+          return false
+        }
+      }
+    }
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, andamento.consulta.id, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
     if (resultado === 'formulario_incompleto') {
