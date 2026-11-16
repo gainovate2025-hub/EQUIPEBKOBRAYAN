@@ -300,6 +300,12 @@ async function trocarCepNoSegundoSistema(automation, consultaId, cep, empresa = 
     logErro(2, consultaId, 'Erro de estado: não achei campo de CEP na tela do 2º sistema')
     return false
   }
+  // 1.7.5: guarda o CEP que a negociação tinha, pra devolver antes do
+  // próximo CNPJ (senão a tela ficava com CEP/Complemento marcados e
+  // travava os CNPJs seguintes).
+  if (!sessionStorage.getItem('crivo_cep_original_s2') && campos[0].value) {
+    sessionStorage.setItem('crivo_cep_original_s2', campos[0].value)
+  }
   log(2, consultaId, `Erro de estado: colocando o CEP da empresa (${cep}) em ${campos.length} campo(s) de CEP do 2º sistema`)
   for (const campo of campos) {
     await digitarTexto(campo, cep)
@@ -438,9 +444,13 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
       recarregarLimpo()
       return
     }
-    // 1.6.4: o 2º sistema se religa pela negociação (e só recarrega se
-    // isso falhar).
-    await religarSegundoSistema(automation, consultaId)
+    // 1.6.4: o 2º sistema se religa pela negociação. 1.7.5: só quando o
+    // formulário da 1ª venda sumiu da tela; se ele está lá, só fecha o
+    // aviso e tenta de novo na hora (religar à toa gastava ~10s).
+    automation.fecharModal()
+    if (automation.detectarEstado().tipo !== 'formulario') {
+      await religarSegundoSistema(automation, consultaId)
+    }
     return
   }
   sessionStorage.removeItem(chaveTentativas(consultaId))
@@ -740,6 +750,19 @@ async function tentarComecarNova(numeroSistema, automation) {
   // esperar) dava "Formulário com pendências" mesmo com o CNPJ certo —
   // um humano não tem esse problema só porque demora um pouco a mais
   // pra clicar.
+  const cepOriginal = sessionStorage.getItem('crivo_cep_original_s2')
+  if (numeroSistema === 2 && cepOriginal) {
+    const campoCep = camposDeCepVisiveis()[0]
+    if (campoCep && campoCep.value !== cepOriginal) {
+      log(2, consulta.id, `Devolvendo o CEP da negociação (${cepOriginal}) antes deste CNPJ`)
+      await digitarTexto(campoCep, cepOriginal)
+      campoCep.dispatchEvent(new Event('blur', { bubbles: true }))
+      const lupa = automation.acharBotaoBuscarCep(campoCep)
+      if (lupa) lupa.click()
+      await dormir(1200)
+    }
+    sessionStorage.removeItem('crivo_cep_original_s2')
+  }
   log(numeroSistema, consulta.id, 'Digitando CNPJ e esperando os dados da empresa carregarem antes de avançar')
   const fotoAntes = automation.tirarFotoTexto()
   await automation.digitarCnpj(estado.campoCnpj, consulta.cnpj)
@@ -826,10 +849,18 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // 1.7.3 (Brayan): não troca mais o CEP antes de avançar. Só troca
     // pelo CEP da empresa se a TIM der o erro de estado (veja mais abaixo).
 
-    if (tempoMinimoPassou && invalidos.length === 0) {
+    // 1.7.5 (Brayan: "mais rápida"): o log mostrou a tela marcando
+    // "CEP | Complemento" como inválidos e a extensão esperando 12s pra
+    // nada, depois religando. Agora, passados 2s (ou 4s se ainda tiver
+    // campo marcado), clica Avançar igual uma pessoa faria: se faltar
+    // algo de verdade, a própria TIM avisa e a regra de erro cuida.
+    const podeAvancar = tempoMinimoPassou && (invalidos.length === 0 || decorrido >= 4000)
+    if (podeAvancar) {
       const estadoAgora = automation.detectarEstado()
       if (estadoAgora.tipo === 'formulario') {
-        log(numeroSistema, andamento.consulta.id, 'Campos da empresa validados, clicando Avançar agora')
+        log(numeroSistema, andamento.consulta.id, invalidos.length
+          ? `Clicando Avançar (campos marcados na tela: ${invalidos.join(' | ')})`
+          : 'Campos da empresa validados, clicando Avançar agora')
         andamento.fotoAntes = automation.tirarFotoTexto()
         await pausaHumana(300, 600)
         estadoAgora.botaoAvancar.click()
