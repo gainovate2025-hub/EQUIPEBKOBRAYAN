@@ -945,6 +945,17 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     }
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, andamento.consulta.id, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
+    if (numeroSistema === 2 && /telefone invalido/.test(semAcento(textoNovo))) {
+      // 1.7.0 (16/11/2026, Brayan): "Telefone inválido" no 2º sistema
+      // passa o CNPJ pra outro PC (o banco guarda o 1º sistema e só refaz o
+      // 2º lá) e este PC pega o próximo da fila. Sem outro PC online, o
+      // chat avisa pra mandar de novo.
+      log(2, andamento.consulta.id, 'Telefone inválido: passando este CNPJ pra outro PC e pegando o próximo')
+      automation.fecharModal()
+      sessionStorage.removeItem(chaveTentativas(andamento.consulta.id))
+      await salvarResultado(andamento.consulta.id, 2, { erro: '[2º sistema] Telefone inválido — passado pra outro PC' })
+      return true
+    }
     if (resultado === 'formulario_incompleto' && numeroSistema === 2 && (andamento.avancouDeNovo || 0) < 2) {
       // 1.6.9: no teste, o mesmo CNPJ dava "Telefone inválido" e na 2ª
       // vez passava. Fecha o aviso e clica Avançar de novo (sem religar).
