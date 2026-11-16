@@ -46,14 +46,29 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // 1.6.8: CEP da empresa (OpenCNPJ) buscado aqui, fora da página do Easy
   // Vendas, pra não depender das regras de segurança do site da TIM.
   if (msg?.tipo === 'crivo:cepEmpresa') {
+    // 1.6.9: OpenCNPJ respondeu 403 pra extensão; tenta 3 fontes.
     const cnpj = String(msg.cnpj || '').replace(/\D/g, '')
-    fetch(`https://api.opencnpj.org/${cnpj}`)
-      .then(async (res) => {
-        if (!res.ok) return sendResponse({ erro: `OpenCNPJ respondeu ${res.status}` })
-        const d = await res.json()
-        sendResponse({ cep: String(d.cep || '').replace(/\D/g, ''), uf: d.uf || '' })
-      })
-      .catch((err) => sendResponse({ erro: err.message }))
+    const fontes = [
+      [`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`, (d) => ({ cep: d.cep, uf: d.uf })],
+      [`https://api.opencnpj.org/${cnpj}`, (d) => ({ cep: d.cep, uf: d.uf })],
+      [`https://publica.cnpj.ws/cnpj/${cnpj}`, (d) => ({ cep: d.estabelecimento?.cep, uf: d.estabelecimento?.estado?.sigla })],
+    ]
+    ;(async () => {
+      const erros = []
+      for (const [url, ler] of fontes) {
+        try {
+          const res = await fetch(url)
+          if (!res.ok) { erros.push(`${new URL(url).host} ${res.status}`); continue }
+          const r = ler(await res.json())
+          const cep = String(r.cep || '').replace(/\D/g, '')
+          if (cep.length === 8) return sendResponse({ cep, uf: r.uf || '' })
+          erros.push(`${new URL(url).host} sem CEP`)
+        } catch (err) {
+          erros.push(`${new URL(url).host} ${err.message}`)
+        }
+      }
+      sendResponse({ erro: erros.join('; ') })
+    })()
     return true
   }
 

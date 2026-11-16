@@ -95,7 +95,7 @@ const ESTAVEL_MIN = 2 // rodadas seguidas com o mesmo texto novo antes de aceita
 // memória (a extensão reinicia do zero e pega essa MESMA consulta de
 // novo, já que ela continua "pendente").
 const MAX_TENTATIVAS = 2
-const TIMEOUT_DADOS_S2_MS = 20000
+const TIMEOUT_DADOS_S2_MS = 12000
 const chaveTentativas = (consultaId) => `crivo_tentativas_${consultaId}`
 
 function tentativasFeitas(consultaId) {
@@ -237,7 +237,7 @@ function chaveCepEmpresa(consultaId) {
   return `crivo_cep_empresa_${consultaId}`
 }
 
-async function buscarCepDaEmpresa(cnpj, consultaId, numeroSistema) {
+async function buscarCepDaEmpresa(cnpj, consultaId, numeroSistema, { comUf = false } = {}) {
   let resp = null
   try {
     resp = await chrome.runtime.sendMessage({ tipo: 'crivo:cepEmpresa', cnpj })
@@ -247,7 +247,8 @@ async function buscarCepDaEmpresa(cnpj, consultaId, numeroSistema) {
   const cep = String(resp?.cep || '').replace(/\D/g, '')
   if (cep.length === 8) {
     log(numeroSistema, consultaId, `CEP da empresa na Receita: ${cep} (${resp.uf || '?'})`)
-    return cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')
+    const formatado = cep.replace(/^(\d{5})(\d{3})$/, '$1-$2')
+    return comUf ? { cep: formatado, uf: String(resp.uf || '').toUpperCase() } : formatado
   }
   logErro(numeroSistema, consultaId, `Erro de estado: não consegui o CEP da empresa (${resp?.erro || 'sem CEP na Receita'})`)
   return null
@@ -267,7 +268,8 @@ function camposDeCepVisiveis() {
 async function trocarCepNoSegundoSistema(automation, consultaId, cep) {
   automation.fecharModal()
   await dormir(600)
-  const campos = camposDeCepVisiveis()
+  // 1.6.9: só o CEP da Empresa (o 1º da tela). Os de sócios ficam como estão.
+  const campos = camposDeCepVisiveis().slice(0, 1)
   if (!campos.length) {
     logErro(2, consultaId, 'Erro de estado: não achei campo de CEP na tela do 2º sistema')
     return false
@@ -290,43 +292,53 @@ function naTelaDeNegociacoes() {
   return location.href.includes('/negociacao') && !location.href.includes('/primeiravenda')
 }
 
-function acharLinkNegociacoes() {
-  const el = acharPorTexto('Negociações', { exato: true })
-  return el && el.id !== 'negociacaoButton' ? el : null
+// 1.6.9: só clica em link de verdade pra lista de Negociações (href,
+// ui-sref ou ng-click que fala de negociação), nunca em texto solto. Na
+// 1.6.8 o "Negociações" achado era só um título: o clique não fazia nada e
+// os cliques em Cliente/menu bagunçavam o formulário da 1ª venda.
+function linksDeNegociacoes() {
+  const seletor = 'a, button, [role="button"], [ui-sref], [ng-click], [href], md-list-item, li'
+  return [...document.querySelectorAll(seletor)].filter((el) => {
+    if (el.id === 'negociacaoButton') return false
+    const attrs = semAcento([el.getAttribute('href'), el.getAttribute('ui-sref'), el.getAttribute('ng-click')].filter(Boolean).join(' '))
+    if (/primeiravenda|novanegociacao|renegociacao/.test(attrs)) return false
+    const texto = semAcento(el.innerText || el.textContent || '').trim()
+    return /negociac/.test(attrs) || texto === 'negociacoes'
+  })
+}
+
+function descreverLinksDeNegociacoes() {
+  return linksDeNegociacoes().slice(0, 6).map((el) =>
+    `<${el.tagName.toLowerCase()} ${['href', 'ui-sref', 'ng-click'].map((a) => el.getAttribute(a) ? `${a}="${el.getAttribute(a)}"` : '').filter(Boolean).join(' ')}>${(el.innerText || '').trim().slice(0, 30)}`
+  ).join(' | ') || '(nenhum)'
 }
 
 async function irParaNegociacoes(automation, consultaId) {
-  const clicarCliente = async () => {
-    const c = acharPorTexto('Cliente', { exato: true }) || acharPorTexto('Clientes', { exato: true }) ||
-      automation.acharBotaoPorTexto(EASYVENDAS_SELECTORS.botaoClientesTextos)
-    if (!c) return 'Cliente não achado'
-    c.click()
-    await dormir(1200)
-    return 'cliquei em Cliente'
+  // 1º: link de Negociações que já esteja na tela (menu aberto ou atalho)
+  const candidatos = linksDeNegociacoes().sort((a, b) => (visivel(b) ? 1 : 0) - (visivel(a) ? 1 : 0))
+  for (const el of candidatos.slice(0, 3)) {
+    el.click()
+    if (await esperarAte(() => naTelaDeNegociacoes() || null, 3000)) {
+      log(2, consultaId, 'Religar: abri Negociações pelo link do menu')
+      return true
+    }
   }
-  const abrirMenu = async () => {
-    const m = automation.acharBotaoPorTexto(['menu'])
-    if (!m) return 'menu não achado'
-    m.click()
-    await dormir(900)
-    return 'abri o menu'
+  // 2º: endereço da lista de Negociações (mesmo padrão de /cliente/list)
+  for (const rota of ['#!/master/negociacao/list', '#!/master/negociacao']) {
+    location.hash = rota.slice(1)
+    if (await esperarAte(() => (naTelaDeNegociacoes() && acharInputPorRotulo('Razão Social')) || null, 4000)) {
+      log(2, consultaId, `Religar: abri Negociações pelo endereço ${rota}`)
+      return true
+    }
   }
-  for (const passo of [clicarCliente, abrirMenu, clicarCliente]) {
-    const feito = await passo()
-    const neg = await esperarAte(acharLinkNegociacoes, 2500)
-    log(2, consultaId, `Religar: ${feito}; Negociações ${neg ? 'achado, clicando' : 'não apareceu'}`)
-    if (!neg) continue
-    neg.click()
-    if (await esperarAte(() => naTelaDeNegociacoes() || null, 6000)) return true
-  }
+  logErro(2, consultaId, `Religar: não achei como abrir Negociações. Links vistos: ${descreverLinksDeNegociacoes()}`)
   return false
 }
 
 async function religarSegundoSistema(automation, consultaId) {
   const falhou = async (passo) => {
-    logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Tela: ${location.href.replace(/^.*#!/, '')}. Recarregando a página.`)
-    await dormir(300)
-    recarregarLimpo() // 1.6.8: volta pro endereço da tela da 1ª venda, não recarrega a tela onde parou
+    // 1.6.9 (Brayan): o 2º sistema nunca recarrega a página.
+    logErro(2, consultaId, `Religar o 2º sistema falhou (${passo}). Tela: ${location.href.replace(/^.*#!/, '')}`)
     return false
   }
   if (!nomeNegociacao) return falhou(`nenhum nome de negociação configurado no painel pro PC ${NUMERO_PC}`)
@@ -338,11 +350,11 @@ async function religarSegundoSistema(automation, consultaId) {
   // Clientes). Se "Negociações" não aparecer depois de Cliente, abre o
   // menu (☰) e tenta de novo.
   if (!(await irParaNegociacoes(automation, consultaId))) {
-    return falhou(`não consegui abrir Negociações — botões na tela: ${automation.listarBotoesVisiveis(30).join(' | ')}`)
+    return falhou('não consegui abrir Negociações')
   }
 
   // espera sair da tela da 1ª venda e aparecer o campo Razão Social da busca
-  const campo = await esperarAte(() => (naTelaDeNegociacoes() ? acharInputPorRotulo('Razão Social') : null), 12000)
+  const campo = await esperarAte(() => (naTelaDeNegociacoes() ? acharInputPorRotulo('Razão Social') : null), 6000)
   if (!campo) return falhou('não achei o campo "Razão Social" em Negociações')
   await pausaHumana(300, 600)
   await digitarTexto(campo, nomeNegociacao)
@@ -351,19 +363,19 @@ async function religarSegundoSistema(automation, consultaId) {
   const lupa = automation.acharBotaoPertoDe(campo, EASYVENDAS_SELECTORS.botaoBuscarTextos)
   if (lupa) lupa.click()
 
-  const item = await esperarAte(() => acharPorTexto(nomeNegociacao, { ignorar: campo }), 12000)
+  const item = await esperarAte(() => acharPorTexto(nomeNegociacao, { ignorar: campo }), 6000)
   if (!item) return falhou(`não achei a negociação "${nomeNegociacao}" na lista`)
   await pausaHumana(300, 600)
   item.click()
 
-  const editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 12000)
+  const editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 6000)
   if (!editar) return falhou('não achei o botão EDITAR')
   await pausaHumana(300, 600)
   editar.click()
 
   const voltou = await esperarAte(
     () => (location.href.includes('/primeiravenda') && automation.detectarEstado().tipo === 'formulario' ? true : null),
-    15000
+    8000
   )
   if (!voltou) return falhou('cliquei em EDITAR mas a tela da 1ª venda não voltou')
   log(2, consultaId, '2º sistema religado: de volta na tela da 1ª venda')
@@ -777,6 +789,26 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     const tempoMinimoPassou = decorrido >= 2000 // reduzido de 4000 — a checagem de campos inválidos logo abaixo já é a garantia real, esse tempo é só pra não checar cedo demais
     const invalidos = tempoMinimoPassou ? automation.camposInvalidosVisiveis() : null
 
+    // 1.6.9: a tela da 1ª venda é a negociação do painel (ex: WILL CRIVO,
+    // endereço de MG) com o CNPJ trocado. Empresa de outro estado dava
+    // "O estado do endereço ... diferente do estado de cadastro do CNPJ".
+    // Antes de avançar, se o Estado da tela for outro, coloca o CEP da
+    // empresa (como a equipe faz na mão).
+    if (numeroSistema === 2 && tempoMinimoPassou && !andamento.estadoConferido) {
+      andamento.estadoConferido = true
+      const empresa = await buscarCepDaEmpresa(andamento.consulta.cnpj, andamento.consulta.id, 2, { comUf: true })
+      const campoEstado = acharInputPorRotulo('Estado')
+      const ufTela = semAcento(campoEstado?.value || '').trim().toUpperCase()
+      if (empresa?.uf && ufTela && empresa.uf !== ufTela) {
+        log(2, andamento.consulta.id, `Estado da tela (${ufTela}) diferente do da empresa (${empresa.uf}): trocando o CEP antes de avançar`)
+        await trocarCepNoSegundoSistema(automation, andamento.consulta.id, empresa.cep)
+        await esperarAte(() => (semAcento(acharInputPorRotulo('Estado')?.value || '').trim().toUpperCase() === empresa.uf ? true : null), 5000)
+        andamento.cepEmpresaTentado = true
+        andamento.iniciadoEm = Date.now() - 2000
+        return false
+      }
+    }
+
     if (tempoMinimoPassou && invalidos.length === 0) {
       const estadoAgora = automation.detectarEstado()
       if (estadoAgora.tipo === 'formulario') {
@@ -913,6 +945,20 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     }
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, andamento.consulta.id, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
+    if (resultado === 'formulario_incompleto' && numeroSistema === 2 && (andamento.avancouDeNovo || 0) < 2) {
+      // 1.6.9: no teste, o mesmo CNPJ dava "Telefone inválido" e na 2ª
+      // vez passava. Fecha o aviso e clica Avançar de novo (sem religar).
+      andamento.avancouDeNovo = (andamento.avancouDeNovo || 0) + 1
+      log(2, andamento.consulta.id, `Formulário com pendências: fechando o aviso e avançando de novo (${andamento.avancouDeNovo}/2)`)
+      automation.fecharModal()
+      await dormir(1500)
+      andamento.fase = 'aguardando_dados'
+      andamento.estadoConferido = true
+      andamento.ultimoTextoNovo = ''
+      andamento.estavel = 0
+      andamento.iniciadoEm = Date.now() - 2000
+      return false
+    }
     if (resultado === 'formulario_incompleto') {
       // Não é resultado, é erro — o formulário não estava completo
       // quando clicou Avançar (nunca grava aprovado/reprovado por isso).
