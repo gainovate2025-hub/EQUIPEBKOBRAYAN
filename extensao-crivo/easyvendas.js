@@ -444,7 +444,20 @@ async function religarSegundoSistema(automation, consultaId) {
   const lupa = automation.acharBotaoPertoDe(campo, EASYVENDAS_SELECTORS.botaoBuscarTextos)
   if (lupa) lupa.click()
 
-  const item = await esperarAte(() => acharPorTexto(nomeNegociacao, { ignorar: campo }), 6000)
+  // 1.8.0: depois da busca, o nome vira uma etiqueta "CRIVO BRAYAN ×" no
+  // campo de busca, e a 1.7.9 clicava nela (não abria nada). Agora pega a
+  // LINHA do resultado (botão/linha da lista com o nome), fora da etiqueta.
+  const alvoNome = semAcento(nomeNegociacao).trim()
+  const acharLinha = () => {
+    const candidatos = [...document.querySelectorAll('button, tr, md-list-item, [ng-click], a')].filter((el) => {
+      if (!visivel(el) || el === campo || el.contains(campo)) return false
+      if (el.closest('md-chips, md-chip, .md-chip, .md-chips')) return false
+      const t = semAcento(el.innerText || '').trim()
+      return t.includes(alvoNome) && t.replace(/[×x✕]/g, '').trim() !== alvoNome
+    })
+    return candidatos[0] || null
+  }
+  const item = await esperarAte(acharLinha, 8000)
   if (!item) return falhou(`não achei a negociação "${nomeNegociacao}" na lista`)
   await pausaHumana(300, 600)
   const urlLista = location.href
