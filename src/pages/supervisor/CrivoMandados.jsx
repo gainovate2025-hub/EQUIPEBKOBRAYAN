@@ -26,13 +26,6 @@ function hojeLocal() {
 
 // Mesmo veredito do chat: reprovado em qualquer sistema decide; CNPJ errado
 // em qualquer um vira aviso; só é aprovado com os dois aprovados.
-// 17/11/2026: reprovado que não veio de análise de crédito (tela vazia,
-// erro do site, leituras diferentes por tela de erro, lista de negociações).
-function reprovadoPorErroDeTela(c) {
-  const m = c.sistema1_resultado === 'reprovado' ? c.sistema1_motivo : c.sistema2_motivo
-  return /^Erro no 1º sistema|^Leituras diferentes|Pesquisar Negocia|estado do endereço|é obrigatóri/i.test(m || '')
-}
-
 function resultado(c) {
   if (c.status === 'erro') return { texto: 'Erro', classe: 'badge-bad' }
   if (c.status === 'cancelado') return { texto: 'Ignorado', classe: 'badge-neutral' }
@@ -104,11 +97,11 @@ export default function CrivoMandados() {
   // (a lista vem da mais nova pra mais antiga).
   const ultimaPorCnpj = new Map()
   for (const c of lista) if (!ultimaPorCnpj.has(c.cnpj)) ultimaPorCnpj.set(c.cnpj, c)
-  const resumo = { aprovado: 0, reprovado: 0, erroTela: 0, cnpjErrado: 0, ignorado: 0, aguardando: 0 }
+  const resumo = { aprovado: 0, reprovado: 0, cnpjErrado: 0, ignorado: 0, aguardando: 0 }
   for (const c of ultimaPorCnpj.values()) {
     const t = resultado(c).texto
     if (t === 'Aprovado') resumo.aprovado++
-    else if (t === 'Reprovado') (reprovadoPorErroDeTela(c) ? resumo.erroTela++ : resumo.reprovado++)
+    else if (t === 'Reprovado') resumo.reprovado++
     else if (t === 'CNPJ errado') resumo.cnpjErrado++
     else if (t === 'Ignorado') resumo.ignorado++
     else resumo.aguardando++
@@ -118,7 +111,7 @@ export default function CrivoMandados() {
     const texto = lista
       .slice()
       .reverse()
-      .map((c) => `${soDigitos(c.cnpj)} - ${resultado(c).texto.toUpperCase()}${resultado(c).texto === 'Reprovado' && reprovadoPorErroDeTela(c) ? ' (ERRO DE TELA)' : ''}`)
+      .map((c) => `${soDigitos(c.cnpj)} - ${resultado(c).texto.toUpperCase()}`)
       .join('\n')
     try {
       await navigator.clipboard.writeText(texto)
@@ -180,12 +173,11 @@ export default function CrivoMandados() {
           )}
         </p>
         {!carregando && !digitosBusca && lista.length > 0 && (
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
             {[
               ['CNPJs diferentes', ultimaPorCnpj.size, 'text-ink'],
               ['Aprovados', resumo.aprovado, 'text-good-text'],
               ['Reprovados', resumo.reprovado, 'text-bad-text'],
-              ['Reprovados por erro de tela', resumo.erroTela, 'text-warn-text'],
               ['Ignorados', resumo.ignorado, 'text-muted'],
               ['Aguardando / CNPJ errado', resumo.aguardando + resumo.cnpjErrado, 'text-muted'],
             ].map(([rotulo, valor, cor]) => (
@@ -230,9 +222,6 @@ export default function CrivoMandados() {
                       </td>
                       <td className="py-1.5 pr-3">
                         <span className={r.classe}>{r.texto}</span>
-                        {r.texto === 'Reprovado' && reprovadoPorErroDeTela(c) && (
-                          <span className="ml-1 text-xs font-medium text-warn-text">erro de tela</span>
-                        )}
                       </td>
                       <td className="py-1.5">{c.pc ?? '—'}</td>
                     </tr>
