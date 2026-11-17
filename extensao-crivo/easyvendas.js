@@ -473,7 +473,8 @@ async function finalizarComRetry(numeroSistema, consultaId, dados, automation) {
     // formulário da 1ª venda sumiu da tela; se ele está lá, só fecha o
     // aviso e tenta de novo na hora (religar à toa gastava ~10s).
     automation.fecharModal()
-    if (automation.detectarEstado().tipo !== 'formulario') {
+    const emBranco = automation.camposInvalidosVisiveis().some((c) => /raz[aã]o social/i.test(c))
+    if (automation.detectarEstado().tipo !== 'formulario' || emBranco) {
       await religarSegundoSistema(automation, consultaId)
     }
     return
@@ -879,7 +880,17 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
     // nada, depois religando. Agora, passados 2s (ou 4s se ainda tiver
     // campo marcado), clica Avançar igual uma pessoa faria: se faltar
     // algo de verdade, a própria TIM avisa e a regra de erro cuida.
-    const podeAvancar = tempoMinimoPassou && (invalidos.length === 0 || decorrido >= 4000)
+    // 1.7.8: "Razão Social" vazia = a negociação sumiu da tela (formulário
+    // em branco). Avançar assim levava pra lista "Pesquisar Negociações",
+    // que era lida como resposta e reprovava. Aí trata como erro (religa).
+    const formularioEmBranco = tempoMinimoPassou && invalidos.some((c) => /raz[aã]o social/i.test(c))
+    if (formularioEmBranco && decorrido >= 4000) {
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, {
+        erro: `[${numeroSistema}º sistema] a tela da 1ª venda está em branco (sem Razão Social da negociação)`,
+      }, automation)
+      return true
+    }
+    const podeAvancar = tempoMinimoPassou && !formularioEmBranco && (invalidos.length === 0 || decorrido >= 4000)
     if (podeAvancar) {
       const estadoAgora = automation.detectarEstado()
       if (estadoAgora.tipo === 'formulario') {
@@ -1023,6 +1034,13 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
           return false
         }
       }
+    }
+    // 1.7.8: tela de lista (Pesquisar Negociações/Clientes) não é resposta.
+    if (/pesquisar (negociac|client)|linhas por pagina/.test(semAcento(textoNovo))) {
+      await finalizarComRetry(numeroSistema, andamento.consulta.id, {
+        erro: `[${numeroSistema}º sistema] caiu numa tela de lista em vez da resposta: ${textoNovo.slice(0, 80)}`,
+      }, automation)
+      return true
     }
     const resultado = reconhecido || automation.classificarMensagem(textoNovo, numeroSistema)
     log(numeroSistema, andamento.consulta.id, 'Mensagem de resultado:', textoNovo, '— Resultado:', resultado)
