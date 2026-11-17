@@ -235,7 +235,7 @@ function ehErroDeEstado(texto) {
 }
 function precisaEnderecoDaEmpresa(texto) {
   const t = semAcento(texto || '')
-  if (/telefone invalido/.test(t)) return false
+  if (/telefone invalido|razao social e obrigatori/.test(t)) return false // 1.7.9: tela em branco é religar, não CEP
   return PADRAO_ERRO_ESTADO.test(t) || /formulario com pend|favor rever o preenchimento|e obrigatori/.test(t)
 }
 function chaveCepEmpresa(consultaId) {
@@ -377,11 +377,27 @@ async function irParaNegociacoes(automation, consultaId) {
   for (const el of candidatos.slice(0, 3)) {
     // 1.7.3: no menu da esquerda (Clientes / Negociações / Pedidos) o
     // clique vale no botão de dentro do item, não no item.
-    const alvo = el.querySelector('button, a, [ng-click], [ui-sref]') || el
-    alvo.click()
-    if (await esperarAte(() => naTelaDeNegociacoes() || null, 3000)) {
-      log(2, consultaId, 'Religar: abri Negociações pelo link do menu')
-      return true
+    // 1.7.9: tenta o botão de dentro e o próprio item; se nada abrir,
+    // abre o menu (☰) e tenta de novo (às vezes o menu está fechado).
+    const alvos = [el.querySelector('button, a, [ng-click], [ui-sref]'), el].filter(Boolean)
+    for (const alvo of alvos) {
+      alvo.click()
+      if (await esperarAte(() => naTelaDeNegociacoes() || null, 2500)) {
+        log(2, consultaId, 'Religar: abri Negociações pelo link do menu')
+        return true
+      }
+    }
+  }
+  const menu = automation.acharBotaoPorTexto(['menu'])
+  if (menu) {
+    menu.click()
+    await dormir(900)
+    for (const el of linksDeNegociacoes().filter(visivel).slice(0, 2)) {
+      ;(el.querySelector('button, a, [ng-click], [ui-sref]') || el).click()
+      if (await esperarAte(() => naTelaDeNegociacoes() || null, 2500)) {
+        log(2, consultaId, 'Religar: abri o menu e cliquei em Negociações')
+        return true
+      }
     }
   }
   // 1.7.1: tirado o atalho pelo endereço (#!/master/negociacao): no teste
@@ -431,9 +447,12 @@ async function religarSegundoSistema(automation, consultaId) {
   const item = await esperarAte(() => acharPorTexto(nomeNegociacao, { ignorar: campo }), 6000)
   if (!item) return falhou(`não achei a negociação "${nomeNegociacao}" na lista`)
   await pausaHumana(300, 600)
+  const urlLista = location.href
   item.click()
-
-  const editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 6000)
+  // 1.7.9: espera abrir a negociação (sai da lista) e o EDITAR aparecer;
+  // na 1.7.8 desistia em 6s e o EDITAR aparecia logo depois.
+  await esperarAte(() => (location.href !== urlLista ? true : null), 6000)
+  const editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 12000)
   if (!editar) return falhou('não achei o botão EDITAR')
   await pausaHumana(300, 600)
   editar.click()
@@ -1036,7 +1055,8 @@ async function verificarAndamento(numeroSistema, automation, andamento) {
       }
     }
     // 1.7.8: tela de lista (Pesquisar Negociações/Clientes) não é resposta.
-    if (/pesquisar (negociac|client)|linhas por pagina/.test(semAcento(textoNovo))) {
+    // 1.7.9: "Razão Social é obrigatória" = tela da 1ª venda em branco.
+    if (/pesquisar (negociac|client)|linhas por pagina|razao social e obrigatori/.test(semAcento(textoNovo))) {
       await finalizarComRetry(numeroSistema, andamento.consulta.id, {
         erro: `[${numeroSistema}º sistema] caiu numa tela de lista em vez da resposta: ${textoNovo.slice(0, 80)}`,
       }, automation)
