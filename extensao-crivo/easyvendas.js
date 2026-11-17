@@ -249,6 +249,26 @@ async function buscarCepDaEmpresa(cnpj, consultaId, numeroSistema, { comUf = fal
   } catch (err) {
     resp = { erro: err.message }
   }
+  // 1.7.7: se a extensão foi atualizada e esta aba não foi recarregada,
+  // o fundo da extensão não responde ("Extension context invalidated").
+  // Aí busca direto na BrasilAPI daqui da página (ela aceita).
+  if (!String(resp?.cep || '').replace(/\D/g, '')) {
+    if (/context invalidated/i.test(resp?.erro || '')) {
+      logErro(numeroSistema, consultaId, 'A extensão foi atualizada e esta aba não foi recarregada (F5). Buscando o CEP direto, mas recarregue esta aba quando puder.')
+    }
+    try {
+      const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${String(cnpj).replace(/\D/g, '')}`)
+      if (res.ok) {
+        const d = await res.json()
+        const tipo = String(d.descricao_tipo_de_logradouro || '').trim()
+        resp = {
+          cep: d.cep, uf: d.uf,
+          rua: [tipo, d.logradouro].map((x) => String(x || '').trim()).filter(Boolean).join(' '),
+          numero: d.numero, bairro: d.bairro, complemento: d.complemento, cidade: d.municipio,
+        }
+      }
+    } catch { /* segue sem CEP */ }
+  }
   const cep = String(resp?.cep || '').replace(/\D/g, '')
   if (cep.length === 8) {
     log(numeroSistema, consultaId, `CEP da empresa na Receita: ${cep} (${resp.uf || '?'})`)
