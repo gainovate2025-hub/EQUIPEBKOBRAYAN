@@ -444,28 +444,33 @@ async function religarSegundoSistema(automation, consultaId) {
   const lupa = automation.acharBotaoPertoDe(campo, EASYVENDAS_SELECTORS.botaoBuscarTextos)
   if (lupa) lupa.click()
 
-  // 1.8.0: depois da busca, o nome vira uma etiqueta "CRIVO BRAYAN ×" no
-  // campo de busca, e a 1.7.9 clicava nela (não abria nada). Agora pega a
-  // LINHA do resultado (botão/linha da lista com o nome), fora da etiqueta.
+  // 1.8.1: clica na opção com o nome (ex: CRIVO BRAYAN) e espera o
+  // EDITAR. Tenta o próprio item e, se nada acontecer, a linha em volta
+  // dele. Ignora a etiqueta da busca e o campo onde o nome foi digitado.
   const alvoNome = semAcento(nomeNegociacao).trim()
-  const acharLinha = () => {
-    const candidatos = [...document.querySelectorAll('button, tr, md-list-item, [ng-click], a')].filter((el) => {
-      if (!visivel(el) || el === campo || el.contains(campo)) return false
-      if (el.closest('md-chips, md-chip, .md-chip, .md-chips')) return false
-      const t = semAcento(el.innerText || '').trim()
-      return t.includes(alvoNome) && t.replace(/[×x✕]/g, '').trim() !== alvoNome
-    })
-    return candidatos[0] || null
-  }
-  const item = await esperarAte(acharLinha, 8000)
-  if (!item) return falhou(`não achei a negociação "${nomeNegociacao}" na lista`)
-  await pausaHumana(300, 600)
+  const opcoes = () => [...document.querySelectorAll('button, tr, md-list-item, li, [ng-click], a, td, span, div')].filter((el) => {
+    if (!visivel(el) || el === campo || el.contains(campo)) return false
+    if (el.closest('md-chips, md-chip, .md-chip, .md-chips')) return false
+    const t = semAcento(el.innerText || '').trim()
+    return t.includes(alvoNome) && t.length < alvoNome.length + 120
+  }).sort((a, b) => (a.innerText || '').length - (b.innerText || '').length)
+  await esperarAte(() => (opcoes().length ? true : null), 8000)
+  const lista = opcoes()
+  if (!lista.length) return falhou(`não achei a opção "${nomeNegociacao}" na lista`)
+  let editar = null
   const urlLista = location.href
-  item.click()
-  // 1.7.9: espera abrir a negociação (sai da lista) e o EDITAR aparecer;
-  // na 1.7.8 desistia em 6s e o EDITAR aparecia logo depois.
-  await esperarAte(() => (location.href !== urlLista ? true : null), 6000)
-  const editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 12000)
+  for (const el of lista.slice(0, 4)) {
+    const alvos = [el, el.closest('tr, md-list-item, li, [ng-click], button, a')].filter((x, k, arr) => x && arr.indexOf(x) === k)
+    for (const alvo of alvos) {
+      await pausaHumana(250, 500)
+      alvo.click()
+      editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 4000)
+      if (editar || location.href !== urlLista) break
+    }
+    if (editar || location.href !== urlLista) break
+  }
+  log(2, consultaId, `Religar: cliquei na opção "${nomeNegociacao}"${editar ? ' e o EDITAR apareceu' : ''}`)
+  if (!editar) editar = await esperarAte(() => automation.acharBotaoPorTexto(['editar']), 10000)
   if (!editar) return falhou('não achei o botão EDITAR')
   await pausaHumana(300, 600)
   editar.click()
