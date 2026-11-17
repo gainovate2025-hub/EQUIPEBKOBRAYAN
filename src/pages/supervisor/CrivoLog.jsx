@@ -152,8 +152,16 @@ export default function CrivoLog() {
   const porPc = [1, 2, 3].map((pc) => {
     const doPc = concluidas.filter((c) => c.pc === pc)
     const t = doPc.map((c) => new Date(c.concluido_at) - new Date(c.created_at))
+    // 17/11/2026 (Brayan): tempo que o PC leva pra responder 1 CNPJ = tempo
+    // entre uma resposta e a próxima desse PC (cada PC faz 1 CNPJ por vez).
+    // Intervalos acima de 5 min são PC parado/sem fila e ficam de fora.
+    // Usa a mediana pra um CNPJ travado não puxar o número.
+    const fim = doPc.map((c) => new Date(c.concluido_at).getTime()).sort((a, b) => a - b)
+    const gaps = fim.slice(1).map((v, i) => v - fim[i]).filter((g) => g > 0 && g <= 5 * 60000).sort((a, b) => a - b)
+    const porCnpj = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null
     return {
       pc,
+      porCnpj,
       feitas: doPc.length,
       media: t.length ? t.reduce((a, b) => a + b, 0) / t.length : null,
       erros: eventos.filter((e) => e.pc === pc && e.tipo === 'erro').length,
@@ -196,10 +204,7 @@ export default function CrivoLog() {
                     )
                   })}
                   <div className="border-t border-divider pt-2 text-xs text-muted">
-                    {ocupado ? 'Consultando agora' : 'Livre'} · hoje: {info.feitas} feitas · média {duracao(info.media)}
-                    {(info.erros > 0 || info.repasses > 0) && (
-                      <span className="text-bad-text"> · {info.erros} erros · {info.repasses} repasses</span>
-                    )}
+                    Demora pra responder 1 CNPJ: <span className="font-semibold text-ink">{duracao(info.porCnpj)}</span>
                   </div>
                 </div>
               )
