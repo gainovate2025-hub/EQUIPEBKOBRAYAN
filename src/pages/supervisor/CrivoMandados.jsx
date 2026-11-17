@@ -28,6 +28,7 @@ function hojeLocal() {
 // em qualquer um vira aviso; só é aprovado com os dois aprovados.
 function resultado(c) {
   if (c.status === 'erro') return { texto: 'Erro', classe: 'badge-bad' }
+  if (c.status === 'cancelado') return { texto: 'Ignorado', classe: 'badge-neutral' }
   const s1 = c.sistema1_resultado
   const s2 = c.sistema2_resultado
   if (s1 === 'reprovado' || s2 === 'reprovado') return { texto: 'Reprovado', classe: 'badge-bad' }

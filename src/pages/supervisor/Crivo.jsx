@@ -89,7 +89,14 @@ function veredito(c) {
   return null
 }
 
+// 17/11/2026 (migration_064): o mesmo login mandou outro CNPJ antes deste
+// terminar, então este saiu da fila.
+function RespostaIgnorada() {
+  return <span className="text-muted">Ignorado: você mandou outro CNPJ depois.</span>
+}
+
 function RespostaCrivoSimples({ consulta: c }) {
+  if (c.status === 'cancelado') return <RespostaIgnorada />
   if (c.status === 'erro') {
     const sistema = sistemaDoErro(c.erro_mensagem)
     return (
@@ -117,6 +124,7 @@ function sistema1Terminal(c) {
 }
 
 function RespostaCrivoDetalhada({ consulta: c }) {
+  if (c.status === 'cancelado') return <RespostaIgnorada />
   if (c.status === 'erro') {
     return (
       <div className="flex items-center gap-1.5 text-bad-text">
