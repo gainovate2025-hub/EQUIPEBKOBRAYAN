@@ -740,7 +740,15 @@ async function tentarComecarNova(numeroSistema, automation) {
   // depender disso pra decidir o estado da tela.
   automation.fecharModal()
 
-  const estado = automation.detectarEstado()
+  let estado = automation.detectarEstado()
+  // 1.8.2: página ainda carregando (nenhum botão na tela) não é erro:
+  // espera até 8s o formulário aparecer. Antes isso virava "erro no 1º
+  // sistema" e reprovava cliente sem restrição (50540705000170, 17/11).
+  if (estado.tipo !== 'formulario' && automation.listarBotoesVisiveis().length === 0) {
+    log(numeroSistema, consulta.id, 'Página ainda carregando (sem nenhum botão na tela), esperando o formulário')
+    await esperarAte(() => (automation.detectarEstado().tipo === 'formulario' ? true : null), 8000)
+    estado = automation.detectarEstado()
+  }
   if (estado.tipo !== 'formulario') {
     // no sistema 1, um reload pode cair em outra tela (não direto no
     // formulário) — tenta navegar de volta (Clientes > Adicionar) antes
