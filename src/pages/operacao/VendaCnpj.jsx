@@ -4,11 +4,10 @@ import {
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
-import { consultarOperadora, escreverVendaNaPlanilha, dataHoraVenda } from '../../lib/api'
+import { consultarOperadora, escreverVendaNaPlanilha } from '../../lib/api'
 import { soDigitos, formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
 import Secao from '../../components/ui/Secao'
 import CampoTim from '../../components/ui/CampoTim'
-import { Campo } from '../../components/vendaCnpj/Campo'
 import { OperadoraLogo } from '../../components/vendaCnpj/OperadoraLogo'
 
 // Tela de consulta de CNPJ + registro da venda (operação e supervisor).
@@ -226,7 +225,7 @@ function linhaVazia() {
     titularNomePf: '',
     titularRazaoSocial: '',
     titularCnpj: '',
-    tipoChip: '', // '' | 'fisico' | 'esim'
+    tipoChip: 'fisico', // 'fisico' | 'esim' — já vem chip físico (Brayan, 17/11/2026)
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -304,11 +303,35 @@ function linhaValida(l) {
     ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
     : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
   if (!titularOk) return false
-  if (l.tipo === 'portabilidade') {
-    const d = soDigitos(l.numero)
-    if (d.length !== 10 && d.length !== 11) return false
-  }
+  // 17/11/2026: todo número a portar tem que ter 11 dígitos (DDD + 9 + número).
+  if (soDigitos(l.numero).length !== 11) return false
   return true
+}
+
+function nomeComparavel(v) {
+  return semAcento(v).replace(/\s+/g, ' ').trim()
+}
+
+// 17/11/2026 (Brayan): o mesmo CPF não pode aparecer em mais de uma linha
+// com nomes diferentes (ex: 3 linhas com o mesmo CPF e 3 nomes). Mesmo CPF
+// com o mesmo nome pode. Devolve índice -> número da 1ª linha com esse CPF.
+function linhasComCpfRepetido(linhas) {
+  const vistos = new Map() // cpf -> { i, nome }
+  const repetidas = new Map()
+  linhas.forEach((l, i) => {
+    if (l.tipo !== 'portabilidade' || l.titularTipo !== 'pf') return
+    const cpf = soDigitos(l.titularCpf)
+    if (cpf.length !== 11) return
+    const nome = nomeComparavel(l.titularNomePf)
+    const antes = vistos.get(cpf)
+    if (!antes) {
+      vistos.set(cpf, { i, nome })
+      return
+    }
+    if (!antes.nome && nome) antes.nome = nome
+    if (nome && antes.nome && nome !== antes.nome) repetidas.set(i, antes.i + 1)
+  })
+  return repetidas
 }
 
 // Número de portabilidade repetido entre as linhas (pedido do Brayan em
@@ -443,7 +466,7 @@ function DadoEmpresa({ label, valor }) {
 // tabela; no celular, as colunas empilham (cada campo com seu rótulo).
 const COLUNAS_LINHA = 'lg:grid-cols-[44px_1.1fr_1fr_1.3fr_0.9fr_1.3fr_1.5fr_52px]'
 
-function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, repeteLinha }) {
+function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, repeteLinha, cpfRepeteLinha }) {
   function set(campo, valor) {
     atualizar(linha.id, { [campo]: valor })
   }
@@ -476,20 +499,13 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
   // Linha nova não tem número ainda (é a TIM que gera), então o campo de
   // número só existe na portabilidade (pedido do Brayan em 10/11/2026).
   // Voltar pra "Linha nova" apaga o número e a operadora já consultados.
+  // 17/11/2026: o número não é mais apagado ao trocar o tipo, porque a 1ª
+  // linha já vem com o telefone do cartão CNPJ. Linha nova só ignora o
+  // número na hora de salvar.
   function mudarTipo(tipo) {
-    if (tipo !== 'portabilidade') {
-      atualizar(linha.id, {
-        tipo,
-        numero: '',
-        numeroConsultado: null,
-        consultando: false,
-        operadora: null,
-        operadoraBruta: null,
-        portado: null,
-        erroOperadora: null,
-      })
-    } else {
-      set('tipo', tipo)
+    set('tipo', tipo)
+    if (tipo === 'portabilidade' && linha.numero.length === 11 && linha.numero !== linha.numeroConsultado) {
+      consultar(linha.id, linha.numero)
     }
   }
 
@@ -540,6 +556,9 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           onBlur={aoSairDoNumero}
           required
         />
+        {linha.numero.length > 0 && linha.numero.length < 11 && (
+          <p className="text-xs font-semibold text-bad-text">O número precisa ter 11 dígitos (DDD + 9 + número).</p>
+        )}
         {repeteLinha > 0 && (
           <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
             <AlertTriangle size={12} /> Número repetido: igual ao da linha {repeteLinha}
@@ -597,6 +616,11 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
             onChange={(e) => set('titularCpf', soDigitos(e.target.value).slice(0, 11))}
             required
           />
+        )}
+        {!pj && cpfRepeteLinha > 0 && (
+          <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+            <AlertTriangle size={12} /> CPF já usado na linha {cpfRepeteLinha} com outro nome
+          </p>
         )}
       </div>
 
@@ -807,6 +831,9 @@ export default function VendaCnpj() {
       setNomeCliente(nome)
       setCpfCliente(cpf)
       setTelefoneCliente(telefoneComNove(est))
+      // 17/11/2026: a 1ª linha já vem com o telefone do cartão CNPJ (com o
+      // 9 na frente). Dá pra editar.
+      setLinhas([{ ...linhaVazia(), numero: telefoneComNove(est) }])
       const emailDaConsulta = limparEmail(est?.email)
       const emailServe = emailDaConsulta && !emailProibido(emailDaConsulta)
       setEmailCliente(emailServe ? emailDaConsulta : '')
@@ -882,7 +909,13 @@ export default function VendaCnpj() {
       const l = linhas[incompleta]
       if (!l.tipo) return `Na linha ${incompleta + 1}, escolha se é linha nova ou portabilidade.`
       if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM).`
-      return `Na linha ${incompleta + 1} (portabilidade), preencha o número e o titular do número (CPF e nome, ou CNPJ e razão social).`
+      if (soDigitos(l.numero).length !== 11) return `Na linha ${incompleta + 1}, o número a portar precisa ter 11 dígitos (DDD + 9 + número).`
+      return `Na linha ${incompleta + 1} (portabilidade), preencha o titular do número (CPF e nome, ou CNPJ e razão social).`
+    }
+    const cpfRepetido = linhasComCpfRepetido(linhas)
+    if (cpfRepetido.size) {
+      const [i, primeira] = [...cpfRepetido][0]
+      return `O CPF da linha ${i + 1} já foi usado na linha ${primeira} com outro nome. O mesmo CPF não pode ter nomes diferentes.`
     }
     const repetidas = linhasComNumeroRepetido(linhas)
     if (repetidas.size) {
@@ -934,6 +967,7 @@ export default function VendaCnpj() {
   }
 
   const numerosRepetidos = linhasComNumeroRepetido(linhas)
+  const cpfsRepetidos = linhasComCpfRepetido(linhas)
   const empresa = dados ? dadosEmpresa() : null
   const bloqueadoSituacao = empresa ? situacaoBloqueada(empresa.situacao) : false
   const bloqueado = bloqueadoSituacao || Boolean(empresa && reprovadoNoCrivo)
@@ -968,8 +1002,13 @@ export default function VendaCnpj() {
       {/* Dados da empresa (vindos da consulta) */}
       {empresa && !vendaSalva && (
         <Secao titulo="Dados da empresa" icone={Building2}>
-          <p className="text-lg font-bold text-sidebar">{empresa.razao_social || '(sem razão social)'}</p>
-          {empresa.nome_fantasia && <p className="text-sm text-muted">{empresa.nome_fantasia}</p>}
+          {/* 17/11/2026 (Brayan): sem o nome do cliente em destaque aqui.
+              Duas caixinhas: a razão social igual ao cartão CNPJ (com os
+              números) e uma só com o nome, sem os números. */}
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <DadoEmpresa label="Razão social" valor={(dados?.razao_social || '').trim() || '(sem razão social)'} />
+            <DadoEmpresa label="Razão social (só o nome, sem os números)" valor={separarNomeECpf(empresa.razao_social).nome} />
+          </div>
 
           {reprovadoNoCrivo && (
             <div className="tim-alert mt-2 text-base font-bold">
@@ -987,6 +1026,7 @@ export default function VendaCnpj() {
 
           <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             <DadoEmpresa label="CNPJ" valor={empresa.cnpj} />
+            <DadoEmpresa label="Nome fantasia" valor={empresa.nome_fantasia} />
             {bloqueadoSituacao ? (
               <div className="flex flex-col gap-0.5 rounded-md border border-bad-border bg-bad-bg px-3 py-2">
                 <span className="text-xs font-semibold text-bad-text">Situação</span>
@@ -1000,7 +1040,7 @@ export default function VendaCnpj() {
             <DadoEmpresa label="E-mail" valor={empresa.email} />
             <DadoEmpresa label="Atividade" valor={empresa.atividade_principal} />
             <div className="sm:col-span-2 lg:col-span-3">
-              <DadoEmpresa label="Endereço" valor={empresa.endereco} />
+              <DadoEmpresa label="Endereço fiscal da Empresa" valor={empresa.endereco} />
             </div>
           </div>
         </Secao>
@@ -1046,30 +1086,14 @@ export default function VendaCnpj() {
                 />
                 <AvisoEmail email={emailCliente} faltando={emailFaltando} corrigir={setEmailCliente} />
               </CampoTim>
-              <CampoTim label="Endereço de entrega (o do cartão CNPJ)" className="sm:col-span-2">
-                <input className="field-input" value={empresa.endereco} readOnly disabled />
-              </CampoTim>
               <CampoTim label="Ponto de referência" obrigatorio className="sm:col-span-2">
                 <input className="field-input" placeholder="Ex: perto do mercado São José" value={pontoReferencia} onChange={(e) => setPontoReferencia(e.target.value)} required />
               </CampoTim>
             </div>
             <p className="tim-info mt-3">
               <Info size={17} className="mt-0.5 shrink-0 text-brand-500" />
-              O endereço de entrega é só o que consta no cartão CNPJ do cliente. Não é liberada venda pra outro endereço.
+              O endereço de entrega será o mesmo do cliente: o Endereço fiscal da Empresa (cartão CNPJ). Não é liberada venda pra outro endereço.
             </p>
-          </Secao>
-
-          <Secao titulo="Equipe">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              {/* "Operador" e "Supervisor" (Brayan, 11/11/2026). O supervisor
-                  fica guardado na coluna captador (era "Captador da venda"). */}
-              <CampoTim label="Operador" obrigatorio>
-                <input className="field-input" placeholder="Quem fechou a venda" value={fechouVenda} onChange={(e) => setFechouVenda(e.target.value)} required />
-              </CampoTim>
-              <CampoTim label="Supervisor">
-                <input className="field-input" placeholder="Supervisor do operador" value={captador} onChange={(e) => setCaptador(e.target.value)} />
-              </CampoTim>
-            </div>
           </Secao>
 
           <Secao titulo="Plano">
@@ -1127,8 +1151,23 @@ export default function VendaCnpj() {
                   remover={removerLinha}
                   podeRemover={linhas.length > 1}
                   repeteLinha={numerosRepetidos.get(i) || 0}
+                  cpfRepeteLinha={cpfsRepetidos.get(i) || 0}
                 />
               ))}
+            </div>
+          </Secao>
+
+          {/* Equipe no fim da ficha (Brayan, 17/11/2026). */}
+          <Secao titulo="Equipe">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* "Operador" e "Supervisor" (Brayan, 11/11/2026). O supervisor
+                  fica guardado na coluna captador (era "Captador da venda"). */}
+              <CampoTim label="Operador" obrigatorio>
+                <input className="field-input" placeholder="Quem fechou a venda" value={fechouVenda} onChange={(e) => setFechouVenda(e.target.value)} required />
+              </CampoTim>
+              <CampoTim label="Supervisor">
+                <input className="field-input" placeholder="Supervisor do operador" value={captador} onChange={(e) => setCaptador(e.target.value)} />
+              </CampoTim>
             </div>
           </Secao>
 
@@ -1166,51 +1205,18 @@ export default function VendaCnpj() {
         </>
       )}
 
-      {/* Ficha final, depois de salvar */}
+      {/* Depois de salvar: só a mensagem "Enviado" (Brayan, 17/11/2026),
+          sem mostrar os dados do cliente. Se a planilha falhar, avisa. */}
       {vendaSalva && (
-        <Secao titulo="Ficha da venda pronta pra cadastrar" icone={Check}>
-          <StatusPlanilha planilha={planilha} tentarDeNovo={() => enviarPraPlanilha(vendaSalva)} />
-          <p className="mb-2 text-sm text-muted">Clique no ícone ao lado de cada campo pra copiar o valor.</p>
-          <Campo comCopiar label="Feita em" valor={dataHoraVenda(vendaSalva.created_at)} />
-          <Campo comCopiar label="CNPJ" valor={vendaSalva.cnpj} />
-          <Campo comCopiar label="Razão social" valor={vendaSalva.razao_social} />
-          <Campo comCopiar label="Nome fantasia" valor={vendaSalva.nome_fantasia} />
-          <Campo comCopiar label="Situação" valor={vendaSalva.situacao} />
-          <Campo comCopiar label="Aberta desde" valor={vendaSalva.data_abertura} />
-          <Campo comCopiar label="Atividade" valor={vendaSalva.atividade_principal} />
-          <Campo comCopiar label="Endereço" valor={vendaSalva.endereco} />
-          <Campo comCopiar label="Ponto de referência" valor={vendaSalva.ponto_referencia} />
-          <Campo comCopiar label="Telefone (empresa)" valor={vendaSalva.telefone} />
-          <Campo comCopiar label="E-mail (empresa)" valor={vendaSalva.email} />
-          <Campo comCopiar label="Nome do cliente" valor={vendaSalva.nome_cliente} />
-          <Campo comCopiar label="CPF do cliente" valor={vendaSalva.cpf_cliente ? formatarCpf(vendaSalva.cpf_cliente) : ''} />
-          <Campo comCopiar label="Número do cliente" valor={vendaSalva.telefone_cliente} />
-          <Campo operadora label="Operadora do telefone do cliente" valor={vendaSalva.operadora_linha} />
-          <Campo comCopiar label="E-mail do cliente" valor={vendaSalva.email_cliente} />
-          <Campo comCopiar label="Plano" valor={vendaSalva.plano} />
-          <Campo comCopiar label="Operador" valor={vendaSalva.fechou_venda} />
-          <Campo comCopiar label="Supervisor" valor={vendaSalva.captador} />
-
-          {(vendaSalva.linhas || []).map((l, i) => (
-            <div key={i} className="mt-3 rounded-md border border-divider px-3 py-1">
-              <p className="pt-1 text-sm font-semibold text-sidebar">Linha {i + 1}</p>
-              <Campo comCopiar label="Tipo" valor={l.tipo === 'portabilidade' ? 'Portabilidade' : 'Linha nova'} />
-              <Campo comCopiar label="Número" valor={l.numero} />
-              <Campo operadora label="Operadora" valor={l.operadora || l.operadora_bruta} />
-              <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
-              <Campo operadora label="Operadora de origem do cliente" valor={l.operadora_origem} />
-              {l.tipo === 'portabilidade' && (<>
-              <Campo comCopiar label="Titular do número" valor={l.titular_tipo === 'pj' ? 'Pessoa jurídica' : 'Pessoa física'} />
-              <Campo
-                comCopiar
-                label={l.titular_tipo === 'pj' ? 'CNPJ do titular' : 'CPF do titular'}
-                valor={l.titular_tipo === 'pj' ? formatarCnpj(l.titular_documento) : formatarCpf(l.titular_documento)}
-              />
-              <Campo comCopiar label={l.titular_tipo === 'pj' ? 'Razão social do titular' : 'Nome do titular'} valor={l.titular_nome} />
-              </>)}
+        <Secao titulo="Cadastro" icone={Check}>
+          <p className="flex items-center gap-2 rounded-md border border-good-border bg-good-bg px-4 py-3 text-lg font-bold text-good-text">
+            <Check size={22} className="shrink-0" /> Enviado
+          </p>
+          {(planilha?.erro || planilha?.naoConfigurada) && (
+            <div className="mt-3">
+              <StatusPlanilha planilha={planilha} tentarDeNovo={() => enviarPraPlanilha(vendaSalva)} />
             </div>
-          ))}
-
+          )}
           <button type="button" onClick={limparTudo} className="btn-primary mt-4 px-5 py-2.5">
             <Search size={16} /> Nova consulta
           </button>
