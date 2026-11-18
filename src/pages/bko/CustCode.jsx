@@ -22,6 +22,7 @@ export default function BkoCustCode() {
   const { profile } = useAuth()
   const { toast, showToast } = useToast()
   const [custcode, setCustcode] = useState('')
+  const [protocolo, setProtocolo] = useState('')
   const [enviando, setEnviando] = useState(false)
   const [enviados, setEnviados] = useState([])
   const [carregando, setCarregando] = useState(true)
@@ -43,10 +44,12 @@ export default function BkoCustCode() {
   async function handleSubmit(e) {
     e.preventDefault()
     if (!custcode.trim()) return showToast('Informe o CustCode.', 'error')
+    if (!protocolo.trim()) return showToast('Informe o protocolo.', 'error')
     setEnviando(true)
     try {
-      await enviarCustcodeFatura(custcode.trim())
+      await enviarCustcodeFatura(custcode.trim(), protocolo.trim())
       setCustcode('')
+      setProtocolo('')
       showToast('CustCode enviado.')
       carregar()
     } catch (err) {
@@ -60,12 +63,15 @@ export default function BkoCustCode() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">Envie o CustCode da fatura em contestação. O mesmo CustCode não pode ser mandado duas vezes. Depois de alguns dias o supervisor confirma se saiu.</p>
+      <p className="text-sm text-muted">Envie o CustCode e o protocolo da fatura em contestação. O mesmo CustCode não pode ser mandado duas vezes. Depois de alguns dias o supervisor confirma se saiu.</p>
 
       <Secao titulo="Enviar CustCode">
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
           <Field label="CustCode">
-            <input className="field-input" value={custcode} onChange={(e) => setCustcode(e.target.value)} placeholder="Ex: 7.2192123" />
+            <input className="field-input" value={custcode} onChange={(e) => setCustcode(e.target.value)} placeholder="Ex: 7.2192123" required />
+          </Field>
+          <Field label="Protocolo">
+            <input className="field-input" value={protocolo} onChange={(e) => setProtocolo(e.target.value)} placeholder="Protocolo da contestação" required />
           </Field>
           <button type="submit" className="btn-primary" disabled={enviando}>
             {enviando ? 'Enviando…' : 'Enviar CustCode'}
@@ -99,6 +105,7 @@ export default function BkoCustCode() {
             <div key={c.id} className="card flex items-center justify-between gap-2 p-3 text-sm">
               <div className="flex items-center gap-2">
                 <span className="font-mono font-medium text-ink">{c.custcode}</span>
+                {c.protocolo && <span className="text-xs text-muted">· Protocolo {c.protocolo}</span>}
                 <Badge status={c.status} />
               </div>
               <span className="text-xs text-muted">

@@ -212,8 +212,10 @@ export async function fetchCustcodesFatura({ bkoId, teamId } = {}) {
   return data
 }
 
-export async function enviarCustcodeFatura(custcode) {
-  const { error } = await supabase.rpc('enviar_custcode_fatura', { p_custcode: custcode })
+export async function enviarCustcodeFatura(custcode, protocolo) {
+  let { error } = await supabase.rpc('enviar_custcode_fatura', { p_custcode: custcode, p_protocolo: protocolo })
+  // Enquanto a migration_069 não foi rodada, a função ainda só tem 1 campo.
+  if (error?.code === 'PGRST202') ({ error } = await supabase.rpc('enviar_custcode_fatura', { p_custcode: custcode }))
   if (error) throw new Error(error.message || 'Falha ao enviar CustCode.')
 }
 

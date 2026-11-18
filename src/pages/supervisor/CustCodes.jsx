@@ -76,6 +76,7 @@ export default function CustCodes() {
             <div key={c.id} className="card flex flex-wrap items-center justify-between gap-2 p-3 text-sm">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-mono font-medium text-ink">{c.custcode}</span>
+                {c.protocolo && <span className="text-xs text-muted">· Protocolo <span className="font-mono">{c.protocolo}</span></span>}
                 <span className="text-muted">· {c.profiles?.name}</span>
                 <span className="text-xs text-muted">· {diasDesde(c.enviado_em)} dia{diasDesde(c.enviado_em) === 1 ? '' : 's'} atrás</span>
                 {c.status !== 'pendente' && (
