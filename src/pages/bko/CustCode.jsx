@@ -60,7 +60,7 @@ export default function BkoCustCode() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">Envie o CustCode da fatura em contestação. Cada CustCode vale R$ 2,00 na comissão (o mesmo CustCode não pode ser mandado duas vezes). Depois de alguns dias o supervisor confirma se saiu.</p>
+      <p className="text-sm text-muted">Envie o CustCode da fatura em contestação. O mesmo CustCode não pode ser mandado duas vezes. Depois de alguns dias o supervisor confirma se saiu.</p>
 
       <Secao titulo="Enviar CustCode">
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
