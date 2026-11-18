@@ -42,7 +42,7 @@ export async function fetchOwnDailyReports(userId) {
 export async function fetchTeamRanking(teamId) {
   let query = supabase
     .from('profiles')
-    .select('id, name, username, performance(commission, contestations_done, rescheduling_done)')
+    .select('id, name, username, performance(commission, contestations_done, rescheduling_done, faturas_done)')
     .eq('role', 'bko')
   if (teamId) query = query.eq('team_id', teamId)
   const { data, error } = await query

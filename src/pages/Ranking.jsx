@@ -50,7 +50,7 @@ export default function Ranking() {
               <div className="min-w-0 flex-1">
                 <span className="font-semibold">{r.name}{isMe ? ' (você)' : ''}</span>
                 <div className="text-xs text-muted">
-                  {perf.contestations_done ?? 0} {contestacaoLabel.toLowerCase()} · {perf.rescheduling_done ?? 0} reagendamentos
+                  {perf.contestations_done ?? 0} {contestacaoLabel.toLowerCase()} · {perf.rescheduling_done ?? 0} reagendamentos · {perf.faturas_done ?? 0} faturas
                 </div>
               </div>
               <span className="text-lg font-bold text-brand-700">{fmtMoney(perf.commission)}</span>

@@ -60,12 +60,12 @@ export default function BkoCustCode() {
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-sm text-muted">Envie o CustCode da fatura em contestação. Depois de alguns dias o supervisor confirma se saiu.</p>
+      <p className="text-sm text-muted">Envie o CustCode da fatura em contestação. Cada CustCode vale R$ 2,00 na comissão (o mesmo CustCode não pode ser mandado duas vezes). Depois de alguns dias o supervisor confirma se saiu.</p>
 
       <Secao titulo="Enviar CustCode">
         <form onSubmit={handleSubmit} className="flex flex-wrap items-end gap-3">
           <Field label="CustCode">
-            <input className="field-input" value={custcode} onChange={(e) => setCustcode(e.target.value)} placeholder="Ex: CC-10293" />
+            <input className="field-input" value={custcode} onChange={(e) => setCustcode(e.target.value)} placeholder="Ex: 7.2192123" />
           </Field>
           <button type="submit" className="btn-primary" disabled={enviando}>
             {enviando ? 'Enviando…' : 'Enviar CustCode'}
