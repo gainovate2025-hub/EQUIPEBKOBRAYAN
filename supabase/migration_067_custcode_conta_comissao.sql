@@ -141,6 +141,7 @@ begin
     select distinct on (custcode) id
     from public.fatura_custcodes
     where status <> 'refazer'
+      and enviado_em >= '2026-11-01 00:00:00-03' -- só os desse mês (Brayan)
       and custcode ~ '^[0-9]{1,2}\.[0-9]{7,8}$'
     order by custcode, enviado_em
   )
