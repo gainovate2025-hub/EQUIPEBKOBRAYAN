@@ -556,9 +556,6 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           onBlur={aoSairDoNumero}
           required
         />
-        {linha.numero.length > 0 && linha.numero.length < 11 && (
-          <p className="text-xs font-semibold text-bad-text">O número precisa ter 11 dígitos (DDD + 9 + número).</p>
-        )}
         {repeteLinha > 0 && (
           <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
             <AlertTriangle size={12} /> Número repetido: igual ao da linha {repeteLinha}
