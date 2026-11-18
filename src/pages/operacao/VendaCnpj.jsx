@@ -1000,11 +1000,10 @@ export default function VendaCnpj() {
       {empresa && !vendaSalva && (
         <Secao titulo="Dados da empresa" icone={Building2}>
           {/* 17/11/2026 (Brayan): sem o nome do cliente em destaque aqui.
-              Duas caixinhas: a razão social igual ao cartão CNPJ (com os
-              números) e uma só com o nome, sem os números. */}
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              Só a razão social igual ao cartão CNPJ (com os números). A
+              caixa "só o nome" foi tirada a pedido dele (18/11/2026). */}
+          <div className="grid grid-cols-1 gap-2">
             <DadoEmpresa label="Razão social" valor={(dados?.razao_social || '').trim() || '(sem razão social)'} />
-            <DadoEmpresa label="Razão social (só o nome, sem os números)" valor={separarNomeECpf(empresa.razao_social).nome} />
           </div>
 
           {reprovadoNoCrivo && (
@@ -1089,7 +1088,7 @@ export default function VendaCnpj() {
             </div>
             <p className="tim-info mt-3">
               <Info size={17} className="mt-0.5 shrink-0 text-brand-500" />
-              O endereço de entrega será o mesmo do cliente: o Endereço fiscal da Empresa (cartão CNPJ). Não é liberada venda pra outro endereço.
+              O endereço de entrega será somente no endereço fiscal da Empresa (cartão CNPJ). Não é liberada venda pra outro endereço.
             </p>
           </Secao>
 
