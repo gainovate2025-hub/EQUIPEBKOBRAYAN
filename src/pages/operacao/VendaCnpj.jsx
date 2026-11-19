@@ -5,7 +5,7 @@ import {
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import { consultarOperadora, escreverVendaNaPlanilha } from '../../lib/api'
-import { soDigitos, formatarCnpj, formatarCpf, comNoveDigito } from '../../lib/documentos'
+import { soDigitos, formatarCnpj, formatarCpf, comNoveDigito, cpfValido } from '../../lib/documentos'
 import Secao from '../../components/ui/Secao'
 import CampoTim from '../../components/ui/CampoTim'
 import { OperadoraLogo } from '../../components/vendaCnpj/OperadoraLogo'
@@ -316,7 +316,7 @@ function linhaValida(l) {
   // Linha nova não pede mais nada (nem titular, nem operadora de origem).
   if (l.tipo !== 'portabilidade') return true
   const titularOk = l.titularTipo === 'pf'
-    ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
+    ? cpfValido(l.titularCpf) && l.titularNomePf.trim()
     : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
   if (!titularOk) return false
   // 17/11/2026: todo número a portar tem que ter 11 dígitos (DDD + 9 + número).
@@ -643,6 +643,11 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
                   required
                 />
               )}
+              {!pj && soDigitos(linha.titularCpf).length === 11 && !cpfValido(linha.titularCpf) && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+                  <AlertTriangle size={12} /> CPF inválido, confira os números
+                </span>
+              )}
               {!pj && cpfRepeteLinha > 0 && (
                 <span className="flex items-center gap-1 text-xs font-semibold text-bad-text">
                   <AlertTriangle size={12} /> CPF já usado na linha {cpfRepeteLinha} com outro nome
@@ -921,6 +926,7 @@ export default function VendaCnpj() {
       if (!l.tipo) return `Na linha ${incompleta + 1}, escolha se é linha nova ou portabilidade.`
       if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM).`
       if (soDigitos(l.numero).length !== 11) return `Na linha ${incompleta + 1}, o número a portar precisa ter 11 dígitos (DDD + 9 + número).`
+      if (l.titularTipo === 'pf' && soDigitos(l.titularCpf).length === 11 && !cpfValido(l.titularCpf)) return `Na linha ${incompleta + 1}, o CPF do titular é inválido. Confira os números.`
       return `Na linha ${incompleta + 1} (portabilidade), preencha o titular do número (CPF e nome, ou CNPJ e razão social).`
     }
     const cpfRepetido = linhasComCpfRepetido(linhas)

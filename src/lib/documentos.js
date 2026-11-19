@@ -11,6 +11,19 @@ export function formatarCnpj(v) {
     .replace(/(\d{4})(\d)/, '$1-$2')
 }
 
+// CPF de verdade: confere os 2 dígitos verificadores (19/11/2026, Brayan:
+// "454.802.798-97" passava como outro CPF e escapava da regra do CPF repetido).
+export function cpfValido(v) {
+  const d = soDigitos(v)
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false
+  for (const n of [9, 10]) {
+    let soma = 0
+    for (let i = 0; i < n; i++) soma += Number(d[i]) * (n + 1 - i)
+    if (((soma * 10) % 11) % 10 !== Number(d[n])) return false
+  }
+  return true
+}
+
 export function formatarCpf(v) {
   const d = soDigitos(v).slice(0, 11)
   return d
