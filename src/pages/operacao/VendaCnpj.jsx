@@ -30,15 +30,20 @@ function semAcento(v) {
 // plano ideal para a sua empresa"): cada linha escolhe o seu pacote, a voz
 // é sempre ilimitada e o valor mensal vem do pacote. Antes era um plano só
 // pra venda inteira ('BLACKFRIDAY 80GB R$53,99').
+// 19/11/2026 (Will): o select mostra o nome da oferta, como era antes.
 const PACOTES = [
-  { id: '80GB', preco: 53.99 },
-  { id: '40GB', preco: 39.99 },
+  { id: '80GB', nome: 'BLACKFRIDAY 80GB R$53,99', preco: 53.99 },
+  { id: '40GB', nome: '40GB R$39,99', preco: 39.99 },
 ]
 const PACOTE_PADRAO = '80GB'
 const MAX_LINHAS = 10
 
 function precoDoPacote(id) {
   return (PACOTES.find((p) => p.id === id) || PACOTES[0]).preco
+}
+
+function nomeDoPacote(id) {
+  return (PACOTES.find((p) => p.id === id) || PACOTES[0]).nome
 }
 
 function reais(valor) {
@@ -51,9 +56,9 @@ function resumoDoPlano(linhas) {
   const partes = PACOTES
     .map((p) => ({ ...p, qtd: linhas.filter((l) => (l.pacote || PACOTE_PADRAO) === p.id).length }))
     .filter((p) => p.qtd > 0)
-    .map((p) => `${p.qtd}x ${p.id} (${reais(p.preco)})`)
+    .map((p) => `${p.qtd}x ${p.nome}`)
   const total = linhas.reduce((soma, l) => soma + precoDoPacote(l.pacote), 0)
-  return `${partes.join(' + ')} · Voz ilimitada · Total ${reais(total)}/mês`
+  return `${partes.join(' + ')} · Total ${reais(total)}/mês`
 }
 
 // Soma do plano: valor mensal de cada linha somado.
@@ -65,7 +70,7 @@ function SomaDoPlano({ linhas }) {
     <div className="w-full rounded-md border border-divider bg-paper p-3 sm:w-72">
       <p className="mb-2 text-sm font-semibold text-ink">Valor do plano</p>
       <p className="text-xs text-muted">
-        {quantidade} {quantidade === 1 ? 'linha' : 'linhas'} · voz ilimitada
+        {quantidade} {quantidade === 1 ? 'linha' : 'linhas'}
       </p>
       <div className="mt-2 flex items-baseline justify-between gap-2">
         <span className="text-sm text-muted">Total por mês</span>
@@ -480,11 +485,11 @@ function DadoEmpresa({ label, valor }) {
 
 // Uma linha do "Monte o plano ideal para a sua empresa" (visual do print
 // do Brayan, 19/11/2026): cartão com a bolinha vermelha numerada, Tipo de
-// linha, Tipo de chip, Pacote de dados, Plano de voz e o valor mensal na
-// caixa cinza à direita; lixeira fora do cartão. Na portabilidade, número
-// (com a operadora atual), titular, CPF/CNPJ e nome aparecem embaixo,
-// igual era na tabela antiga. Sem DDD e sem "Ver mais" (Brayan: "deixe
-// igual o de antes, mas nesse formato").
+// venda, Número a portar (com a operadora atual), Plano contratado e Tipo
+// de chip, e o valor mensal na caixa cinza à direita; lixeira fora do
+// cartão. Na portabilidade, a 2ª fileira tem titular PF/PJ, CPF/CNPJ e
+// nome/razão social (áudios do Will, 19/11/2026). Sem DDD e sem "Plano de
+// voz ilimitado".
 function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, repeteLinha, cpfRepeteLinha }) {
   function set(campo, valor) {
     atualizar(linha.id, { [campo]: valor })
@@ -533,53 +538,21 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
     <div className="flex items-center gap-2 sm:gap-3">
       <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-line bg-surface shadow-card">
         <div className="flex flex-col lg:flex-row">
-          <div className="flex flex-1 flex-wrap items-center gap-x-6 gap-y-3 p-4">
-            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tim text-sm font-semibold text-white">
+          <div className="grid flex-1 grid-cols-1 items-start gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[32px_minmax(0,0.9fr)_minmax(0,1.2fr)_minmax(0,1.5fr)_minmax(0,0.9fr)]">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tim text-sm font-semibold text-white sm:col-span-2 lg:col-span-1 lg:mt-7">
               {numeroDaLinha}
             </span>
 
-            <label className="flex w-full flex-col gap-1 sm:w-44">
-              <span className={rotulo}>Tipo de linha</span>
-              <select className="field-input font-semibold text-brand-700" aria-label="Tipo de linha" value={linha.tipo} onChange={(e) => mudarTipo(e.target.value)} required>
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>Tipo de venda</span>
+              <select className="field-input font-semibold text-brand-700" aria-label="Tipo de venda" value={linha.tipo} onChange={(e) => mudarTipo(e.target.value)} required>
                 <option value="">Selecione</option>
-                <option value="nova">Nova Linha</option>
                 <option value="portabilidade">Portabilidade</option>
+                <option value="nova">Linha nova</option>
               </select>
             </label>
 
-            <label className="flex w-full flex-col gap-1 sm:w-40">
-              <span className={rotulo}>Tipo de chip</span>
-              <select className="field-input font-semibold text-brand-700" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
-                <option value="">Selecione</option>
-                <option value="fisico">Chip físico</option>
-                <option value="esim">eSIM</option>
-              </select>
-            </label>
-
-            <label className="flex w-full flex-col gap-1 sm:w-44">
-              <span className={rotulo}>Pacote de dados</span>
-              <select className="field-input font-semibold text-brand-700" aria-label="Pacote de dados" value={linha.pacote} onChange={(e) => set('pacote', e.target.value)}>
-                {PACOTES.map((p) => (
-                  <option key={p.id} value={p.id}>{p.id}</option>
-                ))}
-              </select>
-            </label>
-
-            <div className="flex flex-col gap-1">
-              <span className={rotulo}>Plano de Voz</span>
-              <span className="text-xl font-bold text-brand-700">Ilimitado</span>
-            </div>
-
-          </div>
-
-          <div className="flex flex-col items-center justify-center gap-0.5 bg-paper px-6 py-4 lg:w-60">
-            <span className="text-sm text-brand-700">Valor mensal</span>
-            <span className="text-2xl font-bold text-brand-700">{reais(precoDoPacote(linha.pacote))}/mês</span>
-          </div>
-        </div>
-
-        {portabilidade && (
-          <div className="grid grid-cols-1 gap-3 border-t border-divider px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
+            {portabilidade ? (
             <label className="flex flex-col gap-1">
               <span className={rotulo}>Número a portar (DDD + número)</span>
               <input
@@ -611,7 +584,40 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
                 </span>
               )}
             </label>
+            ) : (
+              <div className="flex flex-col gap-1">
+                <span className={rotulo}>Número a portar</span>
+                <p className="py-2 text-sm text-subtle">Linha nova não precisa</p>
+              </div>
+            )}
 
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>Plano contratado</span>
+              <select className="field-input font-semibold text-brand-700" aria-label="Plano contratado" value={linha.pacote} onChange={(e) => set('pacote', e.target.value)}>
+                {PACOTES.map((p) => (
+                  <option key={p.id} value={p.id}>{p.nome}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>Tipo de chip</span>
+              <select className="field-input font-semibold text-brand-700" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
+                <option value="">Selecione</option>
+                <option value="fisico">Chip físico</option>
+                <option value="esim">eSIM (virtual)</option>
+              </select>
+            </label>
+          </div>
+
+          <div className="flex flex-col items-center justify-center gap-0.5 bg-paper px-6 py-4 lg:w-56">
+            <span className="text-sm text-brand-700">Valor mensal</span>
+            <span className="text-2xl font-bold text-brand-700">{reais(precoDoPacote(linha.pacote))}/mês</span>
+          </div>
+        </div>
+
+        {portabilidade && (
+          <div className="grid grid-cols-1 gap-3 border-t border-divider px-4 py-3 sm:grid-cols-3 lg:pl-[60px]">
             <label className="flex flex-col gap-1">
               <span className={rotulo}>Titular do número</span>
               <select className="field-input" aria-label="Titular do número" value={linha.titularTipo} onChange={(e) => set('titularTipo', e.target.value)}>
@@ -893,13 +899,14 @@ export default function VendaCnpj() {
   function linhasParaSalvar() {
     return linhas.map((l) => {
       if (l.tipo !== 'portabilidade') {
-        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, valor_mensal: precoDoPacote(l.pacote) }
+        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, plano: nomeDoPacote(l.pacote), valor_mensal: precoDoPacote(l.pacote) }
       }
       return {
         numero: soDigitos(l.numero) || null,
         tipo: l.tipo,
         tipo_chip: l.tipoChip,
         pacote: l.pacote,
+        plano: nomeDoPacote(l.pacote),
         valor_mensal: precoDoPacote(l.pacote),
         titular_tipo: l.titularTipo,
         titular_documento: l.titularTipo === 'pf' ? soDigitos(l.titularCpf) : soDigitos(l.titularCnpj),
