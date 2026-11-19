@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Search, Loader2, AlertTriangle, Info, Building2, Plus, PlusCircle, MinusCircle, Trash2, Save, ArrowLeft, Check, XCircle,
+  Search, Loader2, AlertTriangle, Info, Building2, Plus, Trash2, Save, ArrowLeft, Check, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
@@ -242,7 +242,6 @@ function linhaVazia() {
     titularCnpj: '',
     tipoChip: 'fisico', // 'fisico' | 'esim' — já vem chip físico (Brayan, 17/11/2026)
     pacote: PACOTE_PADRAO, // pacote de dados da linha (19/11/2026)
-    ddd: '', // DDD da linha nova (19/11/2026); na portabilidade vem do número
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -314,8 +313,8 @@ function sugerirEmailCorrigido(email) {
 
 function linhaValida(l) {
   if (!l.tipo || !l.tipoChip) return false
-  // Linha nova só pede o DDD (19/11/2026); nem titular, nem operadora de origem.
-  if (l.tipo !== 'portabilidade') return soDigitos(l.ddd).length === 2
+  // Linha nova não pede mais nada (nem titular, nem operadora de origem).
+  if (l.tipo !== 'portabilidade') return true
   const titularOk = l.titularTipo === 'pf'
     ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
     : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
@@ -481,13 +480,12 @@ function DadoEmpresa({ label, valor }) {
 
 // Uma linha do "Monte o plano ideal para a sua empresa" (visual do print
 // do Brayan, 19/11/2026): cartão com a bolinha vermelha numerada, Tipo de
-// linha, DDD, Pacote de dados, Plano de voz, "Ver mais" e o valor mensal
-// na caixa cinza à direita; lixeira fora do cartão. "Ver mais" abre o tipo
-// de chip. Na portabilidade, número e titular aparecem embaixo sempre
-// (são obrigatórios).
+// linha, Tipo de chip, Pacote de dados, Plano de voz e o valor mensal na
+// caixa cinza à direita; lixeira fora do cartão. Na portabilidade, número
+// (com a operadora atual), titular, CPF/CNPJ e nome aparecem embaixo,
+// igual era na tabela antiga. Sem DDD e sem "Ver mais" (Brayan: "deixe
+// igual o de antes, mas nesse formato").
 function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, repeteLinha, cpfRepeteLinha }) {
-  const [verMais, setVerMais] = useState(false)
-
   function set(campo, valor) {
     atualizar(linha.id, { [campo]: valor })
   }
@@ -549,21 +547,13 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
               </select>
             </label>
 
-            <label className="flex w-20 flex-col gap-1">
-              <span className={rotulo}>DDD</span>
-              {portabilidade ? (
-                <input className="field-input text-center" aria-label="DDD" placeholder="99" value={linha.numero.slice(0, 2)} disabled title="Na portabilidade o DDD vem do número a portar" />
-              ) : (
-                <input
-                  className="field-input text-center"
-                  aria-label="DDD"
-                  placeholder="99"
-                  inputMode="numeric"
-                  value={linha.ddd}
-                  onChange={(e) => set('ddd', soDigitos(e.target.value).slice(0, 2))}
-                  required
-                />
-              )}
+            <label className="flex w-full flex-col gap-1 sm:w-40">
+              <span className={rotulo}>Tipo de chip</span>
+              <select className="field-input font-semibold text-brand-700" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
+                <option value="">Selecione</option>
+                <option value="fisico">Chip físico</option>
+                <option value="esim">eSIM</option>
+              </select>
             </label>
 
             <label className="flex w-full flex-col gap-1 sm:w-44">
@@ -580,15 +570,6 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
               <span className="text-xl font-bold text-brand-700">Ilimitado</span>
             </div>
 
-            <button
-              type="button"
-              onClick={() => setVerMais((v) => !v)}
-              aria-expanded={verMais}
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"
-            >
-              {verMais ? <MinusCircle size={18} /> : <PlusCircle size={18} />}
-              {verMais ? 'Ver menos' : 'Ver mais'}
-            </button>
           </div>
 
           <div className="flex flex-col items-center justify-center gap-0.5 bg-paper px-6 py-4 lg:w-60">
@@ -596,22 +577,6 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
             <span className="text-2xl font-bold text-brand-700">{reais(precoDoPacote(linha.pacote))}/mês</span>
           </div>
         </div>
-
-        {verMais && (
-          <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-divider px-4 py-3">
-            <label className="flex w-full flex-col gap-1 sm:w-44">
-              <span className={rotulo}>Tipo de chip</span>
-              <select className="field-input" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
-                <option value="">Selecione</option>
-                <option value="fisico">Chip físico</option>
-                <option value="esim">eSIM</option>
-              </select>
-            </label>
-            <p className="pb-2 text-sm text-muted">
-              Pacote de {linha.pacote} + ligações ilimitadas · {reais(precoDoPacote(linha.pacote))} por mês
-            </p>
-          </div>
-        )}
 
         {portabilidade && (
           <div className="grid grid-cols-1 gap-3 border-t border-divider px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -798,9 +763,21 @@ export default function VendaCnpj() {
     return () => { cancelado = true }
   }, [telefoneCliente])
 
+  // "Quantidade de linhas" e os cartões andam juntos: escolher o número
+  // aumenta/corta as linhas (cortando do fim); "Adicionar Linha" e a
+  // lixeira mudam o número.
+  function atualizarQuantidade(valor) {
+    const n = Math.max(1, Math.min(MAX_LINHAS, Number(valor) || 1))
+    setLinhas((atual) => {
+      if (n <= atual.length) return atual.slice(0, n)
+      const novas = [...atual]
+      while (novas.length < n) novas.push(linhaVazia())
+      return novas
+    })
+  }
+
   function adicionarLinha() {
-    // Linha nova já vem com o DDD da 1ª linha (dá pra trocar).
-    setLinhas((atual) => (atual.length >= MAX_LINHAS ? atual : [...atual, { ...linhaVazia(), ddd: atual[0]?.ddd || '' }]))
+    setLinhas((atual) => (atual.length >= MAX_LINHAS ? atual : [...atual, linhaVazia()]))
   }
 
   function removerLinha(id) {
@@ -878,8 +855,7 @@ export default function VendaCnpj() {
       setTelefoneCliente(telefoneComNove(est))
       // 17/11/2026: a 1ª linha já vem com o telefone do cartão CNPJ (com o
       // 9 na frente). Dá pra editar.
-      // 19/11/2026: o DDD da linha nova também vem do cartão CNPJ.
-      setLinhas([{ ...linhaVazia(), numero: telefoneComNove(est), ddd: telefoneComNove(est).slice(0, 2) }])
+      setLinhas([{ ...linhaVazia(), numero: telefoneComNove(est) }])
       const emailDaConsulta = limparEmail(est?.email)
       const emailServe = emailDaConsulta && !emailProibido(emailDaConsulta)
       setEmailCliente(emailServe ? emailDaConsulta : '')
@@ -925,7 +901,7 @@ export default function VendaCnpj() {
   function linhasParaSalvar() {
     return linhas.map((l) => {
       if (l.tipo !== 'portabilidade') {
-        return { numero: null, ddd: soDigitos(l.ddd) || null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, valor_mensal: precoDoPacote(l.pacote) }
+        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, valor_mensal: precoDoPacote(l.pacote) }
       }
       return {
         numero: soDigitos(l.numero) || null,
@@ -956,8 +932,7 @@ export default function VendaCnpj() {
     if (incompleta >= 0) {
       const l = linhas[incompleta]
       if (!l.tipo) return `Na linha ${incompleta + 1}, escolha se é linha nova ou portabilidade.`
-      if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM) em "Ver mais".`
-      if (l.tipo !== 'portabilidade') return `Na linha ${incompleta + 1}, informe o DDD (2 números).`
+      if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM).`
       if (soDigitos(l.numero).length !== 11) return `Na linha ${incompleta + 1}, o número a portar precisa ter 11 dígitos (DDD + 9 + número).`
       return `Na linha ${incompleta + 1} (portabilidade), preencha o titular do número (CPF e nome, ou CNPJ e razão social).`
     }
@@ -1147,10 +1122,19 @@ export default function VendaCnpj() {
           {/* "Monte o plano ideal para a sua empresa" no visual do print do
               Brayan (19/11/2026): título azul, "Adicionar Linha" em pílula e um
               cartão por linha. Junta as antigas seções Plano e Linhas
-              vendidas; a quantidade de linhas agora é só pelo botão e lixeira. */}
+              vendidas. */}
           <section className="rounded-lg2 border border-line bg-surface p-4 shadow-card sm:p-5">
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-bold text-brand-700">Monte o plano ideal para a sua empresa</h2>
+              <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-2 text-sm text-muted">
+                Quantidade de linhas
+                <select className="field-input w-20 font-semibold text-brand-700" aria-label="Quantidade de linhas" value={linhas.length} onChange={(e) => atualizarQuantidade(e.target.value)}>
+                  {Array.from({ length: MAX_LINHAS }, (_, i) => i + 1).map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={adicionarLinha}
@@ -1159,6 +1143,7 @@ export default function VendaCnpj() {
               >
                 <Plus size={18} /> Adicionar Linha
               </button>
+              </div>
             </div>
             <div className="flex flex-col gap-3">
               {linhas.map((l, i) => (

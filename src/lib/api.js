@@ -455,7 +455,7 @@ function resumoLinhas(linhas) {
       if (l.tipo === 'portabilidade') {
         return `${i + 1}) Portabilidade ${l.numero || ''} (${l.operadora || l.operadora_bruta || '?'}), ${chip}, titular ${l.titular_nome || ''} ${l.titular_documento || ''}`.trim()
       }
-      return `${i + 1}) Linha nova${l.ddd ? ` DDD ${l.ddd}` : ''}, ${chip}${l.operadora_origem ? `, vem da ${l.operadora_origem}` : ''}`
+      return `${i + 1}) Linha nova, ${chip}${l.operadora_origem ? `, vem da ${l.operadora_origem}` : ''}`
     })
     .join(' | ')
 }
