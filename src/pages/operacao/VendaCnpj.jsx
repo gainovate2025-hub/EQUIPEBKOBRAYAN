@@ -763,19 +763,6 @@ export default function VendaCnpj() {
     return () => { cancelado = true }
   }, [telefoneCliente])
 
-  // "Quantidade de linhas" e os cartões andam juntos: escolher o número
-  // aumenta/corta as linhas (cortando do fim); "Adicionar Linha" e a
-  // lixeira mudam o número.
-  function atualizarQuantidade(valor) {
-    const n = Math.max(1, Math.min(MAX_LINHAS, Number(valor) || 1))
-    setLinhas((atual) => {
-      if (n <= atual.length) return atual.slice(0, n)
-      const novas = [...atual]
-      while (novas.length < n) novas.push(linhaVazia())
-      return novas
-    })
-  }
-
   function adicionarLinha() {
     setLinhas((atual) => (atual.length >= MAX_LINHAS ? atual : [...atual, linhaVazia()]))
   }
@@ -1127,14 +1114,6 @@ export default function VendaCnpj() {
             <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-xl font-bold text-brand-700">Monte o plano ideal para a sua empresa</h2>
               <div className="flex flex-wrap items-center gap-3">
-              <label className="flex items-center gap-2 text-sm text-muted">
-                Quantidade de linhas
-                <select className="field-input w-20 font-semibold text-brand-700" aria-label="Quantidade de linhas" value={linhas.length} onChange={(e) => atualizarQuantidade(e.target.value)}>
-                  {Array.from({ length: MAX_LINHAS }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </label>
               <button
                 type="button"
                 onClick={adicionarLinha}
