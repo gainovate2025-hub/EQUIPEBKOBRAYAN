@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Search, Loader2, AlertTriangle, Info, Building2, Phone, Plus, Trash2, Save, ArrowLeft, Check, XCircle,
+  Search, Loader2, AlertTriangle, Info, Building2, Plus, PlusCircle, MinusCircle, Trash2, Save, ArrowLeft, Check, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
@@ -62,7 +62,7 @@ function SomaDoPlano({ linhas }) {
   const porMes = linhas.reduce((soma, l) => soma + precoDoPacote(l.pacote), 0)
   const quantidade = linhas.length
   return (
-    <div className="rounded-md border border-divider bg-paper p-3">
+    <div className="w-full rounded-md border border-divider bg-paper p-3 sm:w-72">
       <p className="mb-2 text-sm font-semibold text-ink">Valor do plano</p>
       <p className="text-xs text-muted">
         {quantidade} {quantidade === 1 ? 'linha' : 'linhas'} · voz ilimitada
@@ -242,6 +242,7 @@ function linhaVazia() {
     titularCnpj: '',
     tipoChip: 'fisico', // 'fisico' | 'esim' — já vem chip físico (Brayan, 17/11/2026)
     pacote: PACOTE_PADRAO, // pacote de dados da linha (19/11/2026)
+    ddd: '', // DDD da linha nova (19/11/2026); na portabilidade vem do número
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -313,8 +314,8 @@ function sugerirEmailCorrigido(email) {
 
 function linhaValida(l) {
   if (!l.tipo || !l.tipoChip) return false
-  // Linha nova não pede mais nada (nem titular, nem operadora de origem).
-  if (l.tipo !== 'portabilidade') return true
+  // Linha nova só pede o DDD (19/11/2026); nem titular, nem operadora de origem.
+  if (l.tipo !== 'portabilidade') return soDigitos(l.ddd).length === 2
   const titularOk = l.titularTipo === 'pf'
     ? soDigitos(l.titularCpf).length === 11 && l.titularNomePf.trim()
     : soDigitos(l.titularCnpj).length === 14 && l.titularRazaoSocial.trim()
@@ -478,11 +479,15 @@ function DadoEmpresa({ label, valor }) {
   )
 }
 
-// Uma linha da tabela "Linhas vendidas". Em tela larga vira uma linha de
-// tabela; no celular, as colunas empilham (cada campo com seu rótulo).
-const COLUNAS_LINHA = 'lg:grid-cols-[44px_1.1fr_1fr_1.3fr_0.9fr_1.3fr_1.5fr_52px]'
-
+// Uma linha do "Monte o plano ideal para a sua empresa" (visual do print
+// do Brayan, 19/11/2026): cartão com a bolinha vermelha numerada, Tipo de
+// linha, DDD, Pacote de dados, Plano de voz, "Ver mais" e o valor mensal
+// na caixa cinza à direita; lixeira fora do cartão. "Ver mais" abre o tipo
+// de chip. Na portabilidade, número e titular aparecem embaixo sempre
+// (são obrigatórios).
 function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, podeRemover, repeteLinha, cpfRepeteLinha }) {
+  const [verMais, setVerMais] = useState(false)
+
   function set(campo, valor) {
     atualizar(linha.id, { [campo]: valor })
   }
@@ -512,10 +517,7 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
     }
   }
 
-  // Linha nova não tem número ainda (é a TIM que gera), então o campo de
-  // número só existe na portabilidade (pedido do Brayan em 10/11/2026).
-  // Voltar pra "Linha nova" apaga o número e a operadora já consultados.
-  // 17/11/2026: o número não é mais apagado ao trocar o tipo, porque a 1ª
+  // 17/11/2026: o número não é apagado ao trocar o tipo, porque a 1ª
   // linha já vem com o telefone do cartão CNPJ. Linha nova só ignora o
   // número na hora de salvar.
   function mudarTipo(tipo) {
@@ -527,172 +529,198 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
 
   const portabilidade = linha.tipo === 'portabilidade'
   const pj = linha.titularTipo === 'pj'
-  const rotuloCelular = 'text-xs font-semibold text-muted lg:hidden'
+  const rotulo = 'text-sm text-muted'
 
   return (
-    <div className={`grid grid-cols-1 items-start gap-2 border-b border-divider px-2 py-2.5 last:border-b-0 sm:grid-cols-2 ${COLUNAS_LINHA}`}>
-      <div className="flex items-center gap-2 lg:block">
-        <span className="inline-flex h-8 w-9 items-center justify-center rounded-md bg-paper text-sm font-semibold text-ink">
-          {numeroDaLinha}
-        </span>
-        <span className="text-sm font-semibold text-ink lg:hidden">Linha {numeroDaLinha}</span>
-      </div>
+    <div className="flex items-center gap-2 sm:gap-3">
+      <div className="min-w-0 flex-1 overflow-hidden rounded-xl border border-line bg-surface shadow-card">
+        <div className="flex flex-col lg:flex-row">
+          <div className="flex flex-1 flex-wrap items-center gap-x-6 gap-y-3 p-4">
+            <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-tim text-sm font-semibold text-white">
+              {numeroDaLinha}
+            </span>
 
-      <div className="flex flex-col gap-1">
-        <span className={rotuloCelular}>Nova ou portabilidade</span>
-        <select className="field-input" aria-label="Nova ou portabilidade" value={linha.tipo} onChange={(e) => mudarTipo(e.target.value)} required>
-          <option value="">Selecione</option>
-          <option value="nova">Linha nova</option>
-          <option value="portabilidade">Portabilidade</option>
-        </select>
-      </div>
+            <label className="flex w-full flex-col gap-1 sm:w-44">
+              <span className={rotulo}>Tipo de linha</span>
+              <select className="field-input font-semibold text-brand-700" aria-label="Tipo de linha" value={linha.tipo} onChange={(e) => mudarTipo(e.target.value)} required>
+                <option value="">Selecione</option>
+                <option value="nova">Nova Linha</option>
+                <option value="portabilidade">Portabilidade</option>
+              </select>
+            </label>
 
-      <div className="flex flex-col gap-1">
-        <span className={rotuloCelular}>Tipo de chip</span>
-        <select className="field-input" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
-          <option value="">Selecione</option>
-          <option value="fisico">Chip físico</option>
-          <option value="esim">eSIM</option>
-        </select>
-      </div>
+            <label className="flex w-20 flex-col gap-1">
+              <span className={rotulo}>DDD</span>
+              {portabilidade ? (
+                <input className="field-input text-center" aria-label="DDD" placeholder="99" value={linha.numero.slice(0, 2)} disabled title="Na portabilidade o DDD vem do número a portar" />
+              ) : (
+                <input
+                  className="field-input text-center"
+                  aria-label="DDD"
+                  placeholder="99"
+                  inputMode="numeric"
+                  value={linha.ddd}
+                  onChange={(e) => set('ddd', soDigitos(e.target.value).slice(0, 2))}
+                  required
+                />
+              )}
+            </label>
 
-      <div className={`flex-col gap-1 ${portabilidade ? 'flex' : 'hidden lg:flex'}`}>
-        <span className={rotuloCelular}>Número a portar (DDD + número)</span>
-        {!portabilidade && (
-          <p className="hidden py-2 text-sm text-subtle lg:block" aria-hidden>Não precisa</p>
-        )}
-        {portabilidade && (<>
-        <input
-          className="field-input"
-          aria-label="Número com DDD"
-          placeholder="Ex: 11999990000"
-          inputMode="numeric"
-          value={linha.numero}
-          onChange={(e) => aoMudarNumero(e.target.value)}
-          onBlur={aoSairDoNumero}
-          required
-        />
-        {repeteLinha > 0 && (
-          <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
-            <AlertTriangle size={12} /> Número repetido: igual ao da linha {repeteLinha}
-          </p>
-        )}
-        {linha.consultando && <p className="text-xs text-muted">Consultando operadora…</p>}
-        {linha.erroOperadora && <p className="text-xs text-bad-text">{linha.erroOperadora}</p>}
-        {linha.operadora === 'TIM' && (
-          <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
-            <AlertTriangle size={12} /> Número TIM: não fazemos TIM pra TIM
-          </p>
-        )}
-        {linha.operadora && linha.operadora !== 'TIM' && (
-          <p className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
-            <OperadoraLogo operadora={linha.operadora} bruta={linha.operadoraBruta} />
-            {linha.portado === true && <span>(já portado)</span>}
-          </p>
-        )}
-        </>)}
-      </div>
+            <label className="flex w-full flex-col gap-1 sm:w-44">
+              <span className={rotulo}>Pacote de dados</span>
+              <select className="field-input font-semibold text-brand-700" aria-label="Pacote de dados" value={linha.pacote} onChange={(e) => set('pacote', e.target.value)}>
+                {PACOTES.map((p) => (
+                  <option key={p.id} value={p.id}>{p.id}</option>
+                ))}
+              </select>
+            </label>
 
-      {/* Linha nova não pergunta mais de qual operadora o cliente vem
-          (Brayan, 11/11/2026: "isso não precisa"). A célula vazia só
-          segura as colunas da tabela no lugar. */}
-      {!portabilidade && <div className="hidden lg:col-span-3 lg:block" aria-hidden />}
+            <div className="flex flex-col gap-1">
+              <span className={rotulo}>Plano de Voz</span>
+              <span className="text-xl font-bold text-brand-700">Ilimitado</span>
+            </div>
 
-      {portabilidade && (<>
-      <div className="flex flex-col gap-1">
-        <span className={rotuloCelular}>Titular do número</span>
-        <select className="field-input" aria-label="Titular do número" value={linha.titularTipo} onChange={(e) => set('titularTipo', e.target.value)}>
-          <option value="pf">Pessoa física</option>
-          <option value="pj">Pessoa jurídica</option>
-        </select>
-      </div>
+            <button
+              type="button"
+              onClick={() => setVerMais((v) => !v)}
+              aria-expanded={verMais}
+              className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-700 hover:underline"
+            >
+              {verMais ? <MinusCircle size={18} /> : <PlusCircle size={18} />}
+              {verMais ? 'Ver menos' : 'Ver mais'}
+            </button>
+          </div>
 
-      <div className="flex flex-col gap-1">
-        <span className={rotuloCelular}>{pj ? 'CNPJ do titular' : 'CPF do titular'}</span>
-        {pj ? (
-          <input
-            className="field-input"
-            aria-label="CNPJ do titular"
-            placeholder="00.000.000/0000-00"
-            inputMode="numeric"
-            value={formatarCnpj(linha.titularCnpj)}
-            onChange={(e) => set('titularCnpj', soDigitos(e.target.value).slice(0, 14))}
-            required
-          />
-        ) : (
-          <input
-            className="field-input"
-            aria-label="CPF do titular"
-            placeholder="000.000.000-00"
-            inputMode="numeric"
-            value={formatarCpf(linha.titularCpf)}
-            onChange={(e) => set('titularCpf', soDigitos(e.target.value).slice(0, 11))}
-            required
-          />
-        )}
-        {!pj && cpfRepeteLinha > 0 && (
-          <p className="flex items-center gap-1 text-xs font-semibold text-bad-text">
-            <AlertTriangle size={12} /> CPF já usado na linha {cpfRepeteLinha} com outro nome
-          </p>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-1">
-        <span className={rotuloCelular}>{pj ? 'Razão social do titular' : 'Nome do titular'}</span>
-        {pj ? (
-          <input
-            className="field-input"
-            aria-label="Razão social do titular"
-            placeholder="Razão social Ltda"
-            value={linha.titularRazaoSocial}
-            onChange={(e) => set('titularRazaoSocial', e.target.value)}
-            required
-          />
-        ) : (
-          <input
-            className="field-input"
-            aria-label="Nome do titular"
-            placeholder="Nome completo"
-            value={linha.titularNomePf}
-            onChange={(e) => set('titularNomePf', e.target.value)}
-            required
-          />
-        )}
-      </div>
-      </>)}
-
-      <div className="flex lg:justify-center">
-        <button
-          type="button"
-          onClick={() => remover(linha.id)}
-          disabled={!podeRemover}
-          aria-label={`Remover linha ${numeroDaLinha}`}
-          title={podeRemover ? 'Remover linha' : 'A venda precisa de pelo menos 1 linha'}
-          className="btn-outline-danger h-9 w-9 p-0"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
-
-      {/* Pacote de dados, voz e valor mensal da linha (19/11/2026). */}
-      <div className="grid grid-cols-1 items-center gap-2 rounded-md border border-divider sm:col-span-2 sm:grid-cols-3 lg:col-span-full lg:ml-[52px]">
-        <label className="flex flex-col gap-1 px-3 py-2">
-          <span className="text-xs font-semibold text-muted">Pacote de dados</span>
-          <select className="field-input" aria-label="Pacote de dados" value={linha.pacote} onChange={(e) => set('pacote', e.target.value)}>
-            {PACOTES.map((p) => (
-              <option key={p.id} value={p.id}>{p.id}</option>
-            ))}
-          </select>
-        </label>
-        <div className="flex flex-col gap-1 px-3 py-2">
-          <span className="text-xs font-semibold text-muted">Plano de voz</span>
-          <span className="text-lg font-bold text-brand-700">Ilimitado</span>
+          <div className="flex flex-col items-center justify-center gap-0.5 bg-paper px-6 py-4 lg:w-60">
+            <span className="text-sm text-brand-700">Valor mensal</span>
+            <span className="text-2xl font-bold text-brand-700">{reais(precoDoPacote(linha.pacote))}/mês</span>
+          </div>
         </div>
-        <div className="flex h-full flex-col items-center justify-center gap-0.5 bg-paper px-3 py-2">
-          <span className="text-xs font-semibold text-muted">Valor mensal</span>
-          <span className="text-lg font-bold text-ink">{reais(precoDoPacote(linha.pacote))}/mês</span>
-        </div>
+
+        {verMais && (
+          <div className="flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-divider px-4 py-3">
+            <label className="flex w-full flex-col gap-1 sm:w-44">
+              <span className={rotulo}>Tipo de chip</span>
+              <select className="field-input" aria-label="Tipo de chip" value={linha.tipoChip} onChange={(e) => set('tipoChip', e.target.value)} required>
+                <option value="">Selecione</option>
+                <option value="fisico">Chip físico</option>
+                <option value="esim">eSIM</option>
+              </select>
+            </label>
+            <p className="pb-2 text-sm text-muted">
+              Pacote de {linha.pacote} + ligações ilimitadas · {reais(precoDoPacote(linha.pacote))} por mês
+            </p>
+          </div>
+        )}
+
+        {portabilidade && (
+          <div className="grid grid-cols-1 gap-3 border-t border-divider px-4 py-3 sm:grid-cols-2 lg:grid-cols-4">
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>Número a portar (DDD + número)</span>
+              <input
+                className="field-input"
+                aria-label="Número com DDD"
+                placeholder="Ex: 11999990000"
+                inputMode="numeric"
+                value={linha.numero}
+                onChange={(e) => aoMudarNumero(e.target.value)}
+                onBlur={aoSairDoNumero}
+                required
+              />
+              {repeteLinha > 0 && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+                  <AlertTriangle size={12} /> Número repetido: igual ao da linha {repeteLinha}
+                </span>
+              )}
+              {linha.consultando && <span className="text-xs text-muted">Consultando operadora…</span>}
+              {linha.erroOperadora && <span className="text-xs text-bad-text">{linha.erroOperadora}</span>}
+              {linha.operadora === 'TIM' && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+                  <AlertTriangle size={12} /> Número TIM: não fazemos TIM pra TIM
+                </span>
+              )}
+              {linha.operadora && linha.operadora !== 'TIM' && (
+                <span className="flex flex-wrap items-center gap-1.5 text-xs text-muted">
+                  <OperadoraLogo operadora={linha.operadora} bruta={linha.operadoraBruta} />
+                  {linha.portado === true && <span>(já portado)</span>}
+                </span>
+              )}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>Titular do número</span>
+              <select className="field-input" aria-label="Titular do número" value={linha.titularTipo} onChange={(e) => set('titularTipo', e.target.value)}>
+                <option value="pf">Pessoa física</option>
+                <option value="pj">Pessoa jurídica</option>
+              </select>
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>{pj ? 'CNPJ do titular' : 'CPF do titular'}</span>
+              {pj ? (
+                <input
+                  className="field-input"
+                  aria-label="CNPJ do titular"
+                  placeholder="00.000.000/0000-00"
+                  inputMode="numeric"
+                  value={formatarCnpj(linha.titularCnpj)}
+                  onChange={(e) => set('titularCnpj', soDigitos(e.target.value).slice(0, 14))}
+                  required
+                />
+              ) : (
+                <input
+                  className="field-input"
+                  aria-label="CPF do titular"
+                  placeholder="000.000.000-00"
+                  inputMode="numeric"
+                  value={formatarCpf(linha.titularCpf)}
+                  onChange={(e) => set('titularCpf', soDigitos(e.target.value).slice(0, 11))}
+                  required
+                />
+              )}
+              {!pj && cpfRepeteLinha > 0 && (
+                <span className="flex items-center gap-1 text-xs font-semibold text-bad-text">
+                  <AlertTriangle size={12} /> CPF já usado na linha {cpfRepeteLinha} com outro nome
+                </span>
+              )}
+            </label>
+
+            <label className="flex flex-col gap-1">
+              <span className={rotulo}>{pj ? 'Razão social do titular' : 'Nome do titular'}</span>
+              {pj ? (
+                <input
+                  className="field-input"
+                  aria-label="Razão social do titular"
+                  placeholder="Razão social Ltda"
+                  value={linha.titularRazaoSocial}
+                  onChange={(e) => set('titularRazaoSocial', e.target.value)}
+                  required
+                />
+              ) : (
+                <input
+                  className="field-input"
+                  aria-label="Nome do titular"
+                  placeholder="Nome completo"
+                  value={linha.titularNomePf}
+                  onChange={(e) => set('titularNomePf', e.target.value)}
+                  required
+                />
+              )}
+            </label>
+          </div>
+        )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => remover(linha.id)}
+        disabled={!podeRemover}
+        aria-label={`Remover linha ${numeroDaLinha}`}
+        title={podeRemover ? 'Remover linha' : 'A venda precisa de pelo menos 1 linha'}
+        className="shrink-0 rounded-md p-1.5 text-brand-300 hover:bg-brand-50 hover:text-brand-600 disabled:opacity-30"
+      >
+        <Trash2 size={24} />
+      </button>
     </div>
   )
 }
@@ -770,23 +798,9 @@ export default function VendaCnpj() {
     return () => { cancelado = true }
   }, [telefoneCliente])
 
-  // "Quantidade de linhas" e a tabela andam juntas: escolher o número
-  // aumenta/corta a tabela (cortando do fim); "Adicionar linha" e a
-  // lixeira mudam o número. Virou select de 1 a 10 em 10/11/2026: no
-  // campo numérico, apagar o valor pra digitar outro voltava pra 1 e
-  // apagava as linhas de baixo.
-  function atualizarQuantidade(valor) {
-    const n = Math.max(1, Math.min(MAX_LINHAS, Number(valor) || 1))
-    setLinhas((atual) => {
-      if (n <= atual.length) return atual.slice(0, n)
-      const novas = [...atual]
-      while (novas.length < n) novas.push(linhaVazia())
-      return novas
-    })
-  }
-
   function adicionarLinha() {
-    setLinhas((atual) => (atual.length >= MAX_LINHAS ? atual : [...atual, linhaVazia()]))
+    // Linha nova já vem com o DDD da 1ª linha (dá pra trocar).
+    setLinhas((atual) => (atual.length >= MAX_LINHAS ? atual : [...atual, { ...linhaVazia(), ddd: atual[0]?.ddd || '' }]))
   }
 
   function removerLinha(id) {
@@ -864,7 +878,8 @@ export default function VendaCnpj() {
       setTelefoneCliente(telefoneComNove(est))
       // 17/11/2026: a 1ª linha já vem com o telefone do cartão CNPJ (com o
       // 9 na frente). Dá pra editar.
-      setLinhas([{ ...linhaVazia(), numero: telefoneComNove(est) }])
+      // 19/11/2026: o DDD da linha nova também vem do cartão CNPJ.
+      setLinhas([{ ...linhaVazia(), numero: telefoneComNove(est), ddd: telefoneComNove(est).slice(0, 2) }])
       const emailDaConsulta = limparEmail(est?.email)
       const emailServe = emailDaConsulta && !emailProibido(emailDaConsulta)
       setEmailCliente(emailServe ? emailDaConsulta : '')
@@ -910,7 +925,7 @@ export default function VendaCnpj() {
   function linhasParaSalvar() {
     return linhas.map((l) => {
       if (l.tipo !== 'portabilidade') {
-        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, valor_mensal: precoDoPacote(l.pacote) }
+        return { numero: null, ddd: soDigitos(l.ddd) || null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, valor_mensal: precoDoPacote(l.pacote) }
       }
       return {
         numero: soDigitos(l.numero) || null,
@@ -941,7 +956,8 @@ export default function VendaCnpj() {
     if (incompleta >= 0) {
       const l = linhas[incompleta]
       if (!l.tipo) return `Na linha ${incompleta + 1}, escolha se é linha nova ou portabilidade.`
-      if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM).`
+      if (!l.tipoChip) return `Na linha ${incompleta + 1}, escolha o tipo de chip (chip físico ou eSIM) em "Ver mais".`
+      if (l.tipo !== 'portabilidade') return `Na linha ${incompleta + 1}, informe o DDD (2 números).`
       if (soDigitos(l.numero).length !== 11) return `Na linha ${incompleta + 1}, o número a portar precisa ter 11 dígitos (DDD + 9 + número).`
       return `Na linha ${incompleta + 1} (portabilidade), preencha o titular do número (CPF e nome, ou CNPJ e razão social).`
     }
@@ -1128,44 +1144,23 @@ export default function VendaCnpj() {
             </p>
           </Secao>
 
-          <Secao titulo="Monte o plano ideal para a sua empresa">
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <CampoTim label="Quantidade de linhas">
-                <select className="field-input" value={linhas.length} onChange={(e) => atualizarQuantidade(e.target.value)}>
-                  {Array.from({ length: MAX_LINHAS }, (_, i) => i + 1).map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
-              </CampoTim>
-              <SomaDoPlano linhas={linhas} />
-            </div>
-          </Secao>
-
-          <Secao
-            titulo="Linhas vendidas"
-            icone={Phone}
-            acao={
+          {/* "Monte o plano ideal para a sua empresa" no visual do print do
+              Brayan (19/11/2026): título azul, "Adicionar Linha" em pílula e um
+              cartão por linha. Junta as antigas seções Plano e Linhas
+              vendidas; a quantidade de linhas agora é só pelo botão e lixeira. */}
+          <section className="rounded-lg2 border border-line bg-surface p-4 shadow-card sm:p-5">
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-xl font-bold text-brand-700">Monte o plano ideal para a sua empresa</h2>
               <button
                 type="button"
                 onClick={adicionarLinha}
                 disabled={linhas.length >= MAX_LINHAS}
-                className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-md border border-brand-300 px-3 py-1 text-sm font-semibold text-white hover:bg-white/10 disabled:opacity-40"
+                className="inline-flex items-center gap-2 rounded-full bg-brand-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-40"
               >
-                <Plus size={15} /> Adicionar linha
+                <Plus size={18} /> Adicionar Linha
               </button>
-            }
-          >
-            <div className="overflow-hidden rounded-md border border-divider">
-              <div className={`hidden gap-2 bg-paper px-2 py-2 text-sm font-semibold text-ink lg:grid ${COLUNAS_LINHA}`}>
-                <span>Linha</span>
-                <span>Nova / portab.</span>
-                <span>Tipo de chip</span>
-                <span>Número a portar</span>
-                <span>Titular do número</span>
-                <span>CPF/CNPJ do titular</span>
-                <span>Nome do titular</span>
-                <span className="text-center">Ações</span>
-              </div>
+            </div>
+            <div className="flex flex-col gap-3">
               {linhas.map((l, i) => (
                 <LinhaVendida
                   key={l.id}
@@ -1180,7 +1175,10 @@ export default function VendaCnpj() {
                 />
               ))}
             </div>
-          </Secao>
+            <div className="mt-4 flex justify-end">
+              <SomaDoPlano linhas={linhas} />
+            </div>
+          </section>
 
           {/* Equipe no fim da ficha (Brayan, 17/11/2026). */}
           <Secao titulo="Equipe">
