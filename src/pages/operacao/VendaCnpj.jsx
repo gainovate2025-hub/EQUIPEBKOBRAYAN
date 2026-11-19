@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import {
-  Search, Loader2, AlertTriangle, Info, Building2, Plus, Trash2, Save, ArrowLeft, Check, XCircle,
+  Search, Loader2, AlertTriangle, Info, Building2, Plus, ShoppingBag, Trash2, Save, ArrowLeft, Check, XCircle,
 } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
@@ -61,20 +61,35 @@ function resumoDoPlano(linhas) {
   return `${partes.join(' + ')} · Total ${reais(total)}/mês`
 }
 
-// Soma do plano: valor mensal de cada linha somado.
-// "Por ano" e "Fidelidade de 2 anos" foram tirados a pedido do Brayan (12/11/2026).
-function SomaDoPlano({ linhas }) {
-  const porMes = linhas.reduce((soma, l) => soma + precoDoPacote(l.pacote), 0)
-  const quantidade = linhas.length
+// Faixa "Resumo do Pedido" no fim da ficha (print do Brayan, 19/11/2026):
+// quantidade de linhas, valor total dos planos por mês e o botão de salvar.
+function ResumoDoPedido({ linhas, salvando }) {
+  const total = linhas.reduce((soma, l) => soma + precoDoPacote(l.pacote), 0)
   return (
-    <div className="w-full rounded-md border border-divider bg-paper p-3 sm:w-72">
-      <p className="mb-2 text-sm font-semibold text-ink">Valor do plano</p>
-      <p className="text-xs text-muted">
-        {quantidade} {quantidade === 1 ? 'linha' : 'linhas'}
-      </p>
-      <div className="mt-2 flex items-baseline justify-between gap-2">
-        <span className="text-sm text-muted">Total por mês</span>
-        <span className="text-lg font-bold text-ink">{reais(porMes)}</span>
+    <div className="flex flex-col gap-4 rounded-lg bg-[#041d40] px-5 py-4 text-white sm:flex-row sm:items-center sm:justify-between">
+      <h2 className="flex items-center gap-3 text-xl font-bold">
+        <ShoppingBag size={28} aria-hidden /> Resumo do Pedido
+      </h2>
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex flex-col">
+          <span className="text-sm text-white/80">{linhas.length === 1 ? 'Linha' : 'Linhas'}</span>
+          <span className="text-2xl font-semibold">{linhas.length}</span>
+        </div>
+        <div className="hidden h-12 w-px bg-white/15 sm:block" aria-hidden />
+        <div className="flex flex-col">
+          <span className="text-sm text-white/80">Valor total dos planos</span>
+          <span className="text-2xl font-semibold">
+            {reais(total)}<span className="text-sm font-normal text-white/80">/mês</span>
+          </span>
+        </div>
+        <button
+          type="submit"
+          disabled={salvando}
+          className="inline-flex items-center gap-2 rounded-full bg-white px-8 py-3 text-base font-semibold text-[#041d40] hover:bg-brand-50 disabled:opacity-60"
+        >
+          {salvando ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+          {salvando ? 'Salvando…' : 'Salvar venda'}
+        </button>
       </div>
     </div>
   )
@@ -587,7 +602,7 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
             ) : (
               <div className="flex flex-col gap-1">
                 <span className={rotulo}>Número a portar</span>
-                <p className="py-2 text-sm text-subtle">Linha nova não precisa</p>
+                <p className="py-2 text-sm text-subtle">{linha.tipo === 'nova' ? 'Linha nova não precisa' : 'Escolha o tipo de venda'}</p>
               </div>
             )}
 
@@ -1152,9 +1167,6 @@ export default function VendaCnpj() {
                 />
               ))}
             </div>
-            <div className="mt-4 flex justify-end">
-              <SomaDoPlano linhas={linhas} />
-            </div>
           </section>
 
           {/* Equipe no fim da ficha (Brayan, 17/11/2026). */}
@@ -1173,18 +1185,16 @@ export default function VendaCnpj() {
 
           <Aviso>{erro}</Aviso>
 
-          <div className="flex flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <button type="button" onClick={limparTudo} className="btn-outline px-5 py-2.5">
-                <ArrowLeft size={16} /> Voltar
-              </button>
-              <button type="button" onClick={registrarVendaNaoFeita} disabled={salvando} className="btn-outline-danger px-5 py-2.5">
-                <XCircle size={16} /> Venda não feita
-              </button>
-            </div>
-            <button type="submit" disabled={salvando} className="btn-primary px-6 py-2.5 font-semibold">
-              {salvando ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-              {salvando ? 'Salvando…' : 'Salvar cadastro'}
+          {/* "Resumo do Pedido" no lugar do rodapé (print do Brayan,
+              19/11/2026), com "Salvar venda" no lugar de "Continuar".
+              Voltar e Venda não feita continuam, menores, embaixo. */}
+          <ResumoDoPedido linhas={linhas} salvando={salvando} />
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={limparTudo} className="btn-outline px-4 py-2">
+              <ArrowLeft size={16} /> Voltar
+            </button>
+            <button type="button" onClick={registrarVendaNaoFeita} disabled={salvando} className="btn-outline-danger px-4 py-2">
+              <XCircle size={16} /> Venda não feita
             </button>
           </div>
         </form>
