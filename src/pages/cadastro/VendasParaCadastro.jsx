@@ -138,6 +138,7 @@ export default function VendasParaCadastro() {
               <Campo comCopiar label="Número" valor={l.numero} />
               <Campo operadora label="Operadora" valor={l.operadora || l.operadora_bruta} />
               <Campo comCopiar label="Tipo de chip" valor={l.tipo_chip === 'esim' ? 'eSIM' : 'Chip físico'} />
+              {l.pacote && <Campo comCopiar label="Pacote de dados" valor={`${l.pacote} · voz ilimitada${l.valor_mensal ? ` · R$ ${Number(l.valor_mensal).toFixed(2).replace('.', ',')}/mês` : ''}`} />}
               <Campo operadora label="Operadora de origem do cliente" valor={l.operadora_origem} />
               {/* Linha nova (desde 10/11/2026) não tem titular; vendas antigas têm. */}
               {l.titular_tipo && (<>

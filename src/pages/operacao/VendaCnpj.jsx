@@ -26,34 +26,49 @@ function semAcento(v) {
   return (v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 }
 
-// Só o plano real que o Brayan mandou (print em 26/10/2026). Antes
-// tinha 3 chutes (R$50/70/100), tirados a pedido dele.
-const PLANOS = ['BLACKFRIDAY 80GB R$53,99']
+// Pacote de dados de cada linha (print do Brayan em 19/11/2026, "Monte o
+// plano ideal para a sua empresa"): cada linha escolhe o seu pacote, a voz
+// é sempre ilimitada e o valor mensal vem do pacote. Antes era um plano só
+// pra venda inteira ('BLACKFRIDAY 80GB R$53,99').
+const PACOTES = [
+  { id: '80GB', preco: 53.99 },
+  { id: '40GB', preco: 39.99 },
+]
+const PACOTE_PADRAO = '80GB'
 const MAX_LINHAS = 10
 
-// Pega o preço por linha escrito no nome do plano ("... R$53,99" → 53.99).
-function precoDoPlano(nome) {
-  const m = /R\$\s*([\d.]+,\d{2})/.exec(nome || '')
-  return m ? Number(m[1].replace(/\./g, '').replace(',', '.')) : 0
+function precoDoPacote(id) {
+  return (PACOTES.find((p) => p.id === id) || PACOTES[0]).preco
 }
 
 function reais(valor) {
   return valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
 }
 
-// Soma do plano: preço por linha × quantidade de linhas, por mês.
+// Texto que vai na coluna "plano" (Cadastro e planilha), ex:
+// "2x 80GB (R$ 53,99) + 1x 40GB (R$ 39,99) · Voz ilimitada · Total R$ 147,97/mês".
+function resumoDoPlano(linhas) {
+  const partes = PACOTES
+    .map((p) => ({ ...p, qtd: linhas.filter((l) => (l.pacote || PACOTE_PADRAO) === p.id).length }))
+    .filter((p) => p.qtd > 0)
+    .map((p) => `${p.qtd}x ${p.id} (${reais(p.preco)})`)
+  const total = linhas.reduce((soma, l) => soma + precoDoPacote(l.pacote), 0)
+  return `${partes.join(' + ')} · Voz ilimitada · Total ${reais(total)}/mês`
+}
+
+// Soma do plano: valor mensal de cada linha somado.
 // "Por ano" e "Fidelidade de 2 anos" foram tirados a pedido do Brayan (12/11/2026).
-function SomaDoPlano({ plano, quantidade }) {
-  const porLinha = precoDoPlano(plano)
-  const porMes = porLinha * quantidade
+function SomaDoPlano({ linhas }) {
+  const porMes = linhas.reduce((soma, l) => soma + precoDoPacote(l.pacote), 0)
+  const quantidade = linhas.length
   return (
     <div className="rounded-md border border-divider bg-paper p-3">
       <p className="mb-2 text-sm font-semibold text-ink">Valor do plano</p>
       <p className="text-xs text-muted">
-        {quantidade} {quantidade === 1 ? 'linha' : 'linhas'} × {reais(porLinha)}
+        {quantidade} {quantidade === 1 ? 'linha' : 'linhas'} · voz ilimitada
       </p>
       <div className="mt-2 flex items-baseline justify-between gap-2">
-        <span className="text-sm text-muted">Por mês</span>
+        <span className="text-sm text-muted">Total por mês</span>
         <span className="text-lg font-bold text-ink">{reais(porMes)}</span>
       </div>
     </div>
@@ -226,6 +241,7 @@ function linhaVazia() {
     titularRazaoSocial: '',
     titularCnpj: '',
     tipoChip: 'fisico', // 'fisico' | 'esim' — já vem chip físico (Brayan, 17/11/2026)
+    pacote: PACOTE_PADRAO, // pacote de dados da linha (19/11/2026)
     consultando: false,
     operadora: null,
     operadoraBruta: null,
@@ -657,6 +673,26 @@ function LinhaVendida({ numeroDaLinha, linha, atualizar, consultar, remover, pod
           <Trash2 size={16} />
         </button>
       </div>
+
+      {/* Pacote de dados, voz e valor mensal da linha (19/11/2026). */}
+      <div className="grid grid-cols-1 items-center gap-2 rounded-md border border-divider sm:col-span-2 sm:grid-cols-3 lg:col-span-full lg:ml-[52px]">
+        <label className="flex flex-col gap-1 px-3 py-2">
+          <span className="text-xs font-semibold text-muted">Pacote de dados</span>
+          <select className="field-input" aria-label="Pacote de dados" value={linha.pacote} onChange={(e) => set('pacote', e.target.value)}>
+            {PACOTES.map((p) => (
+              <option key={p.id} value={p.id}>{p.id}</option>
+            ))}
+          </select>
+        </label>
+        <div className="flex flex-col gap-1 px-3 py-2">
+          <span className="text-xs font-semibold text-muted">Plano de voz</span>
+          <span className="text-lg font-bold text-brand-700">Ilimitado</span>
+        </div>
+        <div className="flex h-full flex-col items-center justify-center gap-0.5 bg-paper px-3 py-2">
+          <span className="text-xs font-semibold text-muted">Valor mensal</span>
+          <span className="text-lg font-bold text-ink">{reais(precoDoPacote(linha.pacote))}/mês</span>
+        </div>
+      </div>
     </div>
   )
 }
@@ -702,7 +738,6 @@ export default function VendaCnpj() {
   }
 
   const [linhas, setLinhas] = useState(() => [linhaVazia()])
-  const [plano, setPlano] = useState(PLANOS[0])
   const [pontoReferencia, setPontoReferencia] = useState('')
   const [nomeCliente, setNomeCliente] = useState('')
   const [emailCliente, setEmailCliente] = useState('')
@@ -794,7 +829,6 @@ export default function VendaCnpj() {
     setVendaSalva(null)
     setPlanilha(null)
     setLinhas([linhaVazia()])
-    setPlano(PLANOS[0])
     setPontoReferencia('')
     setNomeCliente('')
     setEmailCliente('')
@@ -876,12 +910,14 @@ export default function VendaCnpj() {
   function linhasParaSalvar() {
     return linhas.map((l) => {
       if (l.tipo !== 'portabilidade') {
-        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip }
+        return { numero: null, tipo: l.tipo, tipo_chip: l.tipoChip, pacote: l.pacote, valor_mensal: precoDoPacote(l.pacote) }
       }
       return {
         numero: soDigitos(l.numero) || null,
         tipo: l.tipo,
         tipo_chip: l.tipoChip,
+        pacote: l.pacote,
+        valor_mensal: precoDoPacote(l.pacote),
         titular_tipo: l.titularTipo,
         titular_documento: l.titularTipo === 'pf' ? soDigitos(l.titularCpf) : soDigitos(l.titularCnpj),
         titular_nome: l.titularTipo === 'pf' ? l.titularNomePf.trim() : l.titularRazaoSocial.trim(),
@@ -942,7 +978,7 @@ export default function VendaCnpj() {
       status: 'venda_feita',
       quantidade_linhas: linhas.length,
       linhas: linhasParaSalvar(),
-      plano,
+      plano: resumoDoPlano(linhas),
       ponto_referencia: pontoReferencia.trim() || null,
       nome_cliente: nomeCliente.trim() || null,
       email_cliente: emailCliente.trim() || null,
@@ -1092,7 +1128,7 @@ export default function VendaCnpj() {
             </p>
           </Secao>
 
-          <Secao titulo="Plano">
+          <Secao titulo="Monte o plano ideal para a sua empresa">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
               <CampoTim label="Quantidade de linhas">
                 <select className="field-input" value={linhas.length} onChange={(e) => atualizarQuantidade(e.target.value)}>
@@ -1101,14 +1137,7 @@ export default function VendaCnpj() {
                   ))}
                 </select>
               </CampoTim>
-              <CampoTim label="Plano contratado">
-                <select className="field-input" value={plano} onChange={(e) => setPlano(e.target.value)}>
-                  {PLANOS.map((p) => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
-              </CampoTim>
-              <SomaDoPlano plano={plano} quantidade={linhas.length} />
+              <SomaDoPlano linhas={linhas} />
             </div>
           </Secao>
 

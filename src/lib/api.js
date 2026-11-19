@@ -451,7 +451,7 @@ const COLUNAS_VENDA = [
 function resumoLinhas(linhas) {
   return (linhas || [])
     .map((l, i) => {
-      const chip = l.tipo_chip === 'esim' ? 'eSIM' : 'chip físico'
+      const chip = (l.tipo_chip === 'esim' ? 'eSIM' : 'chip físico') + (l.pacote ? `, ${l.pacote}` : '')
       if (l.tipo === 'portabilidade') {
         return `${i + 1}) Portabilidade ${l.numero || ''} (${l.operadora || l.operadora_bruta || '?'}), ${chip}, titular ${l.titular_nome || ''} ${l.titular_documento || ''}`.trim()
       }
