@@ -17,6 +17,12 @@ export default function SupervisorComprovantes() {
     if (!window.confirm('Isso apaga TODOS os comprovantes (de qualquer dia do mês) de vez, incluindo os arquivos. Não dá pra desfazer. Continuar?')) return
     setResetando(true)
     try {
+      // Arquivos primeiro, pela Storage API (o SQL não pode mais apagá-los).
+      const { data: todos } = await supabase.from('comprovantes_fatura').select('arquivo_path')
+      const caminhos = (todos || []).map((c) => c.arquivo_path).filter(Boolean)
+      for (let i = 0; i < caminhos.length; i += 500) {
+        await supabase.storage.from('comprovantes').remove(caminhos.slice(i, i + 500))
+      }
       const { error } = await supabase.rpc('resetar_comprovantes_mes')
       if (error) throw error
       showToast('Comprovantes do mês apagados.')

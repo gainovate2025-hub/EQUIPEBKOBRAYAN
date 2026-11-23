@@ -96,12 +96,18 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
     setExcluindo(true)
     setErro('')
     setAviso('')
-    const { error } = await supabase.rpc('excluir_comprovantes_fatura', { p_ids: ids })
+    // A função apaga o registro e desconta a comissão, e devolve o caminho
+    // dos arquivos; o arquivo sai pela Storage API (o Supabase não deixa
+    // apagar arquivo pelo SQL — migration_072).
+    const { data: caminhos, error } = await supabase.rpc('excluir_comprovantes_fatura', { p_ids: ids })
+    if (!error && caminhos?.length) {
+      await supabase.storage.from('comprovantes').remove(caminhos.map((c) => (typeof c === 'string' ? c : Object.values(c)[0])))
+    }
     setExcluindo(false)
     if (error) {
       const faltaFuncao = /excluir_comprovantes_fatura|function|schema cache/i.test(error.message)
       setErro(faltaFuncao
-        ? 'A exclusão ainda não foi ativada no banco: rode a migration_071_excluir_comprovantes.sql no SQL Editor do Supabase.'
+        ? 'A exclusão ainda não foi ativada no banco: rode a migration_072 no SQL Editor do Supabase.'
         : error.message)
       return
     }
