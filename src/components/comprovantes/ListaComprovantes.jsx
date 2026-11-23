@@ -212,12 +212,9 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
                   </span>
                 )}
               </div>
-              <div className="flex flex-col gap-0.5 p-2.5">
+              <div className="flex flex-col gap-0.5 px-2.5 pt-2.5">
                 {mostrarPessoa && <span className="truncate font-semibold text-ink">{c.profiles?.name || 'Alguém'}</span>}
                 <span className="truncate text-ink">{c.observacao || 'Sem observação'}</span>
-                <span className="flex items-center justify-between text-muted">
-                  {dataHora(c.enviado_em)} {!selecionando && <ExternalLink size={12} />}
-                </span>
               </div>
             </>)
             return (
@@ -230,21 +227,37 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
                       {marcado ? <CheckSquare size={18} className="text-bad-text" /> : <Square size={18} />}
                     </span>
                   </button>
-                ) : (<>
+                ) : (
                   <a href={c.arquivo_url} target="_blank" rel="noreferrer" className="flex flex-col hover:opacity-90" title="Abrir o comprovante">
                     {conteudo}
                   </a>
-                  <button
-                    type="button"
-                    className="absolute right-2 top-2 rounded-md bg-white/90 p-1.5 text-bad-text shadow-sm hover:bg-bad-bg"
-                    title="Excluir este comprovante"
-                    aria-label="Excluir este comprovante"
-                    disabled={excluindo}
-                    onClick={() => excluir([c.id])}
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </>)}
+                )}
+                {/* Rodapé: data, abrir e lixeira lado a lado (23/11/2026). */}
+                <div className="flex items-center gap-1 px-2.5 pb-2 pt-1 text-muted">
+                  <span className="mr-auto">{dataHora(c.enviado_em)}</span>
+                  {!selecionando && (<>
+                    <a
+                      href={c.arquivo_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-md p-1.5 hover:bg-paper hover:text-ink"
+                      title="Abrir o comprovante"
+                      aria-label="Abrir o comprovante"
+                    >
+                      <ExternalLink size={16} />
+                    </a>
+                    <button
+                      type="button"
+                      className="rounded-md p-1.5 text-bad-text hover:bg-bad-bg"
+                      title="Excluir este comprovante"
+                      aria-label="Excluir este comprovante"
+                      disabled={excluindo}
+                      onClick={() => excluir([c.id])}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </>)}
+                </div>
               </div>
             )
           })}
