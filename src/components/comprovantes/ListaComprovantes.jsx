@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileText, ExternalLink } from 'lucide-react'
+import { FileText, ExternalLink, Trash2, CheckSquare, Square } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 
 // Lista dos comprovantes de fatura enviados, com filtro de período e
@@ -52,6 +52,11 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
   const [linhas, setLinhas] = useState([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
+  // Exclusão (23/11/2026): lixeira em cada um, ou "Selecionar" pra vários.
+  const [selecionando, setSelecionando] = useState(false)
+  const [selecionados, setSelecionados] = useState(() => new Set())
+  const [excluindo, setExcluindo] = useState(false)
+  const [aviso, setAviso] = useState('')
 
   const carregar = useCallback(async () => {
     setCarregando(true)
@@ -72,6 +77,40 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
 
   useEffect(() => { carregar() }, [carregar, recarregarQuando])
 
+  // Trocar de período/pessoa limpa a seleção (pra não apagar o que não está na tela).
+  useEffect(() => { setSelecionados(new Set()) }, [periodo, dia, pessoa])
+
+  function alternar(id) {
+    setSelecionados((atual) => {
+      const novo = new Set(atual)
+      if (novo.has(id)) novo.delete(id)
+      else novo.add(id)
+      return novo
+    })
+  }
+
+  async function excluir(ids) {
+    if (ids.length === 0) return
+    const texto = ids.length === 1 ? 'este comprovante' : `estes ${ids.length} comprovantes`
+    if (!window.confirm(`Excluir ${texto}? Some o arquivo e desconta -1 fatura e -R$2 da comissão de quem enviou (por comprovante). Não dá pra desfazer.`)) return
+    setExcluindo(true)
+    setErro('')
+    setAviso('')
+    const { error } = await supabase.rpc('excluir_comprovantes_fatura', { p_ids: ids })
+    setExcluindo(false)
+    if (error) {
+      const faltaFuncao = /excluir_comprovantes_fatura|function|schema cache/i.test(error.message)
+      setErro(faltaFuncao
+        ? 'A exclusão ainda não foi ativada no banco: rode a migration_071_excluir_comprovantes.sql no SQL Editor do Supabase.'
+        : error.message)
+      return
+    }
+    setAviso(ids.length === 1 ? 'Comprovante excluído.' : `${ids.length} comprovantes excluídos.`)
+    setSelecionados(new Set())
+    setSelecionando(false)
+    carregar()
+  }
+
   const porPessoa = useMemo(() => {
     const mapa = new Map()
     for (const l of linhas) {
@@ -82,6 +121,7 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
   }, [linhas])
 
   const visiveis = pessoa ? linhas.filter((l) => (l.profiles?.name || 'Alguém') === pessoa) : linhas
+  const todosMarcados = visiveis.length > 0 && visiveis.every((c) => selecionados.has(c.id))
 
   return (
     <div className="flex flex-col gap-4">
@@ -122,9 +162,37 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
         </div>
       )}
 
-      {erro && <p className="tim-alert" role="alert">Não consegui carregar os comprovantes: {erro}</p>}
+      {erro && <p className="tim-alert" role="alert">{erro}</p>}
+      {aviso && <p className="text-sm font-medium text-good-text">{aviso}</p>}
 
-      <p className="text-xs font-medium text-muted">{carregando ? 'Carregando…' : `${visiveis.length} comprovante${visiveis.length === 1 ? '' : 's'}`}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="mr-auto text-xs font-medium text-muted">{carregando ? 'Carregando…' : `${visiveis.length} comprovante${visiveis.length === 1 ? '' : 's'}`}</p>
+        {!carregando && visiveis.length > 0 && !selecionando && (
+          <button type="button" className="btn-outline btn-sm" onClick={() => setSelecionando(true)}>
+            <CheckSquare size={14} /> Selecionar pra excluir
+          </button>
+        )}
+        {selecionando && (<>
+          <button
+            type="button"
+            className="btn-outline btn-sm"
+            onClick={() => setSelecionados(todosMarcados ? new Set() : new Set(visiveis.map((c) => c.id)))}
+          >
+            {todosMarcados ? 'Desmarcar todos' : 'Marcar todos'}
+          </button>
+          <button
+            type="button"
+            className="btn-outline-danger btn-sm"
+            disabled={selecionados.size === 0 || excluindo}
+            onClick={() => excluir([...selecionados])}
+          >
+            <Trash2 size={14} /> {excluindo ? 'Excluindo…' : `Excluir selecionados (${selecionados.size})`}
+          </button>
+          <button type="button" className="btn-outline btn-sm" onClick={() => { setSelecionando(false); setSelecionados(new Set()) }}>
+            Cancelar
+          </button>
+        </>)}
+      </div>
 
       {!carregando && visiveis.length === 0 && (
         <p className="text-sm text-muted">Nenhum comprovante enviado nesse período.</p>
@@ -132,15 +200,9 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
 
       {!carregando && visiveis.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-          {visiveis.map((c) => (
-            <a
-              key={c.id}
-              href={c.arquivo_url}
-              target="_blank"
-              rel="noreferrer"
-              className="card flex flex-col overflow-hidden text-xs hover:border-brand-300"
-              title="Abrir o comprovante"
-            >
+          {visiveis.map((c) => {
+            const marcado = selecionados.has(c.id)
+            const conteudo = (<>
               <div className="flex h-36 items-center justify-center bg-paper">
                 {ehImagem(c) ? (
                   <img src={c.arquivo_url} alt="Comprovante" loading="lazy" className="h-full w-full object-cover" />
@@ -154,11 +216,38 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
                 {mostrarPessoa && <span className="truncate font-semibold text-ink">{c.profiles?.name || 'Alguém'}</span>}
                 <span className="truncate text-ink">{c.observacao || 'Sem observação'}</span>
                 <span className="flex items-center justify-between text-muted">
-                  {dataHora(c.enviado_em)} <ExternalLink size={12} />
+                  {dataHora(c.enviado_em)} {!selecionando && <ExternalLink size={12} />}
                 </span>
               </div>
-            </a>
-          ))}
+            </>)
+            return (
+              <div key={c.id} className={`card relative flex flex-col overflow-hidden text-xs ${marcado ? 'border-bad-border ring-2 ring-bad-border' : ''}`}>
+                {selecionando ? (
+                  // No modo de seleção, clicar no cartão marca/desmarca.
+                  <button type="button" className="flex flex-col text-left" onClick={() => alternar(c.id)} aria-pressed={marcado}>
+                    {conteudo}
+                    <span className="absolute left-2 top-2 rounded bg-white/90 p-0.5 text-ink">
+                      {marcado ? <CheckSquare size={18} className="text-bad-text" /> : <Square size={18} />}
+                    </span>
+                  </button>
+                ) : (<>
+                  <a href={c.arquivo_url} target="_blank" rel="noreferrer" className="flex flex-col hover:opacity-90" title="Abrir o comprovante">
+                    {conteudo}
+                  </a>
+                  <button
+                    type="button"
+                    className="absolute right-2 top-2 rounded-md bg-white/90 p-1.5 text-bad-text shadow-sm hover:bg-bad-bg"
+                    title="Excluir este comprovante"
+                    aria-label="Excluir este comprovante"
+                    disabled={excluindo}
+                    onClick={() => excluir([c.id])}
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>)}
+              </div>
+            )
+          })}
         </div>
       )}
     </div>
