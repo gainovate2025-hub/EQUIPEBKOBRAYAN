@@ -16,6 +16,7 @@ export default function BkoComprovantes() {
   const { user } = useAuth()
   const { toast, showToast } = useToast()
   const [observacao, setObservacao] = useState('')
+  const [custcode, setCustcode] = useState('')
   const [arquivo, setArquivo] = useState(null)
   const [enviando, setEnviando] = useState(false)
   // Muda a cada envio, pra lista de baixo recarregar.
@@ -32,10 +33,11 @@ export default function BkoComprovantes() {
       if (erroUpload) throw erroUpload
 
       const { data: pub } = supabase.storage.from('comprovantes').getPublicUrl(caminho)
-      await registrarComprovanteFatura(caminho, pub.publicUrl, observacao.trim())
+      await registrarComprovanteFatura(caminho, pub.publicUrl, observacao.trim(), custcode.trim())
 
       setArquivo(null)
       setObservacao('')
+      setCustcode('')
       e.target.reset()
       showToast('Comprovante enviado. Já contou +R$2 na comissão.')
       setVersao((v) => v + 1)
@@ -61,13 +63,24 @@ export default function BkoComprovantes() {
               onChange={(e) => setArquivo(e.target.files?.[0] || null)}
             />
           </label>
+          {/* CUSTCODE do cliente (23/11/2026). Opcional; só aceita número e ponto. */}
+          <label className="tim-label">
+            CUSTCODE (opcional)
+            <input
+              className="field-input"
+              value={custcode}
+              onChange={(e) => setCustcode(e.target.value.replace(/[^\d.]/g, ''))}
+              placeholder="ex: 7.2248162"
+              inputMode="decimal"
+            />
+          </label>
           <label className="tim-label">
             Observação (opcional)
             <input
               className="field-input"
               value={observacao}
               onChange={(e) => setObservacao(e.target.value)}
-              placeholder="ex: CUST CODE, nome do cliente…"
+              placeholder="ex: nome do cliente…"
             />
           </label>
           <button type="submit" className="btn-primary self-start" disabled={enviando}>

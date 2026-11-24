@@ -220,7 +220,8 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
               </div>
               <div className="flex flex-col gap-0.5 px-2.5 pt-2.5">
                 {mostrarPessoa && <span className="truncate font-semibold text-ink">{c.profiles?.name || 'Alguém'}</span>}
-                <span className="truncate text-ink">{c.observacao || 'Sem observação'}</span>
+                {c.custcode && <span className="truncate font-medium text-ink">CUSTCODE {c.custcode}</span>}
+                <span className="truncate text-ink">{c.observacao || (c.custcode ? '' : 'Sem observação')}</span>
               </div>
             </>)
             return (

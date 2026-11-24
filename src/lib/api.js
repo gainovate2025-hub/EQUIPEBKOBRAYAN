@@ -189,12 +189,22 @@ export async function registrarReagendamentoProprio(quantidade) {
 
 // Comprovante de fatura: cada envio já soma +1 fatura e +R$2 na
 // comissão na hora (igual reagendamento).
-export async function registrarComprovanteFatura(arquivoPath, arquivoUrl, observacao = '') {
-  const { error } = await supabase.rpc('registrar_comprovante_fatura', {
+export async function registrarComprovanteFatura(arquivoPath, arquivoUrl, observacao = '', custcode = '') {
+  const params = {
     p_arquivo_path: arquivoPath,
     p_arquivo_url: arquivoUrl,
     p_observacao: observacao,
-  })
+  }
+  // CUSTCODE no comprovante (23/11/2026, migration_073). Se a migration
+  // ainda não rodou, a função não aceita p_custcode: aí registra sem ele
+  // (pra não travar o envio) e o custcode vai junto na observação.
+  if (custcode) params.p_custcode = custcode
+  let { error } = await supabase.rpc('registrar_comprovante_fatura', params)
+  if (error && custcode && /p_custcode|function|schema cache/i.test(error.message || '')) {
+    delete params.p_custcode
+    params.p_observacao = [observacao, `CUSTCODE ${custcode}`].filter(Boolean).join(' · ')
+    ;({ error } = await supabase.rpc('registrar_comprovante_fatura', params))
+  }
   if (error) throw new Error(error.message || 'Falha ao registrar comprovante.')
 }
 
