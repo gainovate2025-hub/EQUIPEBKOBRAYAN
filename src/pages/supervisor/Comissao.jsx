@@ -8,6 +8,7 @@ import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { updatePerformance } from '../../lib/api'
 import { fmtMoney } from '../../lib/helpers'
+import ExtrasBko from '../../components/comissao/ExtrasBko'
 
 const COLUMNS = [
   { key: 'name', label: 'BKO', width: '2fr' },
@@ -97,6 +98,10 @@ export default function Comissao() {
             }}
           />
         )}
+      </div>
+
+      <div className="mt-9">
+        <ExtrasBko team={team.filter((b) => b.active !== false)} onMudou={reload} />
       </div>
       <Toast toast={toast} />
     </>
