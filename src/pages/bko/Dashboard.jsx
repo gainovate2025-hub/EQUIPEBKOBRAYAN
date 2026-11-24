@@ -2,12 +2,13 @@ import { useBkoData } from '../../lib/BkoDataContext'
 import StatCard from '../../components/ui/StatCard'
 import { fmtMoney, pct } from '../../lib/helpers'
 import { useAuth } from '../../lib/AuthContext'
+import EnviosPortabilidade from '../../components/portabilidade/EnviosPortabilidade'
 
 // Simplificado em 05/11/2026: sem meta/pendência de contestação (tirado
 // do site). Mostra só as contagens (contestação/reagendamento/fatura) e a
 // comissão atual, sem fila de aprovação.
 export default function BkoDashboard() {
-  const { performance, loading, error } = useBkoData()
+  const { performance, loading, error, reload } = useBkoData()
   const { contestacaoLabel, portabilidade } = useAuth()
 
   if (loading) return <p className="text-sm text-muted">Carregando seu painel…</p>
@@ -32,7 +33,9 @@ export default function BkoDashboard() {
           />
         )}
         {!portabilidade && <StatCard label="Faturas" value={performance.faturas_done ?? 0} />}
+        {portabilidade && <StatCard label="CNPJs trabalhados" value={performance.casos_portabilidade ?? 0} />}
       </div>
+      {portabilidade && <EnviosPortabilidade modo="bko" onMudou={reload} />}
     </div>
   )
 }

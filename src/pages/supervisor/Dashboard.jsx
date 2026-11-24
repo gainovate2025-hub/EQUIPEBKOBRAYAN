@@ -8,6 +8,7 @@ import Toast from '../../components/ui/Toast'
 import { useToast } from '../../lib/useToast'
 import { useAuth } from '../../lib/AuthContext'
 import { fmtMoney, pct } from '../../lib/helpers'
+import EnviosPortabilidade from '../../components/portabilidade/EnviosPortabilidade'
 
 // Dashboard do supervisor, simplificado em 05/11/2026 (Brayan pediu pra
 // tirar aprovação/contestação/meta de contestação do site). O que ainda
@@ -24,6 +25,7 @@ export default function SupervisorDashboard() {
   // Equipe de portabilidade: sem reagendamento/fatura (migration_075).
   const COLUMNS = [
     { key: 'name', label: 'Funcionário', width: '1.7fr' },
+    portabilidade && { key: 'casos', label: 'CNPJs trabalhados', width: '1fr', align: 'right' },
     { key: 'contest', label: contestacaoLabel, width: '.9fr', align: 'right' },
     !portabilidade && { key: 'resched', label: 'Reagendamentos', width: '1fr', align: 'right' },
     !portabilidade && { key: 'faturas', label: 'Faturas', width: '.8fr', align: 'right' },
@@ -34,6 +36,7 @@ export default function SupervisorDashboard() {
   const SORTS = [
     { key: 'name', label: 'Nome' },
     { key: 'contest', label: contestacaoLabel },
+    portabilidade && { key: 'casos', label: 'CNPJs trabalhados' },
     !portabilidade && { key: 'resched', label: 'Reagendamentos' },
     { key: 'commission', label: 'Comissão' },
   ].filter(Boolean)
@@ -50,10 +53,11 @@ export default function SupervisorDashboard() {
         acc.reschedGoal += p.rescheduling_goal || 0
         acc.resched += p.rescheduling_done || 0
         acc.faturas += p.faturas_done || 0
+        acc.casos += p.casos_portabilidade || 0
         acc.commission += Number(p.commission || 0)
         return acc
       },
-      { contest: 0, reschedGoal: 0, resched: 0, faturas: 0, commission: 0 }
+      { contest: 0, reschedGoal: 0, resched: 0, faturas: 0, casos: 0, commission: 0 }
     )
   }, [team])
 
@@ -69,6 +73,7 @@ export default function SupervisorDashboard() {
         contest: p.contestations_done ?? 0,
         resched: p.rescheduling_done ?? 0,
         faturas: p.faturas_done ?? 0,
+        casos: p.casos_portabilidade ?? 0,
         commission: Number(p.commission || 0),
       }
     })
@@ -90,6 +95,7 @@ export default function SupervisorDashboard() {
     contest: totals.contest,
     resched: totals.resched,
     faturas: totals.faturas,
+    casos: totals.casos,
     commission: fmtMoney(totals.commission),
     actions: '',
   }
@@ -120,6 +126,7 @@ export default function SupervisorDashboard() {
         )}
         <StatCard label={`${contestacaoLabel} (total)`} value={totals.contest} />
         {!portabilidade && <StatCard label="Faturas (total)" value={totals.faturas} />}
+        {portabilidade && <StatCard label="CNPJs trabalhados (total)" value={totals.casos} />}
         <StatCard
           label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
           value={fmtMoney(totals.commission)}
@@ -151,6 +158,8 @@ export default function SupervisorDashboard() {
           <DataTable columns={COLUMNS} rows={rows} totalRow={totalRow} renderCell={renderCell} />
         )}
       </div>
+
+      {portabilidade && <EnviosPortabilidade modo="lider" onMudou={reload} />}
 
       {editing && (
         <EditBkoModal

@@ -21,6 +21,7 @@ export default function BkoComissao() {
         {/* Equipe de portabilidade: sem reagendamento/fatura (migration_075). */}
         {!portabilidade && <StatCard label="Reagendamentos feitos" value={performance.rescheduling_done ?? 0} />}
         {!portabilidade && <StatCard label="Faturas feitas" value={performance.faturas_done ?? 0} />}
+        {portabilidade && <StatCard label="CNPJs trabalhados" value={performance.casos_portabilidade ?? 0} />}
       </div>
     </div>
   )
