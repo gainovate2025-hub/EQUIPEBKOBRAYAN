@@ -6,7 +6,7 @@ import SectionHeading from '../ui/SectionHeading'
 import Field from '../ui/Field'
 
 // Extra em dinheiro pros BKOs (pedido do Brayan em 24/11/2026). Só o
-// supervisor lança e vê; o valor soma na comissão na hora e excluir
+// supervisor (e o líder, só pra equipe dele) lança e vê; o valor soma na comissão na hora e excluir
 // desconta (migration_074). Motivo é opcional.
 
 function inicioDoMes(deslocamento = 0) {
