@@ -1,9 +1,10 @@
 -- Comprovante de fatura com CUSTCODE (pedido do Brayan em 23/11/2026:
 -- "na parte de enviar comprovante adiciona a opção de colocar o custcode").
 --
--- Coluna nova (opcional) em comprovantes_fatura e a função de registrar
--- passa a receber o custcode. O resto (checagens, +1 fatura e +R$2) é
--- igual à migration_049.
+-- Coluna nova em comprovantes_fatura e a função de registrar passa a
+-- EXIGIR o custcode (Brayan: "não é opcional, é obrigatório"). Os
+-- comprovantes antigos ficam sem custcode. O resto (checagens, +1 fatura
+-- e +R$2) é igual à migration_049.
 --
 -- Rode no SQL Editor do Supabase. Seguro rodar mais de uma vez.
 
@@ -26,6 +27,9 @@ as $$
 begin
   if trim(coalesce(p_arquivo_path, '')) = '' or trim(coalesce(p_arquivo_url, '')) = '' then
     raise exception 'Arquivo do comprovante não encontrado.';
+  end if;
+  if trim(coalesce(p_custcode, '')) !~ '^\d+\.\d+$' then
+    raise exception 'Preencha o CUSTCODE (ex: 7.2248162).';
   end if;
   if not exists (select 1 from public.profiles where id = auth.uid() and role = 'bko') then
     raise exception 'Só BKO pode enviar comprovante.';

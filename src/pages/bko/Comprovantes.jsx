@@ -25,6 +25,8 @@ export default function BkoComprovantes() {
   async function enviar(e) {
     e.preventDefault()
     if (!arquivo) return showToast('Escolha um arquivo primeiro.', 'error')
+    // CUSTCODE é obrigatório (Brayan, 23/11/2026). Formato tipo 7.2248162.
+    if (!/^\d+\.\d+$/.test(custcode.trim())) return showToast('Preencha o CUSTCODE (ex: 7.2248162).', 'error')
     setEnviando(true)
     try {
       const extensao = arquivo.name.split('.').pop()
@@ -63,11 +65,12 @@ export default function BkoComprovantes() {
               onChange={(e) => setArquivo(e.target.files?.[0] || null)}
             />
           </label>
-          {/* CUSTCODE do cliente (23/11/2026). Opcional; só aceita número e ponto. */}
+          {/* CUSTCODE do cliente (23/11/2026). Obrigatório; só aceita número e ponto. */}
           <label className="tim-label">
-            CUSTCODE (opcional)
+            CUSTCODE *
             <input
               className="field-input"
+              required
               value={custcode}
               onChange={(e) => setCustcode(e.target.value.replace(/[^\d.]/g, ''))}
               placeholder="ex: 7.2248162"
