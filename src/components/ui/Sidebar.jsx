@@ -2,11 +2,13 @@ import { NavLink } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import { useAuth } from '../../lib/AuthContext'
 import Logo from './Logo'
+import { menuDaEquipe } from '../../lib/equipe'
 
 // className: o AppShell esconde a sidebar no celular e reaproveita ela
 // como gaveta (10/11/2026).
 export default function Sidebar({ title, items, className = '' }) {
-  const { signOut } = useAuth()
+  const { signOut, portabilidade } = useAuth()
+  const itens = menuDaEquipe(items, portabilidade)
 
   return (
     <aside className={`sidebar ${className}`}>
@@ -17,7 +19,7 @@ export default function Sidebar({ title, items, className = '' }) {
       </div>
 
       <nav className="flex flex-1 flex-col gap-0.5 px-2 py-3">
-        {items.map((item) => (
+        {itens.map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

@@ -10,7 +10,7 @@ import { fmtMoney } from '../lib/helpers'
 const COR_POSICAO = ['bg-medal-gold text-ink', 'bg-medal-silver text-ink', 'bg-medal-bronze text-white']
 
 export default function Ranking() {
-  const { profile, contestacaoLabel } = useAuth()
+  const { profile, contestacaoLabel, portabilidade } = useAuth()
   const { toast, showToast } = useToast()
   const [rows, setRows] = useState([])
   const [loading, setLoading] = useState(true)
@@ -50,7 +50,8 @@ export default function Ranking() {
               <div className="min-w-0 flex-1">
                 <span className="font-semibold">{r.name}{isMe ? ' (você)' : ''}</span>
                 <div className="text-xs text-muted">
-                  {perf.contestations_done ?? 0} {contestacaoLabel.toLowerCase()} · {perf.rescheduling_done ?? 0} reagendamentos · {perf.faturas_done ?? 0} faturas
+                  {perf.contestations_done ?? 0} {contestacaoLabel.toLowerCase()}
+                  {!portabilidade && <> · {perf.rescheduling_done ?? 0} reagendamentos · {perf.faturas_done ?? 0} faturas</>}
                 </div>
               </div>
               <span className="text-lg font-bold text-brand-700">{fmtMoney(perf.commission)}</span>

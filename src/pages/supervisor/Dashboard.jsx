@@ -17,25 +17,26 @@ import { fmtMoney, pct } from '../../lib/helpers'
 // removida).
 export default function SupervisorDashboard() {
   const { team, loading, error, reload } = useSupervisorData()
-  const { profile } = useAuth()
+  const { profile, contestacaoLabel, portabilidade } = useAuth()
   const { toast, showToast } = useToast()
   const isLider = profile?.role === 'lider'
 
+  // Equipe de portabilidade: sem reagendamento/fatura (migration_075).
   const COLUMNS = [
     { key: 'name', label: 'Funcionário', width: '1.7fr' },
-    { key: 'contest', label: 'Contestações', width: '.9fr', align: 'right' },
-    { key: 'resched', label: 'Reagendamentos', width: '1fr', align: 'right' },
-    { key: 'faturas', label: 'Faturas', width: '.8fr', align: 'right' },
+    { key: 'contest', label: contestacaoLabel, width: '.9fr', align: 'right' },
+    !portabilidade && { key: 'resched', label: 'Reagendamentos', width: '1fr', align: 'right' },
+    !portabilidade && { key: 'faturas', label: 'Faturas', width: '.8fr', align: 'right' },
     { key: 'commission', label: 'Comissão', width: '.9fr', align: 'right' },
     { key: 'actions', label: '', width: '.7fr', align: 'right' },
-  ]
+  ].filter(Boolean)
 
   const SORTS = [
     { key: 'name', label: 'Nome' },
-    { key: 'contest', label: 'Contestações' },
-    { key: 'resched', label: 'Reagendamentos' },
+    { key: 'contest', label: contestacaoLabel },
+    !portabilidade && { key: 'resched', label: 'Reagendamentos' },
     { key: 'commission', label: 'Comissão' },
-  ]
+  ].filter(Boolean)
   const [editing, setEditing] = useState(null)
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState('name')
@@ -108,15 +109,17 @@ export default function SupervisorDashboard() {
       {/* Reagendamentos aparece uma vez só (10/11/2026): antes tinha um
           cartão de meta e outro de realizados mostrando a mesma coisa. */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          label="Reagendamentos"
-          value={`${totals.resched} / ${totals.reschedGoal}`}
-          sub={`${pctReagendamentos}% da meta`}
-          pct={pctReagendamentos}
-          showStatus
-        />
-        <StatCard label="Contestações (total)" value={totals.contest} />
-        <StatCard label="Faturas (total)" value={totals.faturas} />
+        {!portabilidade && (
+          <StatCard
+            label="Reagendamentos"
+            value={`${totals.resched} / ${totals.reschedGoal}`}
+            sub={`${pctReagendamentos}% da meta`}
+            pct={pctReagendamentos}
+            showStatus
+          />
+        )}
+        <StatCard label={`${contestacaoLabel} (total)`} value={totals.contest} />
+        {!portabilidade && <StatCard label="Faturas (total)" value={totals.faturas} />}
         <StatCard
           label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
           value={fmtMoney(totals.commission)}

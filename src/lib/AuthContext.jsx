@@ -13,11 +13,20 @@ export function AuthProvider({ children }) {
       setProfile(null)
       return
     }
-    const { data, error } = await supabase
+    const campos = 'id, name, username, role, active, team_id'
+    let { data, error } = await supabase
       .from('profiles')
-      .select('id, name, username, role, active, team_id, teams(name, contestacao_label)')
+      .select(`${campos}, teams(name, contestacao_label, tipo)`)
       .eq('id', userId)
       .single()
+    // Antes da migration_075 a coluna teams.tipo não existe: tenta sem ela.
+    if (error && /tipo/i.test(error.message)) {
+      ;({ data, error } = await supabase
+        .from('profiles')
+        .select(`${campos}, teams(name, contestacao_label)`)
+        .eq('id', userId)
+        .single())
+    }
     if (error) {
       console.error('Falha ao carregar perfil:', error.message)
       setProfile(null)
@@ -81,6 +90,9 @@ export function AuthProvider({ children }) {
     profile,
     role: profile?.role ?? null,
     contestacaoLabel: profile?.teams?.contestacao_label || 'Contestações',
+    // Equipe de portabilidade (ex.: Isaque): o site esconde o que é só de
+    // contestação (migration_075).
+    portabilidade: profile?.teams?.tipo === 'portabilidade',
     loading,
     signIn,
     signOut,

@@ -5,7 +5,7 @@ import { useAuth } from '../lib/AuthContext'
 import { updateLogin, updatePerformance, atualizarNomePerfil } from '../lib/api'
 
 export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
-  const { contestacaoLabel } = useAuth()
+  const { contestacaoLabel, portabilidade } = useAuth()
   const perf = bko.performance || {}
   const [form, setForm] = useState({
     name: bko.name,
@@ -76,12 +76,16 @@ export default function EditBkoModal({ bko, onClose, onSaved, showToast }) {
           <Field label={`${contestacaoLabel} realizadas`}>
             <input type="number" min="0" className="field-input" value={form.contestations_done} onChange={(e) => update('contestations_done', e.target.value)} />
           </Field>
-          <Field label="Meta de reagendamentos">
-            <input type="number" min="0" className="field-input" value={form.rescheduling_goal} onChange={(e) => update('rescheduling_goal', e.target.value)} />
-          </Field>
-          <Field label="Reagendamentos realizados">
-            <input type="number" min="0" className="field-input" value={form.rescheduling_done} onChange={(e) => update('rescheduling_done', e.target.value)} />
-          </Field>
+          {!portabilidade && (
+            <>
+              <Field label="Meta de reagendamentos">
+                <input type="number" min="0" className="field-input" value={form.rescheduling_goal} onChange={(e) => update('rescheduling_goal', e.target.value)} />
+              </Field>
+              <Field label="Reagendamentos realizados">
+                <input type="number" min="0" className="field-input" value={form.rescheduling_done} onChange={(e) => update('rescheduling_done', e.target.value)} />
+              </Field>
+            </>
+          )}
         </div>
 
         <div className="mt-1 flex justify-end gap-3">

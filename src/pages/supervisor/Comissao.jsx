@@ -9,14 +9,18 @@ import { useToast } from '../../lib/useToast'
 import { updatePerformance } from '../../lib/api'
 import { fmtMoney } from '../../lib/helpers'
 import ExtrasBko from '../../components/comissao/ExtrasBko'
+import { useAuth } from '../../lib/AuthContext'
 
-const COLUMNS = [
-  { key: 'name', label: 'BKO', width: '2fr' },
-  { key: 'contest', label: 'Contestações', width: '.8fr', align: 'right' },
-  { key: 'resched', label: 'Reagendamentos', width: '.9fr', align: 'right' },
-  { key: 'faturas', label: 'Faturas', width: '.7fr', align: 'right' },
-  { key: 'commission', label: 'Comissão', width: '1fr', align: 'right' },
-]
+// Equipe de portabilidade: sem reagendamento/fatura (migration_075).
+function colunas(contestacaoLabel, portabilidade) {
+  return [
+    { key: 'name', label: 'BKO', width: '2fr' },
+    { key: 'contest', label: contestacaoLabel, width: '.8fr', align: 'right' },
+    !portabilidade && { key: 'resched', label: 'Reagendamentos', width: '.9fr', align: 'right' },
+    !portabilidade && { key: 'faturas', label: 'Faturas', width: '.7fr', align: 'right' },
+    { key: 'commission', label: 'Comissão', width: '1fr', align: 'right' },
+  ].filter(Boolean)
+}
 
 // Mostra quantos casos de cada tipo cada BKO já fez (contestação/
 // reagendamento/fatura, contagem histórica, não depende mais das telas
@@ -25,6 +29,8 @@ const COLUMNS = [
 export default function Comissao() {
   const { team, loading, reload } = useSupervisorData()
   const { toast, showToast } = useToast()
+  const { contestacaoLabel, portabilidade } = useAuth()
+  const COLUMNS = colunas(contestacaoLabel, portabilidade)
 
   const rows = useMemo(
     () => team
@@ -59,7 +65,7 @@ export default function Comissao() {
       </div>
 
       <div className="mt-9 flex flex-col gap-4">
-        <SectionHeading title="Comissão por BKO" hint="Contestações e reagendamentos são só contagem. Clique no valor de faturas ou comissão pra ajustar." />
+        <SectionHeading title="Comissão por BKO" hint={portabilidade ? `${contestacaoLabel} é só contagem. Clique no valor da comissão pra ajustar.` : 'Contestações e reagendamentos são só contagem. Clique no valor de faturas ou comissão pra ajustar.'} />
         {loading ? (
           <p className="text-sm text-muted">Carregando…</p>
         ) : (
