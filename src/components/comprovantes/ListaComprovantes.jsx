@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { FileText, ExternalLink, Trash2, CheckSquare, Square } from 'lucide-react'
+import { FileText, ExternalLink, Trash2, CheckSquare, Square, Hourglass } from 'lucide-react'
 import { supabase } from '../../lib/supabaseClient'
 
 // Lista dos comprovantes de fatura enviados, com filtro de período e
@@ -92,7 +92,7 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
   async function excluir(ids) {
     if (ids.length === 0) return
     const texto = ids.length === 1 ? 'este comprovante' : `estes ${ids.length} comprovantes`
-    if (!window.confirm(`Excluir ${texto}? Some o arquivo e desconta -1 fatura e -R$2 da comissão de quem enviou (por comprovante). Não dá pra desfazer.`)) return
+    if (!window.confirm(`Excluir ${texto}? Some o arquivo e desconta -1 fatura e -R$2 da comissão de quem enviou (por comprovante; os que estão aguardando comprovante não descontam nada). Não dá pra desfazer.`)) return
     setExcluindo(true)
     setErro('')
     setAviso('')
@@ -101,7 +101,9 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
     // apagar arquivo pelo SQL — migration_072).
     const { data: caminhos, error } = await supabase.rpc('excluir_comprovantes_fatura', { p_ids: ids })
     if (!error && caminhos?.length) {
-      await supabase.storage.from('comprovantes').remove(caminhos.map((c) => (typeof c === 'string' ? c : Object.values(c)[0])))
+      // Os que estavam aguardando comprovante não têm arquivo (vem vazio).
+      const arquivos = caminhos.map((c) => (typeof c === 'string' || c == null ? c : Object.values(c)[0])).filter(Boolean)
+      if (arquivos.length) await supabase.storage.from('comprovantes').remove(arquivos)
     }
     setExcluindo(false)
     if (error) {
@@ -127,6 +129,7 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
   }, [linhas])
 
   const visiveis = pessoa ? linhas.filter((l) => (l.profiles?.name || 'Alguém') === pessoa) : linhas
+  const aguardando = visiveis.filter((c) => !c.arquivo_path).length
   const todosMarcados = visiveis.length > 0 && visiveis.every((c) => selecionados.has(c.id))
 
   return (
@@ -172,7 +175,7 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
       {aviso && <p className="text-sm font-medium text-good-text">{aviso}</p>}
 
       <div className="flex flex-wrap items-center gap-2">
-        <p className="mr-auto text-xs font-medium text-muted">{carregando ? 'Carregando…' : `${visiveis.length} comprovante${visiveis.length === 1 ? '' : 's'}`}</p>
+        <p className="mr-auto text-xs font-medium text-muted">{carregando ? 'Carregando…' : `${visiveis.length} comprovante${visiveis.length === 1 ? '' : 's'}${aguardando ? ` · ${aguardando} aguardando comprovante (não conta ainda)` : ''}`}</p>
         {!carregando && visiveis.length > 0 && !selecionando && (
           <button type="button" className="btn-outline btn-sm" onClick={() => setSelecionando(true)}>
             <CheckSquare size={14} /> Selecionar pra excluir
@@ -208,9 +211,15 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {visiveis.map((c) => {
             const marcado = selecionados.has(c.id)
+            const semArquivo = !c.arquivo_path
             const conteudo = (<>
               <div className="flex h-36 items-center justify-center bg-paper">
-                {ehImagem(c) ? (
+                {semArquivo ? (
+                  // CUSTCODE mandado sem comprovante (migration_077).
+                  <span className="flex flex-col items-center gap-1 px-2 text-center font-medium text-warn-text">
+                    <Hourglass size={26} /> Aguardando comprovante
+                  </span>
+                ) : ehImagem(c) ? (
                   <img src={c.arquivo_url} alt="Comprovante" loading="lazy" className="h-full w-full object-cover" />
                 ) : (
                   <span className="flex flex-col items-center gap-1 text-muted">
@@ -234,6 +243,8 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
                       {marcado ? <CheckSquare size={18} className="text-bad-text" /> : <Square size={18} />}
                     </span>
                   </button>
+                ) : semArquivo ? (
+                  <div className="flex flex-col">{conteudo}</div>
                 ) : (
                   <a href={c.arquivo_url} target="_blank" rel="noreferrer" className="flex flex-col hover:opacity-90" title="Abrir o comprovante">
                     {conteudo}
@@ -243,7 +254,7 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
                 <div className="flex items-center gap-1 px-2.5 pb-2 pt-1 text-muted">
                   <span className="mr-auto">{dataHora(c.enviado_em)}</span>
                   {!selecionando && (<>
-                    <a
+                    {!semArquivo && <a
                       href={c.arquivo_url}
                       target="_blank"
                       rel="noreferrer"
@@ -252,7 +263,7 @@ export default function ListaComprovantes({ somenteUsuarioId = null, mostrarPess
                       aria-label="Abrir o comprovante"
                     >
                       <ExternalLink size={16} />
-                    </a>
+                    </a>}
                     <button
                       type="button"
                       className="rounded-md p-1.5 text-bad-text hover:bg-bad-bg"

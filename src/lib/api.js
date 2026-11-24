@@ -208,6 +208,35 @@ export async function registrarComprovanteFatura(arquivoPath, arquivoUrl, observ
   if (error) throw new Error(error.message || 'Falha ao registrar comprovante.')
 }
 
+// CUSTCODE sem comprovante (24/11/2026, migration_077): fica "Aguardando
+// comprovante" e só conta na comissão quando o arquivo for anexado.
+function erroAguardando(error, padrao) {
+  if (/registrar_custcode_aguardando|anexar_comprovante_fatura|schema cache|function/i.test(error.message || '')) {
+    return new Error('Essa opção ainda não foi ativada no banco: rode a migration_077 no SQL Editor do Supabase.')
+  }
+  return new Error(error.message || padrao)
+}
+
+export async function registrarCustcodeAguardando(custcode, observacao = '') {
+  const { error } = await supabase.rpc('registrar_custcode_aguardando', { p_custcode: custcode, p_observacao: observacao })
+  if (error) throw erroAguardando(error, 'Falha ao enviar o CUSTCODE.')
+}
+
+export async function anexarComprovanteFatura(id, arquivoPath, arquivoUrl) {
+  const { error } = await supabase.rpc('anexar_comprovante_fatura', { p_id: id, p_arquivo_path: arquivoPath, p_arquivo_url: arquivoUrl })
+  if (error) throw erroAguardando(error, 'Falha ao anexar o comprovante.')
+}
+
+// Sobe o arquivo do comprovante pro Storage e devolve { caminho, url }.
+export async function subirArquivoComprovante(userId, arquivo) {
+  const extensao = arquivo.name.split('.').pop()
+  const caminho = `${userId}/${Date.now()}.${extensao}`
+  const { error } = await supabase.storage.from('comprovantes').upload(caminho, arquivo)
+  if (error) throw error
+  const { data: pub } = supabase.storage.from('comprovantes').getPublicUrl(caminho)
+  return { caminho, url: pub.publicUrl }
+}
+
 // ---------- custcode de fatura: BKO manda, depois de 5 dias sem sair
 // cai numa lista pra o supervisor verificar e marcar Saiu/Refazer ----------
 export async function fetchCustcodesFatura({ bkoId, teamId } = {}) {
