@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../../lib/supabaseClient'
 import { useSupervisorData } from '../../lib/SupervisorDataContext'
 import StatCard from '../../components/ui/StatCard'
 import SectionHeading from '../../components/ui/SectionHeading'
@@ -18,7 +19,8 @@ import EnviosPortabilidade from '../../components/portabilidade/EnviosPortabilid
 // removida).
 export default function SupervisorDashboard() {
   const { team, loading, error, reload } = useSupervisorData()
-  const { profile, contestacaoLabel, portabilidade } = useAuth()
+  const { profile, user, contestacaoLabel, portabilidade } = useAuth()
+  const eu = useMeuMes(user?.id)
   const { toast, showToast } = useToast()
   const isLider = profile?.role === 'lider'
 
@@ -45,7 +47,8 @@ export default function SupervisorDashboard() {
   const [sortKey, setSortKey] = useState('name')
   const [sortDir, setSortDir] = useState('asc')
 
-  const totals = useMemo(() => {
+  // Só os BKOs (base da "Minha comissão": metade disso).
+  const totaisBkos = useMemo(() => {
     return team.reduce(
       (acc, b) => {
         const p = b.performance || {}
@@ -60,6 +63,18 @@ export default function SupervisorDashboard() {
       { contest: 0, reschedGoal: 0, resched: 0, faturas: 0, casos: 0, commission: 0 }
     )
   }, [team])
+
+  // 26/11/2026 (Brayan): o que ele mesmo faz (lançado no "Meu relatório"
+  // deste mês) conta no total da equipe. Vale igual BKO: contestação R$2,
+  // fatura R$2, reagendamento R$1.
+  const totals = useMemo(() => ({
+    ...totaisBkos,
+    contest: totaisBkos.contest + eu.contest,
+    resched: totaisBkos.resched + eu.resched,
+    faturas: totaisBkos.faturas + eu.faturas,
+    commission: totaisBkos.commission + eu.commission,
+  }), [totaisBkos, eu])
+  const minhaComissao = totaisBkos.commission / 2 + eu.commission
 
   const pctReagendamentos = pct(totals.resched, totals.reschedGoal)
 
@@ -77,6 +92,9 @@ export default function SupervisorDashboard() {
         commission: Number(p.commission || 0),
       }
     })
+    if (eu.temAlgo) {
+      list.push({ key: 'eu', eu: true, name: `${profile?.name || 'Você'} (você)`, contest: eu.contest, resched: eu.resched, faturas: eu.faturas, casos: 0, commission: eu.commission })
+    }
 
     if (search.trim()) {
       const q = search.trim().toLowerCase()
@@ -88,7 +106,7 @@ export default function SupervisorDashboard() {
       return (a[sortKey] - b[sortKey]) * dir
     })
     return list
-  }, [team, search, sortKey, sortDir])
+  }, [team, search, sortKey, sortDir, eu, profile])
 
   const totalRow = {
     name: 'Total da equipe',
@@ -104,6 +122,7 @@ export default function SupervisorDashboard() {
     if (row.key === undefined) return row[key]
     if (key === 'name') return <span className="font-medium">{row.name}</span>
     if (key === 'commission') return fmtMoney(row.commission)
+    if (key === 'actions' && row.eu) return <span className="text-xs text-muted">Meu relatório</span>
     if (key === 'actions') return (
       <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(row.bko)}>Editar</button>
     )
@@ -114,7 +133,7 @@ export default function SupervisorDashboard() {
     <div className="flex flex-col gap-8">
       {/* Reagendamentos aparece uma vez só (10/11/2026): antes tinha um
           cartão de meta e outro de realizados mostrando a mesma coisa. */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className={`grid grid-cols-1 gap-4 sm:grid-cols-2 ${eu.ativo ? 'lg:grid-cols-5' : 'lg:grid-cols-4'}`}>
         {!portabilidade && (
           <StatCard
             label="Reagendamentos"
@@ -130,7 +149,15 @@ export default function SupervisorDashboard() {
         <StatCard
           label={isLider ? 'Comissão acumulada da equipe' : 'Comissão acumulada'}
           value={fmtMoney(totals.commission)}
+          sub={eu.temAlgo ? `inclui ${fmtMoney(eu.commission)} seus` : undefined}
         />
+        {eu.ativo && (
+          <StatCard
+            label="Minha comissão"
+            value={fmtMoney(minhaComissao)}
+            sub={`metade dos BKOs ${fmtMoney(totaisBkos.commission / 2)} + seu ${fmtMoney(eu.commission)}`}
+          />
+        )}
       </div>
 
       <div className="flex flex-col gap-3">
@@ -172,4 +199,31 @@ export default function SupervisorDashboard() {
       <Toast toast={toast} />
     </div>
   )
+}
+
+// Soma do "Meu relatório" do mês atual (migration_078). O painel é zerado
+// todo mês, então só o mês atual conta. Sem a tabela: tudo zero (ativo=false).
+function useMeuMes(userId) {
+  const [eu, setEu] = useState({ contest: 0, faturas: 0, resched: 0, commission: 0, temAlgo: false, ativo: false })
+  useEffect(() => {
+    if (!userId) return
+    const d = new Date()
+    const ini = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`
+    supabase
+      .from('relatorios_pessoais')
+      .select('contestacoes, faturas, reagendamentos')
+      .eq('user_id', userId)
+      .gte('data', ini)
+      .then(({ data, error }) => {
+        if (error) return
+        const s = (data || []).reduce((t, l) => ({
+          contest: t.contest + (l.contestacoes || 0),
+          faturas: t.faturas + (l.faturas || 0),
+          resched: t.resched + (l.reagendamentos || 0),
+        }), { contest: 0, faturas: 0, resched: 0 })
+        const commission = s.contest * 2 + s.faturas * 2 + s.resched * 1
+        setEu({ ...s, commission, temAlgo: (data || []).length > 0, ativo: true })
+      })
+  }, [userId])
+  return eu
 }
