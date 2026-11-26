@@ -7,7 +7,7 @@ import { homeFor } from '../lib/ProtectedRoute'
 import { supabaseConfigured } from '../lib/supabaseClient'
 
 export default function Login() {
-  const { signIn, profile, loading } = useAuth()
+  const { signIn, profile, loading, avisoLogin } = useAuth()
   const navigate = useNavigate()
 
   const [username, setUsername] = useState('')
@@ -123,7 +123,7 @@ export default function Login() {
             <p className="-mt-2 text-xs text-muted">Fale com seu supervisor ou líder pra redefinir sua senha.</p>
           )}
 
-          {error && <div className="text-sm font-medium text-bad-text">{error}</div>}
+          {(error || avisoLogin) && <div className="text-sm font-medium text-bad-text">{error || avisoLogin}</div>}
 
           <button type="submit" className="btn-primary" disabled={submitting}>
             {submitting ? 'Entrando…' : 'Entrar'}

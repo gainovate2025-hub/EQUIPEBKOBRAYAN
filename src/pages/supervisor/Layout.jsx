@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Percent, Trophy, Settings, Zap, PhoneCall, TrendingUp, Receipt, CalendarClock, Hash,
+  LayoutDashboard, Percent, Trophy, Settings, Zap, PhoneCall, TrendingUp, Receipt, CalendarClock, Hash, NotebookPen,
 } from 'lucide-react'
 import AppShell from '../../components/ui/AppShell'
 import { SupervisorDataProvider } from '../../lib/SupervisorDataContext'
@@ -14,6 +14,7 @@ const NAV_ITEMS = [
   { to: '/supervisor/automacoes', label: 'Automações', icon: Zap },
   { to: '/supervisor/venda-cnpj', label: 'Consulta CNPJ e venda', icon: PhoneCall },
   { to: '/supervisor/vendas-desempenho', label: 'Desempenho de vendas', icon: TrendingUp },
+  { to: '/supervisor/meu-relatorio', label: 'Meu relatório', icon: NotebookPen },
   { to: '/supervisor/configuracoes', label: 'Configurações', icon: Settings },
 ]
 

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useAuth } from '../../lib/AuthContext'
+import { useEffect, useState } from 'react'
+import { useAuth, idDoDispositivo } from '../../lib/AuthContext'
 import { supabase } from '../../lib/supabaseClient'
 import { atualizarNomePerfil } from '../../lib/api'
 import Secao from '../../components/ui/Secao'
@@ -62,6 +62,8 @@ export default function Configuracoes() {
         </form>
       </Secao>
 
+      {profile?.role === 'supervisor' && <TravaComputador showToast={showToast} />}
+
       {profile?.role === 'supervisor' && (
         <>
           <Secao titulo="Planilha de vendas">
@@ -83,5 +85,58 @@ export default function Configuracoes() {
 
       <Toast toast={toast} />
     </div>
+  )
+}
+
+// Trava do login neste computador (migration_078, pedido do Brayan em
+// 26/11/2026: "não quero que meu login apareça em outro computador a não
+// ser o meu"). Ligada, qualquer outro computador que entrar com esse login
+// é deslogado na hora, e as sessões abertas em outros lugares caem.
+function TravaComputador({ showToast }) {
+  const [travado, setTravado] = useState(null) // null = carregando
+  const [ativa, setAtiva] = useState(true) // false = migration ainda não rodou
+  const [salvando, setSalvando] = useState(false)
+  const meu = idDoDispositivo()
+
+  useEffect(() => {
+    supabase.rpc('meu_dispositivo_travado').then(({ data, error }) => {
+      if (error) { setAtiva(false); setTravado(''); return }
+      setTravado(data || '')
+    })
+  }, [])
+
+  async function mudar(ligar) {
+    if (ligar && !window.confirm('Travar o seu login NESTE computador? Em qualquer outro computador ou celular ele vai ser deslogado na hora. Se você limpar os dados deste navegador, vai precisar destravar pelo Supabase.')) return
+    setSalvando(true)
+    const { error } = await supabase.rpc('travar_meu_dispositivo', { p_dispositivo: ligar ? meu : '' })
+    if (!error && ligar) await supabase.auth.signOut({ scope: 'others' })
+    setSalvando(false)
+    if (error) return showToast(error.message, 'error')
+    setTravado(ligar ? meu : '')
+    showToast(ligar ? 'Login travado neste computador. As outras sessões foram derrubadas.' : 'Trava desligada: o login volta a entrar de qualquer computador.')
+  }
+
+  return (
+    <Secao titulo="Login só neste computador" className="max-w-md">
+      {!ativa ? (
+        <p className="text-sm text-muted">Ainda não foi ativado no banco: rode a migration_078 no SQL Editor do Supabase.</p>
+      ) : travado === null ? (
+        <p className="text-sm text-muted">Carregando…</p>
+      ) : (
+        <div className="flex flex-col gap-3 text-sm">
+          {travado === meu && <p className="font-medium text-good-text">Ligado: seu login só entra neste computador.</p>}
+          {travado && travado !== meu && <p className="font-medium text-warn-text">Ligado em OUTRO computador.</p>}
+          {!travado && <p className="text-muted">Desligado: seu login entra de qualquer computador.</p>}
+          <p className="text-xs text-muted">Com a trava ligada, quem tentar entrar com o seu usuário em outro computador é deslogado na hora.</p>
+          {travado === meu ? (
+            <button type="button" className="btn-outline self-start" disabled={salvando} onClick={() => mudar(false)}>Desligar a trava</button>
+          ) : (
+            <button type="button" className="btn-primary self-start" disabled={salvando} onClick={() => mudar(true)}>
+              {travado ? 'Travar neste computador (troca)' : 'Travar meu login neste computador'}
+            </button>
+          )}
+        </div>
+      )}
+    </Secao>
   )
 }

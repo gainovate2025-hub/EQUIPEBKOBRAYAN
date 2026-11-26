@@ -21,6 +21,7 @@ import BkoComprovantes from './pages/bko/Comprovantes'
 import BkoReagendamentos from './pages/bko/Reagendamentos'
 import BkoCustCode from './pages/bko/CustCode'
 import Ranking from './pages/Ranking'
+import MeuRelatorio from './pages/MeuRelatorio'
 
 import OperacaoLayout from './pages/operacao/Layout'
 import OperacaoConfiguracoes from './pages/supervisor/Configuracoes'
@@ -53,6 +54,7 @@ export default function App() {
         <Route path="automacoes" element={<SupervisorAutomacoes />} />
         <Route path="venda-cnpj" element={<OperacaoVendaCnpj />} />
         <Route path="vendas-desempenho" element={<SupervisorVendasDesempenho />} />
+        <Route path="meu-relatorio" element={<MeuRelatorio />} />
         <Route path="configuracoes" element={<SupervisorConfiguracoes />} />
       </Route>
 
